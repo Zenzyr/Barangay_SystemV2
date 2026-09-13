@@ -1,0 +1,49 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon --exec ts-node index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "seed:census": "ts-node scripts/seedResidentCensus.ts",
+    "import:census": "ts-node scripts/importResidentCensus.ts",
+    "seed:rules": "ts-node scripts/seedRecommendationRules.ts",
+    "seed:secretary": "ts-node scripts/createSecretary.ts",
+    "seed:superadmin": "ts-node scripts/createSuperAdmin.ts",
+    "migrate:roles": "ts-node scripts/migrateRoles.ts",
+    "migrate:roles:apply": "ts-node scripts/migrateRoles.ts --apply",
+    "seed:settings": "ts-node scripts/seedSettings.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@types/mongoose": "^5.11.96",
+    "bcrypt": "^6.0.0",
+    "cloudinary": "^2.8.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.15.0",
+    "multer": "^2.0.2",
+    "node-fetch": "^3.3.2",
+    "nodemailer": "^6.9.16",
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/cors": "^2.8.18",
+    "@types/express": "^5.0.1",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^22.15.2",
+    "@types/nodemailer": "^6.4.17",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}

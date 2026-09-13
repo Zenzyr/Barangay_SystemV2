@@ -1,0 +1,45 @@
+{
+  "document": "certificationOfTreesCutting",
+  "name": "Certification of Trees Cutting",
+  "engine": "docxtemplater",
+  "templateFile": "/assets/document-template/certification-of-trees-cutting-template.docx",
+  "originalFile": "/assets/document-template/certificate-of-trees-cutting (1).docx",
+  "delimiters": { "start": "{{", "end": "}}" },
+  "signatories": [
+    { "role": "Punong Barangay", "required": true, "label": "Certified by:", "title": "Punong Barangay" }
+  ],
+  "variables": [
+    "certificate.mrMrs",
+    "resident.fullName",
+    "property.titleNumber",
+    "property.taxDeclarationNo",
+    "tree.countWord",
+    "tree.count",
+    "tree.type",
+    "certificate.dayOrdinal",
+    "certificate.month",
+    "certificate.year",
+    "officials.punongBarangay"
+  ],
+  "requiredFields": [
+    "resident.fullName",
+    "property.titleNumber",
+    "property.taxDeclarationNo",
+    "tree.type",
+    "tree.count",
+    "officials.punongBarangay"
+  ],
+  "dataMapping": [
+    { "variable": "certificate.mrMrs", "source": "male -> Mr.; female married/widow -> Mrs.; else Ms." },
+    { "variable": "resident.fullName", "source": "doc.resident.name ?? doc.fullName" },
+    { "variable": "property.titleNumber", "source": "doc.titleNo (e.g., RT-025-2012002046)" },
+    { "variable": "property.taxDeclarationNo", "source": "doc.taxDeclarationNo" },
+    { "variable": "tree.countWord", "source": "number word of doc.treeCount (e.g., three)" },
+    { "variable": "tree.count", "source": "doc.treeCount (arabic numeral)" },
+    { "variable": "tree.type", "source": "doc.treeType (e.g., Gemelina)" },
+    { "variable": "certificate.dayOrdinal", "source": "day number + uppercase ordinal from doc.dateIssued (e.g., 14TH)" },
+    { "variable": "certificate.month", "source": "formatDateParts(doc.dateIssued).month" },
+    { "variable": "certificate.year", "source": "formatDateParts(doc.dateIssued).year" },
+    { "variable": "officials.punongBarangay", "source": "activeByPosition['Punong Barangay']" }
+  ]
+}

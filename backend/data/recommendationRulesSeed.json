@@ -1,0 +1,90 @@
+[
+  {
+    "category": "Employment",
+    "problemName": "High Unemployment",
+    "indicator": "unemploymentRateHeuristic",
+    "operator": ">",
+    "threshold": 20,
+    "programName": "Livelihood and Skills Training Program",
+    "priorityLevel": "HIGH",
+    "description": "Triggered when the heuristic unemployment rate among working-age residents exceeds the configured threshold.",
+    "status": "active"
+  },
+  {
+    "category": "Education",
+    "problemName": "High Out-of-School Rate",
+    "indicator": "outOfSchoolRateHeuristic",
+    "operator": ">",
+    "threshold": 10,
+    "programName": "Educational Assistance / Alternative Learning Program",
+    "priorityLevel": "HIGH",
+    "description": "Triggered when the share of school-age residents (5-17) with no recorded education level exceeds the threshold.",
+    "status": "active"
+  },
+  {
+    "category": "Senior Citizens",
+    "problemName": "Significant Senior Citizen Population",
+    "indicator": "seniorCitizenRate",
+    "operator": ">",
+    "threshold": 10,
+    "programName": "Senior Citizen Support and Wellness Program",
+    "priorityLevel": "MODERATE",
+    "description": "Triggered when senior citizens make up a significant share of the resident population.",
+    "status": "active"
+  },
+  {
+    "category": "Persons with Disabilities",
+    "problemName": "Notable PWD Population",
+    "indicator": "pwdRate",
+    "operator": ">",
+    "threshold": 5,
+    "programName": "PWD Assistance and Skills Development Program",
+    "priorityLevel": "MODERATE",
+    "description": "Triggered when persons with disabilities make up a notable share of the resident population.",
+    "status": "active"
+  },
+  {
+    "category": "Social and Household Welfare",
+    "problemName": "High 4Ps Dependency",
+    "indicator": "fourPsRate",
+    "operator": ">",
+    "threshold": 15,
+    "programName": "Sustainable Livelihood Support Program",
+    "priorityLevel": "HIGH",
+    "description": "Triggered when a large share of residents rely on the 4Ps conditional cash transfer program, indicating a need for complementary livelihood support.",
+    "status": "active"
+  },
+  {
+    "category": "Social and Household Welfare",
+    "problemName": "High Solo Parent Rate",
+    "indicator": "soloParentRate",
+    "operator": ">",
+    "threshold": 5,
+    "programName": "Solo Parent Support Program",
+    "priorityLevel": "MODERATE",
+    "description": "Triggered when solo parents make up a significant share of the resident population.",
+    "status": "active"
+  },
+  {
+    "category": "Health and Nutrition",
+    "problemName": "High Chronic Disease Maintenance Burden",
+    "indicator": "hpnMaintenanceRate",
+    "operator": ">",
+    "threshold": 15,
+    "programName": "Community Health and Chronic Disease Management Program",
+    "priorityLevel": "MODERATE",
+    "description": "Triggered when a large share of residents require ongoing hypertension/diabetes (HPN) medication maintenance.",
+    "status": "active"
+  },
+  {
+    "category": "Youth",
+    "problemName": "Large Youth Population Share",
+    "indicator": "youthRate",
+    "operator": ">",
+    "threshold": 20,
+    "programName": "Youth Development and Sports Program",
+    "priorityLevel": "LOW",
+    "description": "Triggered when youth (ages 15-30) make up a large share of the resident population, indicating demand for youth-focused programming.",
+    "status": "active"
+  }
+]

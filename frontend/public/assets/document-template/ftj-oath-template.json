@@ -1,0 +1,30 @@
+{
+  "document": "firstTimeJobseekerOath",
+  "name": "Oath of Undertaking (RA 11261)",
+  "engine": "docxtemplater",
+  "templateFile": "/assets/document-template/ftj-oath-template.docx",
+  "originalFile": "/assets/document-template/certification-of-first-time-jobseeker (1).docx",
+  "delimiters": { "start": "{{", "end": "}}" },
+  "signatories": [],
+  "variables": [
+    "applicant.fullName",
+    "applicant.age",
+    "applicant.addressUpper",
+    "certificate.dayOrdinal",
+    "certificate.month",
+    "certificate.year"
+  ],
+  "requiredFields": [
+    "applicant.fullName",
+    "applicant.age",
+    "applicant.addressUpper"
+  ],
+  "dataMapping": [
+    { "variable": "applicant.fullName", "source": "doc.resident.name ?? doc.fullName" },
+    { "variable": "applicant.age", "source": "doc.age" },
+    { "variable": "applicant.addressUpper", "source": "doc.address uppercased (e.g., RABON ROSARIO LA UNION)" },
+    { "variable": "certificate.dayOrdinal", "source": "day number + uppercase ordinal from doc.dateIssued (e.g., 16TH)" },
+    { "variable": "certificate.month", "source": "formatDateParts(doc.dateIssued).month" },
+    { "variable": "certificate.year", "source": "formatDateParts(doc.dateIssued).year" }
+  ]
+}

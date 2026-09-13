@@ -1,0 +1,43 @@
+{
+  "document": "endorsementLetter",
+  "name": "Endorsement Letter",
+  "engine": "docxtemplater",
+  "templateFile": "/assets/document-template/endorsement-letter-template.docx",
+  "originalFile": "/assets/document-template/ENDORSEMENT-FOR-SCHOLAR (1).docx",
+  "delimiters": { "start": "{{", "end": "}}" },
+  "signatories": [
+    { "role": "Punong Barangay", "required": true, "label": "Certified by:", "title": "Punong Barangay" }
+  ],
+  "variables": [
+    "certificate.dateShort",
+    "recipient.name",
+    "recipient.position",
+    "recipient.location",
+    "student.name",
+    "student.purok",
+    "certificate.purpose",
+    "certificate.dayOrdinal",
+    "certificate.month",
+    "certificate.year",
+    "officials.punongBarangay"
+  ],
+  "requiredFields": [
+    "student.name",
+    "student.purok",
+    "certificate.purpose",
+    "officials.punongBarangay"
+  ],
+  "dataMapping": [
+    { "variable": "certificate.dateShort", "source": "MMM DD, YYYY from doc.dateIssued with 2-digit day (e.g., June 02, 2026)" },
+    { "variable": "recipient.name", "source": "settings recipient default 'Hon. Bellarmin A. Flores II'" },
+    { "variable": "recipient.position", "source": "default 'Mayor'" },
+    { "variable": "recipient.location", "source": "\"{settings.barangay.municipality}, {settings.barangay.province}\"" },
+    { "variable": "student.name", "source": "doc.resident.name ?? doc.fullName (the scholar)" },
+    { "variable": "student.purok", "source": "doc.purok" },
+    { "variable": "certificate.purpose", "source": "doc.purpose (e.g., scholarship)" },
+    { "variable": "certificate.dayOrdinal", "source": "day number + uppercase ordinal from doc.dateIssued (e.g., 2ND)" },
+    { "variable": "certificate.month", "source": "formatDateParts(doc.dateIssued).month" },
+    { "variable": "certificate.year", "source": "formatDateParts(doc.dateIssued).year" },
+    { "variable": "officials.punongBarangay", "source": "activeByPosition['Punong Barangay']" }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "document": "certificateOfFirstTimeJobseeker",
+  "name": "Barangay Certification (First-Time Jobseeker)",
+  "engine": "docxtemplater",
+  "templateFile": "/assets/document-template/ftj-certification-template.docx",
+  "originalFile": "/assets/document-template/certification-of-first-time-jobseeker (1).docx",
+  "delimiters": { "start": "{{", "end": "}}" },
+  "signatories": [
+    { "role": "Punong Barangay", "required": true, "label": "Certified by:", "title": "Barangay Captain" },
+    { "role": "Barangay Secretary", "required": true, "label": "Witnessed by:", "title": "Barangay Secretary" }
+  ],
+  "variables": [
+    "applicant.fullName",
+    "applicant.age",
+    "certificate.dayOrdinal",
+    "certificate.month",
+    "certificate.year"
+  ],
+  "requiredFields": [
+    "applicant.fullName",
+    "applicant.age"
+  ],
+  "dataMapping": [
+    { "variable": "applicant.fullName", "source": "doc.resident.name ?? doc.fullName" },
+    { "variable": "applicant.age", "source": "doc.age" },
+    { "variable": "certificate.dayOrdinal", "source": "day number + uppercase ordinal from doc.dateIssued (e.g., 16TH)" },
+    { "variable": "certificate.month", "source": "formatDateParts(doc.dateIssued).month" },
+    { "variable": "certificate.year", "source": "formatDateParts(doc.dateIssued).year" }
+  ]
+}

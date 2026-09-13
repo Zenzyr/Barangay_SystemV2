@@ -1,0 +1,38 @@
+{
+  "document": "certificateOfLowIncome",
+  "name": "Certificate of Low Income",
+  "engine": "docxtemplater",
+  "templateFile": "/assets/document-template/certificate-of-low-income-template.docx",
+  "originalFile": "/assets/document-template/ENDORSEMENT-FOR-SCHOLAR (1).docx",
+  "delimiters": { "start": "{{", "end": "}}" },
+  "signatories": [
+    { "role": "Punong Barangay", "required": true, "label": "Certified by:", "title": "Punong Barangay" }
+  ],
+  "variables": [
+    "resident.fullName",
+    "resident.spouseName",
+    "resident.annualIncome",
+    "beneficiary.name",
+    "certificate.dayOrdinal",
+    "certificate.month",
+    "certificate.year",
+    "officials.punongBarangay"
+  ],
+  "requiredFields": [
+    "resident.fullName",
+    "resident.spouseName",
+    "resident.annualIncome",
+    "beneficiary.name",
+    "officials.punongBarangay"
+  ],
+  "dataMapping": [
+    { "variable": "resident.fullName", "source": "doc.resident.name ?? doc.fullName" },
+    { "variable": "resident.spouseName", "source": "doc.spouseName" },
+    { "variable": "resident.annualIncome", "source": "doc.annualIncome (e.g., 40,000)" },
+    { "variable": "beneficiary.name", "source": "doc.assistanceTo" },
+    { "variable": "certificate.dayOrdinal", "source": "day number + uppercase ordinal from doc.dateIssued (e.g., 24TH)" },
+    { "variable": "certificate.month", "source": "formatDateParts(doc.dateIssued).month" },
+    { "variable": "certificate.year", "source": "formatDateParts(doc.dateIssued).year" },
+    { "variable": "officials.punongBarangay", "source": "activeByPosition['Punong Barangay']" }
+  ]
+}

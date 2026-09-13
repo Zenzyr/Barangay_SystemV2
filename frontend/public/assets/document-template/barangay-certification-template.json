@@ -1,0 +1,59 @@
+{
+  "document": "barangayCertification",
+  "name": "Barangay Certification",
+  "engine": "docxtemplater",
+  "templateFile": "/assets/document-template/barangay-certification-template.docx",
+  "originalFile": "/assets/document-template/certification-101-1.docx",
+  "delimiters": { "start": "{{", "end": "}}" },
+  "signatories": [
+    { "role": "Barangay Secretary", "required": true, "label": "Prepared by:" },
+    { "role": "Punong Barangay", "required": true, "label": "Certified by:" },
+    { "role": "SK Chairperson", "required": false },
+    { "role": "Barangay Treasurer", "required": false },
+    { "role": "Barangay Kagawad", "required": false, "multi": true }
+  ],
+  "variables": [
+    "resident.fullName",
+    "resident.civilStatus",
+    "certificate.subjectPronoun",
+    "certificate.dayOrdinal",
+    "certificate.month",
+    "certificate.year",
+    "officials.secretary",
+    "officials.punongBarangay",
+    "officials.skChairperson",
+    "officials.treasurer",
+    "sangguniangBarangay.member0",
+    "sangguniangBarangay.member1",
+    "sangguniangBarangay.member2",
+    "sangguniangBarangay.member3",
+    "sangguniangBarangay.member4",
+    "sangguniangBarangay.member5",
+    "sangguniangBarangay.member6"
+  ],
+  "requiredFields": [
+    "resident.fullName",
+    "resident.civilStatus",
+    "officials.punongBarangay",
+    "officials.secretary"
+  ],
+  "dataMapping": [
+    { "variable": "resident.fullName", "source": "doc.resident.name ?? doc.fullName" },
+    { "variable": "resident.civilStatus", "source": "resident civilStatus normalized to single/married/widow" },
+    { "variable": "certificate.subjectPronoun", "source": "resident gender -> He / She (unmarked checkbox)" },
+    { "variable": "certificate.dayOrdinal", "source": "day number + uppercase ordinal from doc.dateIssued (e.g., 15TH)" },
+    { "variable": "certificate.month", "source": "formatDateParts(doc.dateIssued).month" },
+    { "variable": "certificate.year", "source": "formatDateParts(doc.dateIssued).year" },
+    { "variable": "officials.secretary", "source": "activeByPosition['Barangay Secretary']" },
+    { "variable": "officials.punongBarangay", "source": "activeByPosition['Punong Barangay']" },
+    { "variable": "officials.skChairperson", "source": "activeByPosition['SK Chairperson']" },
+    { "variable": "officials.treasurer", "source": "activeByPosition['Barangay Treasurer']" },
+    { "variable": "sangguniangBarangay.member0", "source": "activeOfficialsByPosition['Barangay Kagawad'][0]" },
+    { "variable": "sangguniangBarangay.member1", "source": "activeOfficialsByPosition['Barangay Kagawad'][1]" },
+    { "variable": "sangguniangBarangay.member2", "source": "activeOfficialsByPosition['Barangay Kagawad'][2]" },
+    { "variable": "sangguniangBarangay.member3", "source": "activeOfficialsByPosition['Barangay Kagawad'][3]" },
+    { "variable": "sangguniangBarangay.member4", "source": "activeOfficialsByPosition['Barangay Kagawad'][4]" },
+    { "variable": "sangguniangBarangay.member5", "source": "activeOfficialsByPosition['Barangay Kagawad'][5]" },
+    { "variable": "sangguniangBarangay.member6", "source": "activeOfficialsByPosition['Barangay Kagawad'][6]" }
+  ]
+}

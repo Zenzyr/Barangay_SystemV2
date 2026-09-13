@@ -1,0 +1,39 @@
+{
+  "document": "certificateOfResidency",
+  "name": "Barangay Certificate of Residency",
+  "engine": "docxtemplater",
+  "templateFile": "/assets/document-template/barangay-residency-template.docx",
+  "originalFile": "/assets/document-template/certification-101-1.docx",
+  "delimiters": { "start": "{{", "end": "}}" },
+  "signatories": [
+    { "role": "Punong Barangay", "required": true, "label": "Certified by:", "title": "Punong Barangay" }
+  ],
+  "variables": [
+    "resident.fullName",
+    "certificate.singleMark",
+    "certificate.marriedMark",
+    "certificate.widowMark",
+    "resident.purok",
+    "certificate.dayOrdinalLower",
+    "certificate.month",
+    "certificate.year",
+    "officials.punongBarangay"
+  ],
+  "requiredFields": [
+    "resident.fullName",
+    "resident.civilStatus",
+    "resident.purok",
+    "officials.punongBarangay"
+  ],
+  "dataMapping": [
+    { "variable": "resident.fullName", "source": "doc.resident.name ?? doc.fullName" },
+    { "variable": "certificate.singleMark", "source": "\"/\" when resident is single, else \"\"" },
+    { "variable": "certificate.marriedMark", "source": "\"/\" when resident is married, else \"\"" },
+    { "variable": "certificate.widowMark", "source": "\"/\" when resident is widowed, else \"\"" },
+    { "variable": "resident.purok", "source": "doc.purok (Purok number)" },
+    { "variable": "certificate.dayOrdinalLower", "source": "day number + lowercase ordinal from doc.dateIssued (e.g., 13th)" },
+    { "variable": "certificate.month", "source": "formatDateParts(doc.dateIssued).month" },
+    { "variable": "certificate.year", "source": "formatDateParts(doc.dateIssued).year" },
+    { "variable": "officials.punongBarangay", "source": "activeByPosition['Punong Barangay']" }
+  ]
+}

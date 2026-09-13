@@ -1,0 +1,179 @@
+
+
+You are redesigning pages for InkSight, a luxury dark-mode tattoo platform.
+Every page must feel like a high-end tattoo studio: refined, masculine, editorial.
+
+─── BRAND IDENTITY ───
+Name: InkSight
+Vibe: Luxury & Refined — think high-end atelier, not streetwear
+Mode: Dark only
+Accent: Ember Gold
+Typography: Cormorant Garamond (headings) + Raleway or current body font (body)
+
+─── EXACT THEME TOKENS (Tailwind v4) ───
+Use ONLY these tokens. Never use hardcoded hex values or default Tailwind colors.
+
+--color-primary: #080808       → bg-primary (main background)
+--color-secondary: #121212     → bg-secondary (section backgrounds)
+--color-surface: #1A1A1A       → bg-surface (cards, inputs)
+--color-surface-alt: #222222   → bg-surface-alt (icon boxes, hover states)
+--color-gold: #C9A84C          → text-gold / bg-gold / border-gold (primary accent)
+--color-gold-light: #E8C97A    → text-gold-light (hover accent)
+--color-gold-dim: #8B6914      → border-gold-dim (button borders)
+--color-gold-glow: rgba(201,168,76,0.15) → for glow effects inline only
+--color-border: #242424        → border-border (default borders)
+--color-border-gold: #C9A84C40 → border-border-gold (active/hover borders)
+--color-text: #F2EDE4          → text-text (primary text)
+--color-text-muted: #7A7570    → text-text-muted (secondary text)
+--color-text-dim: #3D3A36      → text-text-dim (placeholder, disabled)
+
+── Semantic State Tokens ──
+--color-success: #4E7C59
+--color-success-light: #7AAE87
+--color-success-muted: #1A2E1F
+--color-success-border: #4E7C5940
+
+--color-danger: #8B3A3A
+--color-danger-light: #C26060
+--color-danger-muted: #2A1010
+--color-danger-border: #8B3A3A40
+
+--color-warning: #A0722A
+--color-warning-light: #C9963E
+--color-warning-muted: #261A08
+--color-warning-border: #A0722A40
+
+--color-info: #3A5F8B
+--color-info-light: #6089B8
+--color-info-muted: #0E1A2A
+--color-info-border: #3A5F8B40
+
+─── LAYOUT RULES ───
+- rounded-none on all cards, inputs, buttons — no rounded corners anywhere
+- border-border default, upgrades to border-border-gold on hover/active
+- Section alternates: bg-primary → bg-secondary → bg-primary
+- Max width: max-w-7xl centered with px-6 lg:px-8
+- Generous vertical padding: py-28 lg:py-36 for sections
+
+─── TYPOGRAPHY RULES ───
+- All headings: font-light, Cormorant Garamond serif, tracking -0.02em
+- All eyebrows (small labels above headings):
+  - text-[10px] uppercase tracking-[0.28em] text-gold
+  - Add a short h-px w-8 bg-gold line on left or both sides
+- All body text: text-text-muted, text-sm or text-base, leading-relaxed
+- Footer/bottom labels: tracking-widest uppercase text-text-dim
+- Nav brand name: Cormorant Garamond, font-light, tracking-[0.14em] uppercase text-gold
+
+─── SHADCN COMPONENTS (pre-styled, do not touch) ───
+The following shadcn/ui components already have the brand theme applied globally.
+Do NOT add any className overrides, style props, or variant changes to these.
+Just use them as-is with their existing props only.
+
+Pre-styled components:
+- <Button> / <Button variant="outline"> / <Button variant="ghost">
+- <Card> / <CardHeader> / <CardContent> / <CardFooter>
+- <Input> / <Textarea>
+- <Select> / <SelectTrigger> / <SelectContent> / <SelectItem>
+- <Dialog> / <DialogContent> / <DialogHeader>
+- <Badge>
+- <Tabs> / <TabsList> / <TabsTrigger> / <TabsContent>
+- <Avatar> / <AvatarImage> / <AvatarFallback>
+- <Separator>
+- <Label>
+- <Checkbox> / <RadioGroup>
+- <Sheet> / <SheetContent>
+- <DropdownMenu> / <DropdownMenuContent> / <DropdownMenuItem>
+- <Tooltip> / <TooltipContent>
+
+❌ Never add className to any of the above components
+❌ Never wrap them in extra divs just to apply styling
+❌ Never override their variant, size, or style props for color reasons
+✅ Only pass functional props: onClick, href, disabled, value, onChange, etc.
+
+─── BUTTON SEMANTIC OVERRIDES (only exception to the no-className rule) ───
+Sometimes buttons have a semantic meaning: success (approve, save, confirm)
+or danger (delete, remove, cancel). In these cases ONLY, className is allowed
+on <Button> but ONLY using these exact token patterns.
+
+If you find any button using Tailwind defaults like:
+bg-green-500, bg-green-600, text-green-*, border-green-*
+bg-red-500, bg-red-600, text-red-*, border-red-*
+bg-yellow-*, bg-blue-*, or any other raw Tailwind color —
+REPLACE them with the correct semantic tokens below:
+
+Success (approve / save / confirm / complete):
+className="bg-success-muted text-success-light border border-success-border hover:bg-success/10 hover:text-success-light hover:border-success"
+
+Danger (delete / remove / cancel / reject):
+className="bg-danger-muted text-danger-light border border-danger-border hover:bg-danger/10 hover:text-danger-light hover:border-danger"
+
+Warning (archive / pause / pending):
+className="bg-warning-muted text-warning-light border border-warning-border hover:bg-warning/10 hover:text-warning-light hover:border-warning"
+
+Info (view / details / learn more):
+className="bg-info-muted text-info-light border border-info-border hover:bg-info/10 hover:text-info-light hover:border-info"
+
+❌ Never use bg-green-*, bg-red-*, bg-yellow-*, bg-blue-* anywhere
+✅ Always replace with the semantic tokens above
+
+─── COMPONENT RULES ───
+CARDS:
+- bg-surface border border-border rounded-none
+- hover:border-border-gold transition-all duration-500
+- Gold bottom line reveal on hover:
+  <div className="absolute bottom-0 left-0 h-[1px] w-0 bg-gold group-hover:w-full transition-all duration-700" />
+- Large ghost number (01, 02...) top-right: text-7xl font-light text-text-dim Cormorant Garamond
+- Icon boxes: bg-surface-alt border border-border, icon color text-gold
+
+INPUTS & FORMS:
+- bg-surface border border-border rounded-none text-text
+- placeholder:text-text-dim
+- focus:border-gold focus:outline-none focus:ring-1 focus:ring-gold/30
+- Labels: text-[10px] uppercase tracking-[0.2em] text-text-muted
+
+DIVIDERS:
+- Always border-border
+- Section dividers use border-t border-border or border-y border-border
+
+─── DECORATIVE RULES ───
+Always add these to every page:
+
+1. GRAIN OVERLAY (fixed, top of page):
+<div
+  className="pointer-events-none fixed inset-0 z-50 opacity-[0.035]"
+  style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")` }}
+/>
+
+2. AMBIENT GOLD GLOW (fixed, top center):
+<div className="pointer-events-none fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[360px] rounded-full opacity-[0.07] blur-[120px] bg-gold" />
+
+3. CTA CARDS — gold corner brackets:
+<div className="absolute top-0 left-0 w-16 h-16 border-t border-l border-gold opacity-40" />
+<div className="absolute top-0 right-0 w-16 h-16 border-t border-r border-gold opacity-40" />
+<div className="absolute bottom-0 left-0 w-16 h-16 border-b border-l border-gold opacity-40" />
+<div className="absolute bottom-0 right-0 w-16 h-16 border-b border-r border-gold opacity-40" />
+
+─── STRICT RULES ───
+✅ Use only theme tokens (bg-primary, text-gold, border-border, etc.)
+✅ Keep all existing logic, refs, state, imports, and functionality untouched
+✅ Keep all Link hrefs, onClick handlers, and data exactly as-is
+✅ Cards are always rounded-none
+✅ Headings always use Cormorant Garamond serif
+✅ Eyebrows always use text-gold + tracking-[0.28em]
+✅ Replace any bg-green-* / bg-red-* / bg-yellow-* / bg-blue-* on buttons with semantic tokens
+✅ add labeling and proper description and add lucide react if needed to reduce  empty spaces
+❌ Never use hardcoded hex colors
+❌ Never use bg-white, bg-black, text-white, text-black, text-gray-*, bg-gray-*
+❌ Never use rounded-xl, rounded-2xl, rounded-lg on cards or containers
+❌ Never modify Button component internals or add heavy className overrides
+❌ Never change layout structure, grid columns, or section order
+❌ Never add new sections or remove existing ones
+❌ strictly Never Change any logic just edit the ui
+
+─── INSTRUCTION ───
+I will now paste a page component. Redesign only the visual layer:
+colors, typography, spacing, borders, and decorative elements.
+Keep all logic, structure, and functionality exactly as it is.
+If any button uses raw Tailwind color classes (green, red, yellow, blue),
+replace them with the correct semantic token className from above.
+Return only the full updated JSX. No explanations needed.

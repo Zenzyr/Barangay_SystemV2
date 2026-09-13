@@ -1,0 +1,46 @@
+{
+  "document": "certificateOfAttestation",
+  "name": "Certificate of Attestation",
+  "engine": "docxtemplater",
+  "templateFile": "/assets/document-template/certificate-of-attestation-template.docx",
+  "originalFile": "/assets/document-template/attestation (1).docx",
+  "delimiters": { "start": "{{", "end": "}}" },
+  "signatories": [
+    { "role": "Punong Barangay", "required": true, "label": "Certified by:", "title": "Punong Barangay" }
+  ],
+  "variables": [
+    "certificate.mrMrs",
+    "resident.fullName",
+    "applicant.workStatus",
+    "applicant.workplace",
+    "applicant.monthlyIncome",
+    "applicant.expenseType",
+    "applicant.householdExpenses",
+    "certificate.dayOrdinalLower",
+    "certificate.month",
+    "certificate.year",
+    "officials.punongBarangay"
+  ],
+  "requiredFields": [
+    "resident.fullName",
+    "applicant.workStatus",
+    "applicant.workplace",
+    "applicant.monthlyIncome",
+    "applicant.expenseType",
+    "applicant.householdExpenses",
+    "officials.punongBarangay"
+  ],
+  "dataMapping": [
+    { "variable": "certificate.mrMrs", "source": "male -> Mr.; female married/widow -> Mrs.; else Ms." },
+    { "variable": "resident.fullName", "source": "doc.resident.name ?? doc.fullName" },
+    { "variable": "applicant.workStatus", "source": "doc.workStatus (e.g., non working)" },
+    { "variable": "applicant.workplace", "source": "doc.workplace" },
+    { "variable": "applicant.monthlyIncome", "source": "doc.monthlyIncome, Php prefix stripped (e.g., 0)" },
+    { "variable": "applicant.expenseType", "source": "doc.expenseType (e.g., MEDICAL)" },
+    { "variable": "applicant.householdExpenses", "source": "doc.householdExpenses, Php prefix stripped (e.g., 6,000.00)" },
+    { "variable": "certificate.dayOrdinalLower", "source": "day number + lowercase ordinal from doc.dateIssued (e.g., 27th)" },
+    { "variable": "certificate.month", "source": "formatDateParts(doc.dateIssued).month" },
+    { "variable": "certificate.year", "source": "formatDateParts(doc.dateIssued).year" },
+    { "variable": "officials.punongBarangay", "source": "activeByPosition['Punong Barangay']" }
+  ]
+}

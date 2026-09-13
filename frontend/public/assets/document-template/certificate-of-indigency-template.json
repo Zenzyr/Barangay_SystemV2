@@ -1,0 +1,33 @@
+{
+  "document": "certificateOfIndigency",
+  "name": "Certificate of Indigency",
+  "engine": "docxtemplater",
+  "templateFile": "/assets/document-template/certificate-of-indigency-template.docx",
+  "originalFile": "/assets/document-template/certificate-of-indigency (1).docx",
+  "delimiters": { "start": "{{", "end": "}}" },
+  "signatories": [
+    { "role": "Punong Barangay", "required": true, "label": "Certified by:", "title": "Punong Barangay" }
+  ],
+  "variables": [
+    "resident.fullName",
+    "certificate.pronoun",
+    "certificate.dayOrdinal",
+    "certificate.month",
+    "certificate.year",
+    "barangay.name",
+    "barangay.municipality",
+    "barangay.province",
+    "barangay.punongBarangay"
+  ],
+  "dataMapping": [
+    { "variable": "resident.fullName", "source": "doc.resident.name ?? doc.fullName" },
+    { "variable": "certificate.pronoun", "source": "resident gender -> her/his (default her)" },
+    { "variable": "certificate.dayOrdinal", "source": "day number + uppercase ordinal from doc.dateIssued (e.g., 15TH)" },
+    { "variable": "certificate.month", "source": "formatDateParts(doc.dateIssued).month" },
+    { "variable": "certificate.year", "source": "formatDateParts(doc.dateIssued).year" },
+    { "variable": "barangay.name", "source": "settings.barangay.name  (default Barangay Rabon)" },
+    { "variable": "barangay.municipality", "source": "settings.barangay.municipality  (default Rosario)" },
+    { "variable": "barangay.province", "source": "settings.barangay.province  (default La Union)" },
+    { "variable": "barangay.punongBarangay", "source": "activeByPosition['Punong Barangay']" }
+  ]
+}
