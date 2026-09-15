@@ -865,7 +865,7 @@ async function watermarkDocumentPDF(
 // ── PUBLIC API (same signatures as before) ────────────────────────
 const DOCUMENT_NAMES: Record<string, string> = {
   barangayCertificate: "Barangay Certification",
-  barangayClearance: "Barangay Clearance",
+  barangayClearance: "Barangay Certificate",
   certificateOfResidency: "Barangay Certificate of Residency",
   certificateOfIndigency: "Certificate of Indigency",
   certificateOfGoodMoralCharacter: "Certificate of Good Moral Character",

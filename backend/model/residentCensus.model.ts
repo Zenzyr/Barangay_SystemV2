@@ -17,6 +17,12 @@ const ResidentCensusSchema = new Schema({
   pensioner: { type: String, required: true, default: "N/A" },
   isPWD: { type: String, required: true, default: "N/A" },
   cellphone: { type: String, required: true, default: "N/A" },
+  // Link to the Accounts collection for census residents who also
+  // registered an account online. Set automatically by upsertFromAccount.
+  accountId: { type: Schema.Types.ObjectId, ref: "Accounts", required: false },
 }, { timestamps: true });
+
+// Fast duplicate-prevention lookups (name + birthday are the identity key).
+ResidentCensusSchema.index({ name: 1, birthday: 1 });
 
 export default mongoose.model("ResidentCensus", ResidentCensusSchema);

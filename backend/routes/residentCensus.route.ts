@@ -11,6 +11,7 @@ const route = Router();
 route.get("/", authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_ADMIN), handler(ResidentCensusController.getAll));
 route.get("/:id", authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_ADMIN), handler(ResidentCensusController.get));
 route.post("/", authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_ADMIN), handler(ResidentCensusController.create));
+route.post("/import", authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_ADMIN), handler(ResidentCensusController.importCsv));
 route.put("/:id", authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_ADMIN), handler(ResidentCensusController.update));
 route.delete("/:id", authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_ADMIN), handler(ResidentCensusController.delete));
 

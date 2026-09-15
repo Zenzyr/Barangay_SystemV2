@@ -44,8 +44,7 @@ const MANAGEMENT_ITEMS: ManageItem[] = [
   { title: "Residents", desc: "Resident census records", href: "/pages/secretary/residentCensus", icon: UserRoundCheck },
   { title: "Officials", desc: "Barangay officials directory", href: "/pages/secretary/barangaySettings/officials", icon: Landmark },
   { title: "Puroks", desc: "Purok directory", href: "/pages/secretary/barangaySettings/puroks", icon: MapPin },
-  { title: "Document Templates", desc: "Certificate templates", href: "/pages/secretary/barangaySettings/templates", icon: FileText },
-  { title: "Recommendation Rules", desc: "Decision support rules", href: "/pages/secretary/recommendationRules", icon: SlidersHorizontal },
+  { title: "Document Templates", desc: "Design fees, formats and layouts", href: "/pages/secretary/document-templates", icon: FileText },
   { title: "Settings", desc: "Barangay configuration", href: "/pages/secretary/barangaySettings", icon: Settings2 },
 ];
 

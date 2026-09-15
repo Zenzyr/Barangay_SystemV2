@@ -101,6 +101,7 @@ export default function VerifyResidentPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["resident-census"] });
       successAlert("Resident approved successfully");
       setModalOpen(false);
     },

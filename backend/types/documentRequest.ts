@@ -6,6 +6,9 @@ export interface documentRequestInterfaceInput {
     status: string,
     isPaid : boolean,
     price : number,
+    templateId?: string,
+    templateVersion?: number,
+    feeAtRequest?: number,
     
     fullName : string | null,
     contact: string | null,
@@ -57,6 +60,10 @@ export interface documentRequestInterface {
     document: string,
     status : string,
     isPaid : boolean,
+    price: number,
+    templateId?: string,
+    templateVersion?: number,
+    feeAtRequest?: number,
     
     fullName : string | null,
     contact: string | null,

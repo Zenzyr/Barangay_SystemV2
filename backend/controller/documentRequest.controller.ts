@@ -16,9 +16,13 @@ const DOC_STATUSES = ["pending", "processing", "to claim", "completed", "rejecte
 // ... (other parts of the file remain the same, just keeping the imports correct)
 
 // Human-friendly names for notifications (falls back to a CamelCase -> Title).
+// NOTE: "Barangay Clearance" is deliberately absent from selection/validation.
+// Historical records that used barangayClearance still map to this display name
+// for backward-compatibility in views/history, but the type is never created in
+// new requests.
 const DOCUMENT_NAMES: Record<string, string> = {
   barangayCertificate: "Barangay Certificate",
-  barangayClearance: "Barangay Clearance",
+  barangayClearance: "Barangay Certificate",
   certificateOfResidency: "Certificate of Residency",
   certificateOfIndigency: "Certificate of Indigency",
   certificateOfGoodMoralCharacter: "Certificate of Good Moral Character",
@@ -52,15 +56,21 @@ export class DocumentRequestController {
         return;
       }
 
-      if (!isObjectId(documentData.resident)) {
+      // An account-linked request must reference a real account. A walk-in
+      // without an account (resident field omitted) is allowed as long as a
+      // denormalized fullName is provided for the snapshot fields.
+      if (documentData.resident && !isObjectId(documentData.resident)) {
         response.status(400).send("A valid resident is required");
+        return;
+      }
+      if (!documentData.resident && !String(documentData.fullName || "").trim()) {
+        response.status(400).send("A full name is required for walk-in requests");
         return;
       }
       const validDocs = [
         "barangayCertificate",
         "certificateOfResidency",
         "certificateOfIndigency",
-        "barangayClearance",
         "certificateOfGoodMoralCharacter",
         "certificateOfUnemployment",
         "barangayBusinessClearance",
@@ -76,7 +86,20 @@ export class DocumentRequestController {
         response.status(400).send("Invalid document type");
         return;
       }
-      if (typeof documentData.price !== "number" || documentData.price < 0) {
+
+      // ── Resolve the fee from the document's template ─────────────
+      // The template's fee is authoritative. When a matching template is
+      // found, the client-sent price is ignored and the current fee is
+      // stamped onto the request (templateId + version + feeAtRequest) so it
+      // never changes even if the admin edits the price later.
+      const { DocumentTemplateService } = await import("../services/documentTemplate.service");
+      const template = await DocumentTemplateService.getByDocumentType(documentData.document);
+      if (template) {
+        documentData.price = Number(template.fee) || 0;
+        documentData.templateId = template._id;
+        documentData.templateVersion = template.version || 1;
+        documentData.feeAtRequest = Number(template.fee) || 0;
+      } else if (typeof documentData.price !== "number" || documentData.price < 0) {
         response.status(400).send("Invalid price");
         return;
       }
@@ -100,7 +123,8 @@ export class DocumentRequestController {
         documentData.resident,
         documentData.document,
         stamp.requestDate,
-        stamp.requestTime
+        stamp.requestTime,
+        documentData.fullName
       );
       if (existing) {
         response.status(409).json({
@@ -131,7 +155,8 @@ export class DocumentRequestController {
             request.body?.resident,
             request.body?.document,
             request.body?.requestDate,
-            request.body?.requestTime
+            request.body?.requestTime,
+            request.body?.fullName
           );
           response.status(409).json({
             message: "A request for this resident, document type, date and time already exists.",

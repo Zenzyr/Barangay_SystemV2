@@ -58,10 +58,10 @@ const SECTIONS = [
     icon: UserCog,
   },
   {
-    href: "/pages/secretary/barangaySettings/templates",
-    label: "Certificate Templates",
+    href: "/pages/secretary/document-templates",
+    label: "Document Templates",
     description:
-      "Calibrate the official name overlays and header/footer/signatory settings for each document template.",
+      "Design document layouts, dynamic fields, fees, and previews for every barangay certificate.",
     icon: FileText,
   },
   {

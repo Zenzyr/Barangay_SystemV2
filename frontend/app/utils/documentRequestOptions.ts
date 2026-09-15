@@ -11,9 +11,12 @@ import {
 } from "lucide-react";
 
 // ─── Document icons ───────────────────────────────────────────────
+// "barangayClearance" is a legacy alias of "barangayCertificate". It is kept
+// in the display maps so historical requests still render the consolidated
+// "Barangay Certificate" identity, but it is NOT in selection lists anymore.
 export const DOCUMENT_ICONS: Record<string, React.ElementType> = {
   barangayCertificate: FileText,
-  barangayClearance: FileCheck,
+  barangayClearance: FileText,
   certificateOfResidency: BadgeCheck,
   certificateOfIndigency: ScrollText,
   certificateOfGoodMoralCharacter: BadgeCheck,
@@ -31,7 +34,7 @@ export const DOCUMENT_ICONS: Record<string, React.ElementType> = {
 // ─── Document display names ───────────────────────────────────────
 export const DOCUMENT_NAMES: Record<string, string> = {
   barangayCertificate: "Barangay Certificate",
-  barangayClearance: "Barangay Clearance",
+  barangayClearance: "Barangay Certificate",
   certificateOfResidency: "Certificate of Residency",
   certificateOfIndigency: "Certificate of Indigency",
   certificateOfGoodMoralCharacter: "Certificate of Good Moral Character",
@@ -46,14 +49,32 @@ export const DOCUMENT_NAMES: Record<string, string> = {
   endorsementLetter: "Endorsement Letter",
 };
 
-export const DOCUMENT_OPTIONS = Object.entries(DOCUMENT_NAMES).map(([value, label]) => ({
+// Canonical, selectable document types (no Barangay Clearance — it is
+// consolidated into Barangay Certificate).
+export const SELECTABLE_DOCUMENT_TYPES = [
+  "barangayCertificate",
+  "certificateOfResidency",
+  "certificateOfIndigency",
+  "certificateOfGoodMoralCharacter",
+  "certificateOfUnemployment",
+  "barangayBusinessClearance",
+  "certificateOfAttestation",
+  "certificationOfTreesCutting",
+  "barangayCertification",
+  "certificateOfFirstTimeJobseeker",
+  "firstTimeJobseekerOath",
+  "certificateOfLowIncome",
+  "endorsementLetter",
+] as const;
+
+export const DOCUMENT_OPTIONS = SELECTABLE_DOCUMENT_TYPES.map((value) => ({
   value,
-  label,
+  label: DOCUMENT_NAMES[value],
 }));
 
 export const DOCUMENT_DESCRIPTIONS: Record<string, string> = {
   barangayCertificate: "Official certification of your residency and background",
-  barangayClearance: "Clearance for employment, school, or travel purposes",
+  barangayClearance: "Official certification of your residency and background",
   certificateOfResidency: "Proof that you are a resident of this barangay",
   certificateOfIndigency: "Documentation for financial or medical assistance",
   certificateOfGoodMoralCharacter: "Character reference for employment or school",

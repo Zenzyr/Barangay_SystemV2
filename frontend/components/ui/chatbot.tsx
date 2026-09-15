@@ -3,9 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import axiosInstance from "@/app/utils/axios";
 import useUserStore from "@/app/store/useUserStore";
-import { officialsApi } from "@/app/utils/barangayApi";
 import { documentRequestInterface } from "@/app/types/documentRequest";
-import { documentTypes } from "@/app/utils/documents";
 import { Button } from "@/components/ui/button";
 import {
   MessageCircle,
@@ -26,7 +24,7 @@ import {
 // ─── Document display names ──────────────────────────────────────
 const DOCUMENT_NAMES: Record<string, string> = {
   barangayCertificate: "Barangay Certificate",
-  barangayClearance: "Barangay Clearance",
+  barangayClearance: "Barangay Certificate",
   certificateOfResidency: "Certificate of Residency",
   certificateOfIndigency: "Certificate of Indigency",
   certificateOfGoodMoralCharacter: "Certificate of Good Moral Character",
@@ -61,7 +59,6 @@ function uid() {
 export default function Chatbot() {
   const { user } = useUserStore();
   const [open, setOpen] = useState(false);
-  const [punongBarangay, setPunongBarangay] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: uid(),
@@ -80,21 +77,6 @@ export default function Chatbot() {
     }
   }, [messages, open]);
 
-  useEffect(() => {
-    let cancelled = false;
-    officialsApi
-      .getAll()
-      .then((officials) => {
-        if (cancelled) return;
-        const pb = officials.find(
-          (o) => o.position === "Punong Barangay" && o.status === "active"
-        );
-        if (pb) setPunongBarangay(pb.fullName);
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
   const addBotMessage = (text: string) => {
     setMessages((prev) => [...prev, { id: uid(), from: "bot", text }]);
   };
@@ -103,64 +85,13 @@ export default function Chatbot() {
     setMessages((prev) => [...prev, { id: uid(), from: "user", text }]);
   };
 
-  // ── Rule-based answers ──────────────────────────────────────────
-  const listDocuments = () => {
-    const lines = documentTypes
-      .map((d) => `• ${DOCUMENT_NAMES[d.document] || d.document} — ₱${d.price}`)
-      .join("\n");
-    addBotMessage(`Here are the documents you can request:\n${lines}`);
-  };
-
-  const explainFees = () => {
-    const lines = documentTypes
-      .map((d) => `• ${DOCUMENT_NAMES[d.document] || d.document}: ₱${d.price}`)
-      .join("\n");
-    addBotMessage(`Document fees:\n${lines}\n\nYou can pay online or at the barangay hall when you claim your document.`);
-  };
-
-  const explainProcessing = () => {
-    addBotMessage(
-      "Most documents are processed within 1–3 working days after your request is verified and paid. You'll get an SMS as soon as your document is ready to claim."
-    );
-  };
-
-  const explainStatuses = () => {
-    addBotMessage(
-      "Request status meanings:\n• Pending — waiting to be reviewed\n• Processing — being prepared\n• To Claim — ready for pickup at the barangay hall\n• Completed — released to you\n\nYou'll receive an SMS whenever your status changes."
-    );
-  };
-
-  const explainHowTo = () => {
-    if (user) {
-      addBotMessage(
-        'To request a document: go to "Request Document" in the sidebar, choose the document type, fill in the details, and submit. You\'ll get a confirmation SMS right away.'
-      );
-    } else {
-      addBotMessage(
-        "To request a document, sign in to your resident account first (or sign up if you don't have one yet), then go to \"Request Document\" from your dashboard."
-      );
-    }
-  };
-
-  const contactOffice = () => {
-    addBotMessage(
-      "You can visit the barangay hall during office hours for anything urgent, or keep using this chat / SMS updates for request status. Ask your barangay secretary for the office contact number if you need to call."
-    );
-  };
-
-  const explainOfficials = useCallback(() => {
-    const name = punongBarangay ? `Hon. ${punongBarangay}` : "the active Punong Barangay";
-    addBotMessage(
-      `The Punong Barangay (Barangay Captain / Kapitan) of Barangay Rabon is ${name}. You can reach the office at the Barangay Hall, open 8:00 AM - 5:00 PM, Monday to Friday.`
-    );
-  }, [punongBarangay]);
-
-  // ── AI-backed answers (uses the Barangay Details AI context) ──────
+  // ── AI answers — every reply comes from Gemini ────────────────────
   const queryAi = useCallback(
     async (text: string) => {
-      const convo = messages
+      const prior = messages
         .filter((m) => m.text)
         .map((m) => `${m.from === "user" ? "User" : "AI"}: ${m.text}`);
+      const convo = [...prior, `User: ${text}`];
       setThinking(true);
       try {
         const res = await axiosInstance.post("/account/ai", { input: text, convo });
@@ -208,14 +139,14 @@ export default function Chatbot() {
   };
 
   const QUICK_REPLIES: QuickReply[] = [
-    { label: "What documents can I request?", icon: FileText, action: () => { addUserMessage("What documents can I request?"); listDocuments(); } },
-    { label: "How much do they cost?", icon: Wallet, action: () => { addUserMessage("How much do they cost?"); explainFees(); } },
-    { label: "How long does it take?", icon: Clock, action: () => { addUserMessage("How long does it take?"); explainProcessing(); } },
-    { label: "What do statuses mean?", icon: ListChecks, action: () => { addUserMessage("What do statuses mean?"); explainStatuses(); } },
-    { label: "How do I request a document?", icon: ClipboardList, action: () => { addUserMessage("How do I request a document?"); explainHowTo(); } },
+    { label: "What documents can I request?", icon: FileText, action: () => { addUserMessage("What documents can I request?"); queryAi("What documents can I request?"); } },
+    { label: "How much do they cost?", icon: Wallet, action: () => { addUserMessage("How much do they cost?"); queryAi("How much do they cost?"); } },
+    { label: "How long does it take?", icon: Clock, action: () => { addUserMessage("How long does it take?"); queryAi("How long does it take?"); } },
+    { label: "What do statuses mean?", icon: ListChecks, action: () => { addUserMessage("What do statuses mean?"); queryAi("What do my document request statuses mean?"); } },
+    { label: "How do I request a document?", icon: ClipboardList, action: () => { addUserMessage("How do I request a document?"); queryAi("How do I request a document?"); } },
     { label: "Check my request status", icon: FileCheck, action: () => { addUserMessage("Check my request status"); checkMyStatus(); } },
-    { label: "Contact the barangay office", icon: Phone, action: () => { addUserMessage("Contact the barangay office"); contactOffice(); } },
-    { label: "Who is the Punong Barangay?", icon: Award, action: () => { addUserMessage("Who is the Punong Barangay?"); explainOfficials(); } },
+    { label: "Contact the barangay office", icon: Phone, action: () => { addUserMessage("Contact the barangay office"); queryAi("How can I contact the barangay office?"); } },
+    { label: "Who is the Punong Barangay?", icon: Award, action: () => { addUserMessage("Who is the Punong Barangay?"); queryAi("Who is the Punong Barangay?"); } },
   ];
 
   // ── Free-text handling ───────────────────────────────────────────

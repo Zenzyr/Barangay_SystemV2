@@ -15,8 +15,6 @@ import {
   X,
   ChevronRight,
   Briefcase,
-  Store,
-  Building2,
 } from "lucide-react"
 import { useState } from "react"
 import {
@@ -40,8 +38,6 @@ const navigationItems = [
   { title: "Service Requests", url: "/pages/resident/serviceRequests", icon: ListChecks },
   { title: "Work Requests", url: "/pages/resident/workRequest", icon: Briefcase },
   { title: "My Contracts", url: "/pages/resident/contracts", icon: FileStack },
-  { title: "Business Directory", url: "/pages/resident/business", icon: Store },
-  { title: "My Business", url: "/pages/resident/myBusiness", icon: Building2 },
   { title: "Activity", url: "/pages/resident/activity", icon: Activity },
 ]
 

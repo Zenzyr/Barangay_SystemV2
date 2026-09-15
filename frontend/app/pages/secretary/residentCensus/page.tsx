@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
 import { successAlert, errorAlert } from "@/app/utils/alert";
@@ -37,6 +37,9 @@ import {
   Loader2,
   MapPin,
   ClipboardList,
+  Upload,
+  FileSpreadsheet,
+  X,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -58,6 +61,86 @@ interface ResidentCensusRecord {
   pensioner: string;
   isPWD: string;
   cellphone: string;
+}
+
+interface ImportResult {
+  ok: boolean;
+  imported: number;
+  skipped: { name: string; reason: string }[];
+}
+
+// ─── CSV helpers ──────────────────────────────────────────────────
+// Parses a CSV string into rows of objects. Handles quoted fields so names
+// like "Munar,Orlando Munar" stay in a single column. Uses the first row's
+// headers as object keys, which are normalized to the census field names.
+function normalizeHeader(header: string): string {
+  const h = header.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const aliases: Record<string, string> = {
+    gender: "sex",
+    birthdate: "birthday",
+    dob: "birthday",
+    household: "householdNumber",
+    householdno: "householdNumber",
+    householdnumber: "householdNumber",
+    p4ps: "is4Ps",
+    fourps: "is4Ps",
+    isp4ps: "is4Ps",
+    senior: "isSenior",
+    seniorcitizen: "isSenior",
+    isseniorcitizen: "isSenior",
+    hypertensionmaintenance: "hpnMaintenance",
+    hppmaintenance: "hpnMaintenance",
+    contact: "cellphone",
+    contactnumber: "cellphone",
+    mobile: "cellphone",
+    ispwd: "isPWD",
+    pwd: "isPWD",
+  };
+  if (aliases[h]) return aliases[h];
+  switch (h) {
+    case "is4ps":
+    case "soloparent":
+    case "familyplanning":
+    case "hpnmaintenance":
+    case "pensioner":
+    case "cellphone":
+      return h;
+    default:
+      return h;
+  }
+}
+
+function parseCsv(text: string): Record<string, string>[] {
+  const lines = text.replace(/\r\n/g, "\n").split("\n").filter((l) => l.trim() !== "");
+  if (lines.length < 2) return [];
+  const parseRow = (line: string): string[] => {
+    const out: string[] = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (line[i + 1] === '"') { cur += '"'; i++; }
+          else inQuotes = false;
+        } else cur += ch;
+      } else if (ch === '"') inQuotes = true;
+      else if (ch === ",") { out.push(cur.trim()); cur = ""; }
+      else cur += ch;
+    }
+    out.push(cur.trim());
+    return out;
+  };
+  const headers = parseRow(lines[0]).map(normalizeHeader);
+  return lines.slice(1).map((line) => {
+    const cells = parseRow(line);
+    const row: Record<string, string> = {};
+    headers.forEach((h, i) => {
+      const value = (cells[i] ?? "").trim();
+      if (h) row[h] = value;
+    });
+    return row;
+  });
 }
 
 const EMPTY_FORM: Omit<ResidentCensusRecord, "_id"> = {
@@ -102,6 +185,46 @@ export default function ResidentCensusPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
+
+  const importRows = useMemo(() => {
+    if (!importText) return [];
+    try { return parseCsv(importText); } catch { return []; }
+  }, [importText]);
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result;
+      if (typeof text === "string") setImportText(text);
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const submitImport = async () => {
+    if (!importRows.length) { errorAlert("No valid rows found in the file"); return; }
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const res = await axiosInstance.post("/resident-census/import", { records: importRows });
+      setImportResult(res.data as ImportResult);
+      queryClient.invalidateQueries({ queryKey: ["resident-census"] });
+      if ((res.data as ImportResult).imported > 0) {
+        successAlert(`${(res.data as ImportResult).imported} records imported`);
+      }
+    } catch {
+      errorAlert("Failed to import records");
+    } finally {
+      setImporting(false);
+    }
+  };
 
   // ── Fetch census data ───────────────────────────────────────────
   const { data: records, isLoading } = useQuery<ResidentCensusRecord[]>({
@@ -231,6 +354,10 @@ export default function ResidentCensusPage() {
         <Button onClick={openAddModal} className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white shadow-lg shadow-sky-200/50 gap-1.5">
           <Plus className="size-4" />
           Add Record
+        </Button>
+        <Button onClick={() => { setImportResult(null); setImportText(""); setImportOpen(true); }} variant="outline" className="gap-1.5">
+          <Upload className="size-4" />
+          Import CSV
         </Button>
       </div>
 
@@ -473,6 +600,72 @@ export default function ResidentCensusPage() {
               {saving ? <Loader2 className="size-4 animate-spin" /> : editingId ? "Save Changes" : "Add Record"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Import CSV Dialog ── */}
+      <Dialog open={importOpen} onOpenChange={(open) => { setImportOpen(open); if (!open) { setImportText(""); setImportResult(null); } }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="size-9 rounded-xl bg-gradient-to-br from-sky-100 to-amber-100 text-amber-600 flex items-center justify-center">
+                <FileSpreadsheet className="size-4" />
+              </div>
+              Import Census Records
+            </DialogTitle>
+          </DialogHeader>
+
+          {!importResult ? (
+            <div className="space-y-4 py-2">
+              <p className="text-sm text-gray-500">
+                Upload a CSV file. Required column: <span className="font-medium">name</span>. Other optional columns:
+                sex, birthday, age, occupation, education, purok, householdNumber, cellphone, and yes/no flags (is4Ps, soloParent, isSenior, isPWD, etc.).
+              </p>
+
+              <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center space-y-2 hover:border-sky-300 transition-colors bg-slate-50/50">
+                <input
+                  type="file"
+                  accept=".csv,.tsv"
+                  className="hidden"
+                  ref={importFileRef}
+                  onChange={handleImportFile}
+                />
+                <FileSpreadsheet className="size-8 text-slate-300 mx-auto" />
+                {importText ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-700">{importRows.length} rows detected in the uploaded file</p>
+                    <div className="flex justify-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => { setImportText(""); setImportResult(null); }}><X className="size-3.5 mr-1" />Clear</Button>
+                      <Button size="sm" onClick={submitImport} disabled={importing || importRows.length === 0} className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white">
+                        {importing ? <><Loader2 className="size-3.5 mr-1 animate-spin" /> Importing...</> : <><Upload className="size-3.5 mr-1" /> Import {importRows.length} Records</>}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => importFileRef.current?.click()}>
+                    <Upload className="size-3.5 mr-1" /> Choose CSV File
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <div className="rounded-xl border bg-emerald-50/60 border-emerald-200 p-4">
+                <p className="text-sm text-emerald-700 font-medium">{importResult.imported} record(s) imported successfully</p>
+              </div>
+              {importResult.skipped.length > 0 && (
+                <div className="rounded-xl border bg-amber-50/60 border-amber-200 p-4 max-h-48 overflow-y-auto space-y-1">
+                  <p className="text-sm text-amber-700 font-medium mb-1">{importResult.skipped.length} row(s) skipped</p>
+                  {importResult.skipped.map((s, i) => (
+                    <p key={i} className="text-xs text-amber-600">
+                      <span className="font-medium">{s.name || "(blank)"}</span> — {s.reason}
+                    </p>
+                  ))}
+                </div>
+              )}
+              <Button variant="outline" size="sm" onClick={() => setImportOpen(false)}>Done</Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

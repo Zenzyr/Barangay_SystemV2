@@ -113,28 +113,6 @@ export const documentLayouts: DocumentLayout[] = [
     ],
   },
   {
-    document: "barangayClearance",
-    price: 40,
-    title: "Barangay Clearance",
-    source: "document/Barangay Clearance.pdf",
-    signatoryPrefix: "HON.",
-    description:
-      "This is to certify that the person named herein has no derogatory or criminal record filed against him/her in this Barangay.",
-    body:
-      "This is to certify that {fullName}, of legal status {civilStatus}, born on {dateOfBirth}, and a resident of {address} for {yrsOfResidency} year(s), is known to this office to be of good moral character and standing in the community.\n\n" +
-      "This clearance is issued upon the request of the above-named person for the purpose of {purpose} and for whatever legal purpose it may serve.\n\n" +
-      "Issued this {dateIssuedDay} day of {dateIssuedMonth}, {dateIssuedYear} at Barangay Rabon, Rosario, La Union.",
-    fields: [
-      { key: "fullName", label: "Full Name" },
-      { key: "civilStatus", label: "Civil Status" },
-      { key: "dateOfBirth", label: "Date of Birth", format: "date" },
-      { key: "address", label: "Address" },
-      { key: "yrsOfResidency", label: "Years of Residency", format: "number" },
-      { key: "purpose", label: "Purpose" },
-      { key: "dateIssued", label: "Date Issued", format: "date" },
-    ],
-  },
-  {
     document: "certificateOfGoodMoralCharacter",
     price: 60,
     title: "Certificate of Good Moral Character",
@@ -350,8 +328,18 @@ export const documentLayouts: DocumentLayout[] = [
   },
 ];
 
+// "Barangay Clearance" was consolidated into "Barangay Certificate". Legacy
+// requests that were filed under the old type still resolve to the certificate
+// layout for document generation, so history keeps working.
+const LEGACY_DOCUMENT_ALIASES: Record<string, string> = {
+  barangayClearance: "barangayCertificate",
+};
+
 export const getDocumentLayout = (document: string): DocumentLayout | undefined =>
-  documentLayouts.find((l) => l.document === document);
+  documentLayouts.find((l) => l.document === document) ||
+  (LEGACY_DOCUMENT_ALIASES[document]
+    ? documentLayouts.find((l) => l.document === LEGACY_DOCUMENT_ALIASES[document])
+    : undefined);
 
 export const getDocumentPrice = (document: string): number =>
   getDocumentLayout(document)?.price ?? 0;

@@ -1,7 +1,7 @@
 import { accountInterface } from "./account.type";
 
 export interface documentRequestInterfaceInput {
-    resident: string,
+    resident?: string | null,
     document: string,
     status : string,
     isPaid : boolean,
@@ -49,7 +49,7 @@ export interface statusHistoryEntry {
 
 export interface documentRequestInterface {
     _id : string,
-    resident: accountInterface,
+    resident?: accountInterface | null,
     document: string,
     status : string,
     isPaid : boolean,

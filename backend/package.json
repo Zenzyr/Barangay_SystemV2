@@ -13,7 +13,8 @@
     "seed:superadmin": "ts-node scripts/createSuperAdmin.ts",
     "migrate:roles": "ts-node scripts/migrateRoles.ts",
     "migrate:roles:apply": "ts-node scripts/migrateRoles.ts --apply",
-    "seed:settings": "ts-node scripts/seedSettings.ts"
+    "seed:settings": "ts-node scripts/seedSettings.ts",
+    "seed:doc-templates": "ts-node scripts/seedDocumentTemplates.ts"
   },
   "keywords": [],
   "author": "",

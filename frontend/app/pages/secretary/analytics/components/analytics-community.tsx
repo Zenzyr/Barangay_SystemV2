@@ -39,13 +39,6 @@ import {
 
 const CHART_COLORS = ["#0ea5e9", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#ec4899", "#14b8a6"];
 
-const SEVERITY_STYLES: Record<string, { bg: string; text: string; border: string }> = {
-  LOW: { bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200" },
-  MODERATE: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
-  HIGH: { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200" },
-  CRITICAL: { bg: "bg-red-50", text: "text-red-700", border: "border-red-200" },
-};
-
 interface ChartTooltipPayloadItem {
   name?: string;
   value?: string | number;
@@ -63,17 +56,6 @@ interface SectorData {
   available?: boolean;
   message?: string;
   note?: string;
-}
-
-interface Recommendation {
-  ruleId?: string;
-  severity: string;
-  category?: string;
-  problem?: string;
-  rate?: number | string;
-  affectedCount?: number;
-  priorityScore?: number;
-  recommendedProgram?: string;
 }
 
 function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
@@ -157,7 +139,6 @@ export function AnalyticsCommunity({ rangeLabel = "All time" }: { rangeLabel?: s
   const purok = useAnalytics("purok");
   const signals = useAnalytics("service-request-signals");
   const trends = useAnalytics("trends");
-  const recommendations = useAnalytics("recommendations");
 
   const ov = overview.data;
 
@@ -181,6 +162,7 @@ export function AnalyticsCommunity({ rangeLabel = "All time" }: { rangeLabel?: s
             <span className="text-xs font-medium text-gray-400">Census is a snapshot — shown for: {rangeLabel}</span>
           )}
         </div>
+
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
           {OVERVIEW_CARDS.map((s) => (
             <div key={s.label} className={`rounded-2xl border border-slate-200/80 p-3.5 shadow-sm ${s.bg}`}>
@@ -191,58 +173,6 @@ export function AnalyticsCommunity({ rangeLabel = "All time" }: { rangeLabel?: s
               <p className="text-[11px] text-gray-500 mt-0.5">{s.label}</p>
             </div>
           ))}
-        </div>
-      </div>
-
-      {/* ── Top Community Problems & Recommendations ── */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="size-9 rounded-xl bg-gradient-to-br from-sky-100 to-emerald-100 text-sky-600 flex items-center justify-center">
-              <Lightbulb className="size-4" />
-            </div>
-            <h2 className="text-base font-semibold text-gray-900">Top Community Problems &amp; Recommended Programs</h2>
-          </div>
-        </div>
-        <div className="p-4 space-y-2.5">
-          {recommendations.isLoading ? (
-            Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
-          ) : !recommendations.data || recommendations.data.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 text-center text-gray-400 py-8">
-              <div className="size-12 rounded-full bg-slate-100 text-slate-300 flex items-center justify-center">
-                <Lightbulb className="size-6" />
-              </div>
-              <p className="text-sm font-medium">No community problems triggered right now</p>
-              <p className="text-xs">Indicators are currently within the configured thresholds</p>
-            </div>
-          ) : (
-            recommendations.data.map((r: Recommendation, i: number) => {
-              const style = SEVERITY_STYLES[r.severity] || SEVERITY_STYLES.MODERATE;
-              return (
-                <div key={r.ruleId || i} className={`rounded-xl border p-4 ${style.bg} ${style.border}`}>
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-xs font-medium text-gray-400">{r.category}</span>
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${style.bg} ${style.text} ${style.border}`}>
-                          <AlertTriangle className="size-3" />
-                          {r.severity}
-                        </span>
-                      </div>
-                      <p className={`text-sm font-semibold mt-1 ${style.text}`}>{r.problem}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {r.rate}% affected ({r.affectedCount} residents) &middot; Priority score {r.priorityScore}/100
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[11px] text-gray-400 uppercase tracking-wide">Recommended Program</p>
-                      <p className="text-sm font-semibold text-gray-800">{r.recommendedProgram}</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
         </div>
       </div>
 
@@ -326,7 +256,7 @@ export function AnalyticsCommunity({ rangeLabel = "All time" }: { rangeLabel?: s
             <Skeleton className="h-64 w-full" />
           ) : purok.data && purok.data.length > 0 ? (
             <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={purok.data} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="purok" tick={{ fontSize: 11, fill: "#6b7280" }} axisLine={{ stroke: "#e5e7eb" }} tickLine={false} />
@@ -360,7 +290,7 @@ export function AnalyticsCommunity({ rangeLabel = "All time" }: { rangeLabel?: s
             <Skeleton className="h-64 w-full" />
           ) : education.data?.attainmentDistribution?.length > 0 ? (
             <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <PieChart>
                   <Pie
                     data={education.data.attainmentDistribution.slice(0, 6)}
@@ -398,7 +328,7 @@ export function AnalyticsCommunity({ rangeLabel = "All time" }: { rangeLabel?: s
             <Skeleton className="h-64 w-full" />
           ) : employment.data?.topOccupations?.length > 0 ? (
             <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={employment.data.topOccupations} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 11, fill: "#6b7280" }} axisLine={false} tickLine={false} allowDecimals={false} />

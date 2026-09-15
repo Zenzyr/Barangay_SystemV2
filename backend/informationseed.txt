@@ -1,0 +1,4 @@
+cd barangay-system-backend-main
+npm install
+npm run seed:census
+npm run seed:settings

@@ -6,6 +6,7 @@ import axiosInstance from "@/app/utils/axios";
 import { documentRequestInterfaceInput } from "@/app/types/documentRequest";
 import { accountInterface } from "@/app/types/account.type";
 import { documentTypes } from "@/app/utils/documents";
+import { getPublicTemplates } from "@/app/utils/documentTemplateService";
 import {
   DOCUMENT_NAMES,
   DOCUMENT_DESCRIPTIONS,
@@ -47,12 +48,46 @@ interface Props {
 
 type Step = "select" | "resident" | "form";
 
+interface CensusRecord {
+  _id: string;
+  name: string;
+  sex: string;
+  birthday: string | number;
+  age: string | number;
+  occupation: string;
+  education: string;
+  purok: string;
+  householdNumber: string;
+  cellphone: string;
+}
+
+/**
+ * Union of the two resident sources shown in the walk-in picker:
+ *  - account → a resident with a (approved) user account; these link via `resident`
+ *  - census  → a resident who exists ONLY in the barangay census; no account
+ *    exists, so the request is stored purely from the snapshot fields
+ */
+type PickerResident = {
+  key: string;
+  source: "account" | "census";
+  id: string;
+  name: string;
+  email?: string;
+  contact?: string;
+  address?: string;
+  dateOfBirth?: string;
+  civilStatus?: string;
+  purok?: string;
+  sex?: string;
+  age?: string | number;
+};
+
 export default function WalkInRequestModal({ open, onOpenChange }: Props) {
   const queryClient = useQueryClient();
 
   const [step, setStep] = useState<Step>("select");
   const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
-  const [selectedResident, setSelectedResident] = useState<accountInterface | null>(null);
+  const [selectedResident, setSelectedResident] = useState<PickerResident | null>(null);
   const [residentSearch, setResidentSearch] = useState("");
   const [formData, setFormData] = useState<Record<string, string | number | null>>({});
   const [showReview, setShowReview] = useState(false);
@@ -61,8 +96,8 @@ export default function WalkInRequestModal({ open, onOpenChange }: Props) {
   const [duplicateExisting, setDuplicateExisting] = useState<documentRequestInterface | null>(null);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
 
-  // Approved residents for the walk-in picker
-  const { data: residents = [], isLoading: residentsLoading } = useQuery<accountInterface[]>({
+  // Account-linked approved residents
+  const { data: accountResidents = [], isLoading: residentsLoading } = useQuery<accountInterface[]>({
     queryKey: ["accounts", "approved"],
     queryFn: async () => {
       const res = await axiosInstance.get("/account", {
@@ -72,6 +107,85 @@ export default function WalkInRequestModal({ open, onOpenChange }: Props) {
     },
     enabled: open,
   });
+
+  // Census-only residents (people in the census who never registered an account)
+  const { data: censusOnlyResidents = [] } = useQuery<CensusRecord[]>({
+    queryKey: ["resident-census"],
+    queryFn: async () => {
+      const res = await axiosInstance.get("/resident-census");
+      return res.data || [];
+    },
+    enabled: open,
+  });
+
+  // Active document templates → authoritative fees (falls back to the
+  // hardcoded layout prices so legacy document types keep a price).
+  const { data: activeTemplates = [] } = useQuery({
+    queryKey: ["document-templates", "public"],
+    queryFn: getPublicTemplates,
+    enabled: open,
+  });
+
+  const docPrice = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const t of activeTemplates) {
+      if (t.status === "active") map[t.documentType] = Number(t.fee) || 0;
+    }
+    return (document: string) =>
+      map[document] ?? documentTypes.find((d) => d.document === document)?.price ?? 0;
+  }, [activeTemplates]);
+
+  // Merge both sources into a single picker list, deduplicated by
+  // normalized name (accounts take precedence over census-only entries).
+  const residents: PickerResident[] = useMemo(() => {
+    // Order- and duplicate-insensitive token key: "Munar,Orlando Munar" and
+    // "Orlando Munar" resolve to the same key, so one person is not shown
+    // twice even when the census and account spell the name differently.
+    const nameNorm = (s: string) =>
+      [...new Set(
+        s.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim().split(" ").filter(Boolean)
+      )].sort().join(" ");
+    const seen = new Set<string>();
+
+    const out: PickerResident[] = [];
+    for (const a of accountResidents) {
+      const key = nameNorm(a.name || "");
+      seen.add(key);
+      out.push({
+        key: `account-${a._id}`,
+        source: "account",
+        id: a._id,
+        name: a.name,
+        email: a.email,
+        contact: a.contact,
+        address: a.address,
+        dateOfBirth: a.dateOfBirth,
+        civilStatus: a.civilStatus,
+        purok: a.purok,
+      });
+    }
+    for (const c of censusOnlyResidents) {
+      // Compare by a normalized token key so "Dela Cruz,Juan" and
+      // "Juan Dela Cruz" from the two sources can be deduplicated, but keep
+      // the ORIGINAL census spelling for display and for the document snapshot.
+      const key = nameNorm(c.name || "");
+      if (seen.has(key)) continue;
+      if (!key) continue;
+      seen.add(key);
+      out.push({
+        key: `census-${c._id}`,
+        source: "census",
+        id: c._id,
+        name: c.name,
+        contact: c.cellphone !== "N/A" ? c.cellphone : undefined,
+        purok: c.purok !== "N/A" ? c.purok : undefined,
+        dateOfBirth: c.birthday !== "N/A" ? String(c.birthday) : undefined,
+        sex: c.sex !== "N/A" ? c.sex : undefined,
+        age: c.age !== "N/A" ? c.age : undefined,
+      });
+    }
+    return out;
+  }, [accountResidents, censusOnlyResidents]);
 
   const currentDocFields = useMemo(() => {
     if (!selectedDocument) return [];
@@ -107,14 +221,27 @@ export default function WalkInRequestModal({ open, onOpenChange }: Props) {
   const buildPayload = (): documentRequestInterfaceInput | null => {
     if (!selectedDocument || !selectedResident) return null;
     const payload: any = {
-      resident: selectedResident._id,
       document: selectedDocument,
-      price: documentTypes.find((d) => d.document === selectedDocument)?.price || 0,
+      price: docPrice(selectedDocument),
       status: "pending",
       isPaid: false,
       source: "walk-in",
-      contact: selectedResident.contact || null,
     };
+
+    // Account-linked resident → store the account ref. Census-only resident
+    // → no account exists, so the request is filed from the denormalized
+    // snapshot fields kept on the document itself.
+    if (selectedResident.source === "account") {
+      payload.resident = selectedResident.id;
+      payload.contact = selectedResident.contact || null;
+    } else {
+      payload.fullName = formData.fullName || selectedResident.name;
+      payload.contact = formData.contact || selectedResident.contact || null;
+      payload.dateOfBirth = formData.dateOfBirth || selectedResident.dateOfBirth || null;
+      payload.purok = formData.purok || selectedResident.purok || null;
+      payload.age = formData.age ?? selectedResident.age ?? null;
+    }
+
     for (const fieldKey of currentDocFields) {
       const value = formData[fieldKey];
       if (value !== undefined && value !== null && value !== "") {
@@ -276,29 +403,48 @@ export default function WalkInRequestModal({ open, onOpenChange }: Props) {
                     </div>
                   ) : filteredResidents.length === 0 ? (
                     <div className="text-center py-10 text-sm text-gray-400">
-                      No approved residents found.
+                      No residents found. Try a different search term.
                     </div>
                   ) : (
                     <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
                       {filteredResidents.map((r) => (
                         <button
-                          key={r._id}
+                          key={r.key}
                           onClick={() => {
                             setSelectedResident(r);
-                            if (r.contact) setFormData((p) => ({ ...p, contact: r.contact }));
+                            // Prefill form fields from the selected resident
+                            // so the secretary doesn't have to retype everything.
+                            const prefill: Record<string, string | number | null> = {};
+                            if (r.source === "census") {
+                              if (r.name) prefill.fullName = r.name;
+                              if (r.contact) prefill.contact = r.contact;
+                              if (r.dateOfBirth) prefill.dateOfBirth = r.dateOfBirth;
+                              if (r.purok) prefill.purok = r.purok;
+                              if (r.age && r.age !== "N/A") prefill.age = Number(r.age);
+                            } else if (r.contact) {
+                              prefill.contact = r.contact;
+                            }
+                            setFormData((p) => ({ ...p, ...prefill }));
                             setStep("form");
                           }}
                           className={cn(
                             "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-sky-50",
-                            selectedResident?._id === r._id && "bg-sky-50"
+                            selectedResident?.key === r.key && "bg-sky-50"
                           )}
                         >
                           <div className="size-9 shrink-0 rounded-full bg-gradient-to-br from-sky-100 to-emerald-100 flex items-center justify-center">
                             <UserRound className="size-4 text-sky-600" />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-slate-800 truncate">{r.name}</p>
-                            <p className="text-xs text-slate-500 truncate">{r.email}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm font-medium text-slate-800 truncate">{r.name}</p>
+                              {r.source === "census" && (
+                                <span className="shrink-0 text-[10px] rounded-full bg-violet-50 px-1.5 py-0.5 font-medium text-violet-600">Census</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-500 truncate">
+                              {r.source === "census" ? (r.purok || "Census record") : (r.email || "")}
+                            </p>
                           </div>
                           {r.contact && (
                             <span className="text-[11px] text-slate-400 shrink-0">{r.contact}</span>
@@ -358,7 +504,7 @@ export default function WalkInRequestModal({ open, onOpenChange }: Props) {
                       <p className="flex justify-between gap-3"><span>Resident</span><strong className="text-slate-800 text-right">{selectedResident?.name}</strong></p>
                       <p className="flex justify-between gap-3"><span>Document</span><strong className="text-slate-800 text-right">{DOCUMENT_NAMES[selectedDocument || ""]}</strong></p>
                       <p className="flex justify-between gap-3"><span>Source</span><strong className="text-slate-800">Walk-in</strong></p>
-                      <p className="flex justify-between gap-3"><span>Price</span><strong className="text-slate-800">₱{documentTypes.find((d) => d.document === selectedDocument)?.price || 0}</strong></p>
+                      <p className="flex justify-between gap-3"><span>Price</span><strong className="text-slate-800">₱{selectedDocument ? docPrice(selectedDocument) : 0}</strong></p>
                     </div>
                   </div>
                 ) : (

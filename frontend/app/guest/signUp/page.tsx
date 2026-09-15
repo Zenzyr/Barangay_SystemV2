@@ -523,6 +523,7 @@ export default function SignUpPage() {
 
     // UX-only identity check (ONE PERSON = ONE ACCOUNT). The backend
     // carries out the authoritative check when the account is created.
+    let censusAutoFill: Record<string, string> | null = null;
     try {
       const precheck = await axiosInstance.post("/account/check-duplicate", {
         name: name.trim(),
@@ -535,6 +536,10 @@ export default function SignUpPage() {
           "This person is already registered in the system. Please log in using your existing account or use account recovery."
         );
         return;
+      }
+      if (precheck.data?.status === "flagged" && precheck.data?.census) {
+        censusAutoFill = precheck.data.census;
+        successAlert("Resident found in census — empty fields have been pre-filled");
       }
     } catch {
       // Network hiccup — the backend check will catch duplicates anyway.
@@ -554,13 +559,13 @@ export default function SignUpPage() {
       formData.append("email", email.trim());
       formData.append("password", password);
       formData.append("status", "pending");
-      formData.append("contact", contact);
-      formData.append("gender", gender);
-      formData.append("dateOfBirth", dateOfBirth);
+      formData.append("contact", censusAutoFill?.cellphone && !contact.trim() ? censusAutoFill.cellphone : contact);
+      formData.append("gender", censusAutoFill?.sex && !gender ? censusAutoFill.sex : gender);
+      formData.append("dateOfBirth", censusAutoFill?.birthday && !dateOfBirth ? censusAutoFill.birthday : dateOfBirth);
       formData.append("civilStatus", civilStatus);
-      formData.append("purok", purok);
+      formData.append("purok", censusAutoFill?.purok && !purok ? censusAutoFill.purok : purok);
       formData.append("voterStatus", voterStatus);
-      formData.append("houseHoldNumber", houseHoldNumber.trim());
+      formData.append("houseHoldNumber", censusAutoFill?.householdNumber && !houseHoldNumber.trim() ? censusAutoFill.householdNumber : houseHoldNumber.trim());
       formData.append("profile", "/assets/profile.jpg");
       formData.append("idFront", idFront);
       formData.append("idBack", idBack);

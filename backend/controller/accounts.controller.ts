@@ -15,6 +15,7 @@ import { sendEmail } from "../utils/email";
 import { generateResetCode, hashResetCode, compareResetCode, resetCodeEmailHtml, resetCodeSmsMessage, RESET_CODE_TTL_MINUTES } from "../utils/passwordReset";
 import { verifyIdWithOcr } from "../utils/idVerification";
 import { NotificationService } from "../services/notification.service";
+import { ResidentCensusService } from "../services/residentCensus.service";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SystemInfoService } from "../services/systemInfo.service";
 import { BusinessService } from "../services/business.service";
@@ -176,6 +177,15 @@ export class AccountController {
           : {}),
       });
 
+      // ── Auto-sync into the census at sign-up ───────────────────
+      // Every registered resident also becomes a census entry immediately,
+      // not just after the verifying clerk approves. The sync is safe to
+      // re-run (idempotent): if the person is already in the census, it
+      // skips instead of creating a duplicate.
+      await ResidentCensusService.upsertFromAccount(account).catch((err) =>
+        console.error("[CENSUS-SYNC ERROR]", err)
+      );
+
       return response.status(201).json({ userId: account._id });
     } catch (error: any) {
       console.error("[REGISTER ERROR]", error);
@@ -196,6 +206,11 @@ export class AccountController {
    * Public, low-noise pre-registration identity check for UX only.
    * Returns { status: "clean" | "flagged" | "blocked" } — never any
    * private details. The authoritative check still runs inside register().
+   *
+   * When the person is a census resident (status "flagged" because of a
+   * census match, meaning this is likely their FIRST account), the matching
+   * census record's public profile fields are included so the sign-up form
+   * can auto-fill their details.
    */
   static checkDuplicate = async (request: AuthRequest, response: Response) => {
     try {
@@ -211,7 +226,26 @@ export class AccountController {
       }
 
       const assessment = await assessPersonRegistration({ name, dateOfBirth, gender, contact });
-      response.send({ status: assessment.status });
+      const censusMatch = (assessment.records || []).find((r) => r.kind === "census");
+
+      const payload: Record<string, any> = { status: assessment.status };
+      if (censusMatch) {
+        const record = await ResidentCensusService.get(censusMatch.id);
+        if (record) {
+          payload.census = {
+            id: record._id,
+            name: record.name,
+            sex: record.sex,
+            birthday: record.birthday,
+            purok: record.purok,
+            householdNumber: record.householdNumber,
+            cellphone: record.cellphone,
+            occupation: record.occupation,
+            education: record.education,
+          };
+        }
+      }
+      response.send(payload);
     } catch (error) {
       console.error("[CHECK-DUPLICATE ERROR]", error);
       response.status(500).send("Duplicate check unavailable");
@@ -296,6 +330,18 @@ export class AccountController {
       if (!account) {
         response.status(404).send("Account not found");
         return;
+      }
+
+      // ── Auto-sync approved residents into the census ────────────
+      // When a resident account is approved, its profile details are mirrored
+      // into the ResidentCensus collection so signups automatically populate
+      // the barangay census. Duplicates are prevented (exact name+birthday
+      // match), and any resident who is already in the census is never
+      // re-inserted.
+      if (status === "approved") {
+        await ResidentCensusService.upsertFromAccount(account).catch((err) =>
+          console.error("[CENSUS-SYNC ERROR]", err)
+        );
       }
 
       await NotificationService.create({
@@ -603,6 +649,11 @@ export class AccountController {
         activity : "Update User Info",
         date : formattedDate()
       })
+
+      // Keep the linked census record in step with the updated profile.
+      await ResidentCensusService.syncLinkedCensus(id).catch((err) =>
+        console.error("[CENSUS-SYNC ERROR]", err)
+      );
 
       response.send(account);
     } catch (error) {

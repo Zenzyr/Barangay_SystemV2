@@ -5,7 +5,6 @@ const DOCUMENT_TYPES = [
   "barangayCertificate",
   "certificateOfResidency",
   "certificateOfIndigency",
-  "barangayClearance",
   "certificateOfGoodMoralCharacter",
   "certificateOfUnemployment",
   "barangayBusinessClearance",
@@ -21,11 +20,22 @@ const DOCUMENT_TYPES = [
 const DOCUMENT_STATUSES = ["pending", "processing", "to claim", "completed", "rejected"];
 
 const DocumentSchema = new Schema({
-    resident: { type: mongoose.Schema.Types.ObjectId, ref: "Accounts", required: true },
+    // Optional: linked to an Accounts doc when the resident has an account.
+    // Walk-ins without an account are stored via the denormalized snapshot
+    // fields (fullName, contact, address, dateOfBirth, ...) instead.
+    resident: { type: mongoose.Schema.Types.ObjectId, ref: "Accounts", required: false },
     document: { type: String, required: true, enum: DOCUMENT_TYPES },
     status: { type: String, required: true, enum: DOCUMENT_STATUSES, default: "pending" },
     isPaid : { type: Boolean, required: true, default: false },
     price : { type: Number, required: true, min: 0 },
+
+    // ── Template tracking ──────────────────────────────────────────
+    // Links this request to the exact document template that produced it,
+    // with a frozen fee snapshot so the charge is stable even if the
+    // template fee is later changed.
+    templateId: { type: mongoose.Schema.Types.ObjectId, ref: "DocumentTemplate", required: false },
+    templateVersion: { type: Number, required: false },
+    feeAtRequest: { type: Number, required: false },
 
     fullName : { type: String, required: false },
     contact: { type: String, required: false },
@@ -87,13 +97,15 @@ const DocumentSchema = new Schema({
 
 // Race-condition protection for duplicate requests: only one request per
 // resident + document type + date + time may exist. Partial index keeps the
-// constraint scoped to records that actually carry the normalized stamp, so
-// legacy documents (created before this field existed) are unaffected.
+// constraint scoped to records that actually carry the normalized stamp and
+// a linked account, so legacy documents and walk-ins without an account
+// (resident = null) are unaffected.
 DocumentSchema.index(
   { resident: 1, document: 1, requestDate: 1, requestTime: 1 },
   {
     unique: true,
     partialFilterExpression: {
+      "resident": { $type: "objectId" },
       "requestDate": { $type: "string" },
       "requestTime": { $type: "string" },
     },

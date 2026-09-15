@@ -18,21 +18,21 @@ export class DocumentRequestService {
 
   /**
    * Finds an existing request that matches the normalized duplicate key
-   * (resident + document type + date + time). Used for the friendly
-   * duplicate dialog and for recovering an existing request on E11000 races.
+   * (resident + document type + date + time — or the denormalized fullName
+   * for walk-ins without a linked account). Used for the friendly duplicate
+   * dialog and for recovering an existing request on E11000 races.
    */
   static async findExistingDuplicate(
-    resident: string,
+    resident: string | null | undefined,
     document: string,
     requestDate: string,
-    requestTime: string
+    requestTime: string,
+    fullName?: string | null
   ) {
-    return DocumentRequestModel.findOne({
-      resident,
-      document,
-      requestDate,
-      requestTime,
-    }).populate("resident", "-password");
+    const filter: Record<string, any> = { document, requestDate, requestTime };
+    if (resident) filter.resident = resident;
+    else if (fullName && String(fullName).trim()) filter.fullName = String(fullName).trim();
+    return DocumentRequestModel.findOne(filter).populate("resident", "-password");
   }
 
   static async create(data: documentRequestInterfaceInput) {

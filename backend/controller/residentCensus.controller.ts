@@ -3,6 +3,7 @@ import { AuthRequest } from "../types/request.type";
 import { ResidentCensusService } from "../services/residentCensus.service";
 import { residentCensusInterfaceInput } from "../types/residentCensus.type";
 import { isObjectId, isName, isNonEmptyString } from "../utils/validation";
+import { matchPerson } from "../utils/duplicateCheck";
 
 export class ResidentCensusController {
 
@@ -23,6 +24,25 @@ export class ResidentCensusController {
         (typeof data.age === "number" && data.age >= 0 && data.age <= 120);
       if (!ageOk) {
         response.status(400).send("Age must be a number between 0 and 120, or 'N/A'");
+        return;
+      }
+
+      // ── Duplicate guard ─────────────────────────────────────────
+      // One person = one census record. Blocks a submission whose identity
+      // confidently or likely matches an existing record (name+birthday),
+      // so re-encoding the same resident twice is prevented.
+      const candidates = await ResidentCensusService.findByName(data.name);
+      const existing = candidates.find((c) => {
+        const level = matchPerson(
+          { name: data.name, dob: data.birthday, gender: data.sex, contact: data.cellphone },
+          { name: c.name, dob: c.birthday, gender: c.sex, contact: c.cellphone }
+        );
+        return level === "confident" || level === "likely";
+      });
+      if (existing) {
+        response.status(409).send(
+          "A resident with the same name and birthday already exists in the census."
+        );
         return;
       }
 
@@ -100,10 +120,40 @@ export class ResidentCensusController {
         response.status(404).send("Resident census record not found");
         return;
       }
+      // Keep the linked online account in step with the edited census record.
+      await ResidentCensusService.syncLinkedAccount(id).catch((err) =>
+        console.error("[CENSUS-SYNC ERROR]", err)
+      );
       response.send(record);
     } catch (error) {
       console.error(error);
       response.status(500).send("Failed to update resident census record");
+    }
+  };
+
+  /**
+   * Bulk-import census records from a CSV/Excel export or any JSON array.
+   * Accepts { records: [...] } where each row uses the standard census field
+   * names (or friendly aliases like "husband"/"birthDate"/"contact"). Every
+   * row is identity-checked against the existing census, so re-importing the
+   * same file never creates duplicates.
+   */
+  static importCsv = async (request: AuthRequest, response: Response) => {
+    try {
+      const records = (request.body?.records ?? []) as Array<Record<string, any>>;
+      if (!Array.isArray(records) || records.length === 0) {
+        response.status(400).send("A non-empty \"records\" array is required");
+        return;
+      }
+      if (records.length > 10_000) {
+        response.status(400).send("Too many records (max 10,000 per import)");
+        return;
+      }
+      const result = await ResidentCensusService.bulkImport(records);
+      response.send({ ok: true, imported: result.inserted, skipped: result.skipped });
+    } catch (error) {
+      console.error("[CENSUS-IMPORT ERROR]", error);
+      response.status(500).send("Failed to import resident census records");
     }
   };
 

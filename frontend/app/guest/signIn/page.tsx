@@ -235,6 +235,8 @@ export default function SignInPage() {
                 src="/assets/logo.jpg"
                 alt="Barangay Logo"
                 fill
+                sizes="64px"
+                loading="eager"
                 className="object-cover"
               />
             </div>

@@ -10,7 +10,6 @@ import {
   History,
   ClipboardList,
   Award,
-  Settings2,
   LogOut,
   Menu,
   X,
@@ -19,7 +18,6 @@ import {
   Landmark,
   MapPin,
   ScrollText,
-  FolderOpen,
 } from "lucide-react"
 import { useState } from "react"
 import {
@@ -45,9 +43,8 @@ const navigationItems = [
   { title: "Verify Business", url: "/pages/secretary/verifyBusiness", icon: Store },
   { title: "Officials", url: "/pages/secretary/barangaySettings/officials", icon: Landmark },
   { title: "Puroks", url: "/pages/secretary/barangaySettings/puroks", icon: MapPin },
-  { title: "Certificate Templates", url: "/pages/secretary/barangaySettings/templates", icon: FolderOpen },
+  { title: "Document Templates", url: "/pages/secretary/document-templates", icon: FileText },
   { title: "Audit Trail", url: "/pages/secretary/barangaySettings/audit", icon: ScrollText },
-  { title: "Recommendation Rules", url: "/pages/secretary/recommendationRules", icon: Settings2 },
 ]
 
 interface AppSidebarProps {

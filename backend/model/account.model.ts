@@ -35,6 +35,10 @@ const AccountSchema = new Schema({
     // same person cannot both be created. It is omitted (undefined) for
     // accounts without a parseable DOB, so those are skipped by the index.
     identityHash: { type: String, required: false },
+    // Link to the ResidentCensus record for this person. Set automatically
+    // when registration matches an existing census entry, so the census and
+    // the account stay in sync (edits on one side update the other).
+    censusId: { type: Schema.Types.ObjectId, ref: "ResidentCensus", required: false },
     // Set when registration partially matches an existing record; the
     // verifying clerk reviews it before approval. Operational flag only.
     possibleDuplicate: {
@@ -75,5 +79,7 @@ const AccountSchema = new Schema({
 
 // Race-safe ONE-PERSON-ONE-ACCOUNT backstop (skip docs without a hash).
 AccountSchema.index({ identityHash: 1 }, { unique: true, sparse: true });
+// Fast lookups when syncing a census record back to its linked account.
+AccountSchema.index({ censusId: 1 });
 
 export default mongoose.model('Accounts', AccountSchema)

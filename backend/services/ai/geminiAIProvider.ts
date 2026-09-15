@@ -52,7 +52,7 @@ Rules:
  *
  * Uses the official @google/generative-ai SDK with the key from
  * GEMINI_API_KEY (or GOOGLE_API_KEY) in backend/.env. The model is
- * configurable via GEMINI_MODEL (default "gemini-2.0-flash") and the API
+ * configurable via GEMINI_MODEL (default "gemini-3.6-flash") and the API
  * version via GEMINI_API_VERSION (default "v1beta").
  */
 export class GeminiAIProvider implements AIInsightProvider {
@@ -71,12 +71,12 @@ export class GeminiAIProvider implements AIInsightProvider {
       );
     }
 
-    const modelName = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+    const modelName = process.env.GEMINI_MODEL || "gemini-3.6-flash";
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel(
       {
         model: modelName,
-        generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
+        generationConfig: { temperature: 0.3, maxOutputTokens: 8192 },
       },
       { apiVersion: process.env.GEMINI_API_VERSION || "v1beta" }
     );

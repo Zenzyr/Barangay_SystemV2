@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import axiosInstance from "@/app/utils/axios";
 import useUserStore from "@/app/store/useUserStore";
 import { documentTypes } from "@/app/utils/documents";
+import { getPublicTemplates } from "@/app/utils/documentTemplateService";
 import { documentRequestInterfaceInput, documentRequestInterface } from "@/app/types/documentRequest";
 import DuplicateRequestDialog from "@/components/documentRequest/DuplicateRequestDialog";
+import { DocumentCard } from "@/components/documentRequest/DocumentCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -306,7 +308,7 @@ const FIELD_ICONS: Record<string, React.ElementType> = {
 // ─── Document icon map ───────────────────────────────────────────
 const DOCUMENT_ICONS: Record<string, React.ElementType> = {
   barangayCertificate: FileText,
-  barangayClearance: FileCheck,
+  barangayClearance: FileText,
   certificateOfResidency: BadgeCheck,
   certificateOfIndigency: ScrollText,
   certificateOfGoodMoralCharacter: BadgeCheck,
@@ -324,7 +326,7 @@ const DOCUMENT_ICONS: Record<string, React.ElementType> = {
 // ─── Document display names ──────────────────────────────────────
 const DOCUMENT_NAMES: Record<string, string> = {
   barangayCertificate: "Barangay Certificate",
-  barangayClearance: "Barangay Clearance",
+  barangayClearance: "Barangay Certificate",
   certificateOfResidency: "Certificate of Residency",
   certificateOfIndigency: "Certificate of Indigency",
   certificateOfGoodMoralCharacter: "Certificate of Good Moral Character",
@@ -341,7 +343,7 @@ const DOCUMENT_NAMES: Record<string, string> = {
 
 const DOCUMENT_DESCRIPTIONS: Record<string, string> = {
   barangayCertificate: "Official certification of your residency and background",
-  barangayClearance: "Clearance for employment, school, or travel purposes",
+  barangayClearance: "Official certification of your residency and background",
   certificateOfResidency: "Proof that you are a resident of this barangay",
   certificateOfIndigency: "Documentation for financial or medical assistance",
   certificateOfGoodMoralCharacter: "Character reference for employment or school",
@@ -366,6 +368,21 @@ export default function DocumentRequestPage() {
   const [step, setStep] = useState<"select" | "form">("select");
   const [duplicateExisting, setDuplicateExisting] = useState<documentRequestInterface | null>(null);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
+
+  // Active templates → data-driven fees
+  const { data: activeTemplates = [] } = useQuery({
+    queryKey: ["document-templates", "public"],
+    queryFn: getPublicTemplates,
+  });
+
+  const docPrice = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const t of activeTemplates) {
+      if (t.status === "active") map[t.documentType] = Number(t.fee) || 0;
+    }
+    return (document: string) =>
+      map[document] ?? getDocumentPrice(document);
+  }, [activeTemplates]);
 
   // ── Get fields for selected document ──────────────────────────
   const currentDocFields = useMemo(() => {
@@ -407,7 +424,7 @@ export default function DocumentRequestPage() {
     const payload: Record<string, unknown> = {
       resident: user._id,
       document: selectedDocument,
-      price : getDocumentPrice(selectedDocument),
+      price : docPrice(selectedDocument),
       status: "pending",
       isPaid: false,
       fullName: null,
@@ -573,41 +590,27 @@ export default function DocumentRequestPage() {
 
   return (
     <div className="w-full min-h-dvh">
-      {/* ── Top header bar ── */}
-      <div className="bg-gradient-to-r from-sky-600 to-emerald-600 px-4 sm:px-6 py-5">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div>
-              {step === "form" ? (
-                <button
-                  onClick={resetForm}
-                  className="inline-flex items-center gap-1.5 text-sm text-white/80 hover:text-white transition-colors mb-2"
-                >
-                  <ArrowLeft className="size-4" />
-                  Back to documents
-                </button>
-              ) : (
-                <div className="h-5" />
-              )}
-              <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-                <FileText className="size-6 text-sky-200" />
-                Request a Document
-              </h1>
-              <p className="text-sm text-sky-100 mt-0.5">
-                {step === "select"
-                  ? "Choose the type of document you need"
-                  : `Fill in the required details for your ${DOCUMENT_NAMES[selectedDocument || ""] || "document"}`}
-              </p>
-            </div>
-          </div>
-        </div>
+      {/* Compact Header */}
+      <div className="max-w-5xl mx-auto px-6 pt-8 pb-4">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Request a Document</h1>
+        <p className="text-slate-500 mt-1">Choose the barangay document or certificate you need.</p>
+        
+        {step === "form" && (
+           <button
+             onClick={resetForm}
+             className="text-sm text-slate-500 hover:text-slate-900 flex items-center gap-1 mt-4"
+           >
+             <ArrowLeft className="size-4" />
+             Back to documents
+           </button>
+        )}
       </div>
 
       {/* ── Content area ── */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 -mt-3 relative z-10 pb-10">
         {step === "select" ? (
           /* ── Step 1: Document Type Selection ── */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {documentTypes.map((doc) => {
               const DocIcon = DOCUMENT_ICONS[doc.document] || FileText;
               return (

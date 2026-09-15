@@ -56,7 +56,7 @@ interface ChartTooltipProps {
 // ─── Constants ──────────────────────────────────────────────────
 const DOCUMENT_NAMES: Record<string, string> = {
   barangayCertificate: "Barangay Certificate",
-  barangayClearance: "Barangay Clearance",
+  barangayClearance: "Barangay Certificate",
   certificateOfResidency: "Certificate of Residency",
   certificateOfIndigency: "Certificate of Indigency",
   certificateOfGoodMoralCharacter: "Certificate of Good Moral Character",
