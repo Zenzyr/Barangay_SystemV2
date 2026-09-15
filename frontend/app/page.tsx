@@ -17,14 +17,26 @@ import {
   Share2,
   MessageSquare,
 } from "lucide-react";
+import HeroCarousel from "@/components/HeroCarousel";
 import { useState, useEffect } from "react";
 
 export default function Home() {
   const [scrolled, setScrolled] = useState(false);
+  const [stats, setStats] = useState({
+    activeResidents: null,
+    processedDocuments: null,
+    skilledNeighbors: null,
+  });
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
+    
+    fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL_LIVE}/public/stats`)
+      .then((res) => res.json())
+      .then((data) => setStats(data))
+      .catch((err) => console.error("Failed to fetch public stats:", err));
+
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
@@ -40,7 +52,7 @@ export default function Home() {
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
           scrolled
             ? "bg-white/80 backdrop-blur-xl shadow-lg shadow-sky-900/5"
-            : "bg-transparent"
+            : "bg-white/20 backdrop-blur-md border-b border-white/10 shadow-sm"
         }`}
       >
         <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
@@ -51,6 +63,7 @@ export default function Home() {
                 src="/assets/logo.jpg"
                 alt="Barangay Logo"
                 fill
+                sizes="(max-width: 768px) 40px, 40px"
                 className="object-cover"
               />
             </div>
@@ -60,26 +73,27 @@ export default function Home() {
           </Link>
 
           {/* Nav Links (desktop) */}
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
+          <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-800">
             <button
               onClick={() => scrollToSection("features")}
-              className="hover:text-sky-600 transition-colors duration-200"
+              className="hover:text-sky-700 transition-colors duration-200"
             >
               Features
             </button>
             <button
               onClick={() => scrollToSection("about")}
-              className="hover:text-sky-600 transition-colors duration-200"
+              className="hover:text-sky-700 transition-colors duration-200"
             >
               About
             </button>
             <button
               onClick={() => scrollToSection("contact")}
-              className="hover:text-sky-600 transition-colors duration-200"
+              className="hover:text-sky-700 transition-colors duration-200"
             >
               Contact
             </button>
           </nav>
+
 
           {/* Auth Buttons */}
           <div className="flex items-center gap-3">
@@ -102,10 +116,7 @@ export default function Home() {
 
       {/* ── Hero Section ── */}
       <section className="relative min-h-screen flex items-center overflow-hidden">
-        {/* Background gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-sky-50 via-white to-emerald-50" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-sky-200/30 via-transparent to-transparent" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-emerald-200/20 via-transparent to-transparent" />
+        <HeroCarousel />
 
         {/* Decorative floating shapes */}
         <div className="absolute top-1/4 left-10 w-72 h-72 bg-sky-200/20 rounded-full blur-3xl animate-pulse" />
@@ -113,56 +124,56 @@ export default function Home() {
 
         <div className="relative max-w-7xl mx-auto px-6 pt-24 pb-20 w-full">
           <div className="grid md:grid-cols-2 gap-12 items-center">
-            {/* Left – Text */}
-            <div className="space-y-8">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-sky-100/70 border border-sky-200/50 text-sky-700 text-sm font-medium">
-                <Sparkles className="w-4 h-4" />
-                Your Digital Barangay Portal
-              </div>
-
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-tight">
-                <span className="text-slate-800">Welcome to</span>{" "}
-                <span className="bg-gradient-to-r from-sky-600 via-sky-500 to-emerald-500 bg-clip-text text-transparent">
-                  Barangay Rabon
-                </span>
-              </h1>
-
-              <p className="text-lg text-slate-600 leading-relaxed max-w-lg">
-                Your all-in-one community hub. Request documents, discover
-                neighbor skills, and browse local businesses — all in one
-                place.
-              </p>
-
-              {/* CTA Buttons */}
-              <div className="flex flex-wrap gap-4">
-                <Link href="/guest/signIn">
-                  <Button
-                    size="lg"
-                    className="bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white shadow-lg shadow-sky-200/50 hover:shadow-xl hover:shadow-sky-300/50 transition-all duration-300 font-semibold px-7 h-11 text-base rounded-xl"
-                  >
-                    Get Started
-                    <ChevronRight className="ml-1 w-4 h-4" />
-                  </Button>
-                </Link>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  onClick={() => scrollToSection("features")}
-                  className="border-sky-200 text-sky-700 hover:bg-sky-50 hover:border-sky-300 font-medium px-7 h-11 text-base rounded-xl"
-                >
-                  Explore Features
-                </Button>
-              </div>
-
-              {/* Trust indicators */}
-              <div className="flex items-center gap-6 pt-4 text-sm text-slate-500">
-                <div className="flex items-center gap-1.5">
-                  <Shield className="w-4 h-4 text-emerald-500" />
-                  <span>Secure & Private</span>
+            {/* Left – Text Container */}
+            <div className="bg-slate-950/30 backdrop-blur-md p-8 sm:p-10 rounded-3xl border border-white/10 shadow-2xl">
+              <div className="space-y-8">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 border border-white/20 text-white text-sm font-medium backdrop-blur-sm shadow-sm">
+                  <Sparkles className="w-4 h-4" />
+                  Your Digital Barangay Portal
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <Star className="w-4 h-4 text-amber-400" />
-                  <span>Community Trusted</span>
+
+                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-tight text-white/95 [text-shadow:0_2px_4px_rgba(0,0,0,0.3)]">
+                  <span className="text-white">Welcome to</span>{" "}
+                  <span className="text-emerald-300">
+                    Barangay Rabon
+                  </span>
+                </h1>
+
+                <p className="text-lg text-slate-100 leading-relaxed max-w-lg [text-shadow:0_1px_2px_rgba(0,0,0,0.3)]">
+                  Your all-in-one community hub. Request barangay documents, discover local skills, and connect with your neighbors — all in one place.
+                </p>
+
+                {/* CTA Buttons */}
+                <div className="flex flex-wrap gap-4">
+                  <Link href="/guest/signIn">
+                    <Button
+                      size="lg"
+                      className="bg-sky-500 hover:bg-sky-600 text-white shadow-lg shadow-sky-900/20 transition-all duration-300 font-semibold px-7 h-11 text-base rounded-xl"
+                    >
+                      Get Started
+                      <ChevronRight className="ml-1 w-4 h-4" />
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => scrollToSection("features")}
+                    className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:border-white/30 font-medium px-7 h-11 text-base rounded-xl"
+                  >
+                    Explore Features
+                  </Button>
+                </div>
+
+                {/* Trust indicators */}
+                <div className="flex items-center gap-6 pt-4 text-sm text-slate-200">
+                  <div className="flex items-center gap-1.5 [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]">
+                    <Shield className="w-4 h-4 text-emerald-400" />
+                    <span>Secure & Private</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]">
+                    <Star className="w-4 h-4 text-amber-300" />
+                    <span>Community Trusted</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -177,6 +188,7 @@ export default function Home() {
                     src="/assets/logo.jpg"
                     alt="Barangay Rabon"
                     fill
+                    sizes="(max-width: 768px) 320px, 384px"
                     className="object-cover"
                     priority
                   />
@@ -276,7 +288,7 @@ export default function Home() {
           </div>
 
           {/* Feature cards */}
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-8 justify-items-center">
             {/* Card 1 – Document Request */}
             <div className="group relative bg-white rounded-2xl p-8 shadow-lg shadow-sky-100/50 border border-sky-100 hover:shadow-xl hover:shadow-sky-200/40 hover:-translate-y-1 transition-all duration-300">
               <div className="absolute inset-0 bg-gradient-to-br from-sky-50/50 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -339,56 +351,23 @@ export default function Home() {
                 </ul>
               </div>
             </div>
-
-            {/* Card 3 – Business Directory */}
-            <div className="group relative bg-white rounded-2xl p-8 shadow-lg shadow-sky-100/50 border border-sky-100 hover:shadow-xl hover:shadow-sky-200/40 hover:-translate-y-1 transition-all duration-300">
-              <div className="absolute inset-0 bg-gradient-to-br from-sky-50/50 to-transparent rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              <div className="relative">
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-sky-400 to-emerald-500 flex items-center justify-center mb-5 shadow-md shadow-sky-200/50">
-                  <Building2 className="w-7 h-7 text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-slate-800 mb-3">
-                  Business Directory
-                </h3>
-                <p className="text-slate-500 leading-relaxed mb-5">
-                  Explore all registered businesses in the barangay. Find
-                  sari-sari stores, eateries, repair shops, and services
-                  near you.
-                </p>
-                <ul className="space-y-2 text-sm text-slate-500">
-                  <li className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-                    Complete business listings
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-                    Contact & location info
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-sky-400" />
-                    Support local entrepreneurs
-                  </li>
-                </ul>
-              </div>
-            </div>
           </div>
         </div>
       </section>
 
       {/* ── Stats Section ── */}
-      <section className="relative overflow-hidden bg-gradient-to-r from-sky-50 to-emerald-50 py-20">
+      <section className="relative overflow-hidden bg-gradient-to-r from-sky-50 to-emerald-50 py-20 flex items-center justify-center min-h-[300px]">
         <div className="absolute inset-0 bg-grid-glow [mask-image:radial-gradient(ellipse_at_center,black,transparent_70%)]" />
-        <div className="relative max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        <div className="relative max-w-7xl mx-auto px-6 w-full">
+          <div className="flex flex-wrap justify-center items-center gap-6 md:gap-8">
             {[
-              { label: "Active Residents", value: "2,450+" },
-              { label: "Documents Processed", value: "5,800+" },
-              { label: "Skilled Neighbors", value: "340+" },
-              { label: "Registered Businesses", value: "120+" },
+              { label: "Active Residents", value: stats.activeResidents ?? "—" },
+              { label: "Documents Processed", value: stats.processedDocuments ?? "—" },
+              { label: "Skilled Neighbors", value: stats.skilledNeighbors ?? "—" },
             ].map((stat) => (
               <div
                 key={stat.label}
-                className="group rounded-2xl bg-white/70 backdrop-blur-md border border-white/80 p-6 text-center shadow-sm hover:shadow-xl hover:shadow-sky-200/40 hover:-translate-y-0.5 transition-all duration-300"
+                className="group rounded-2xl bg-white/70 backdrop-blur-md border border-white/80 p-6 text-center shadow-sm hover:shadow-xl hover:shadow-sky-200/40 hover:-translate-y-0.5 transition-all duration-300 w-full sm:w-64"
               >
                 <div className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-sky-600 to-emerald-600 bg-clip-text text-transparent">
                   {stat.value}
@@ -429,9 +408,8 @@ export default function Home() {
                 </Link>
                 <Link href="/guest/signIn">
                   <Button
-                    variant="outline"
                     size="lg"
-                    className="border-white/30 text-white hover:bg-white/10 hover:border-white/50 font-medium px-8 h-11 text-base rounded-xl"
+                    className="bg-white text-sky-700 hover:bg-sky-50 shadow-lg font-semibold px-8 h-11 text-base rounded-xl"
                   >
                     I Already Have an Account
                   </Button>
@@ -454,6 +432,7 @@ export default function Home() {
                     src="/assets/logo.jpg"
                     alt="Barangay Logo"
                     fill
+                    sizes="36px"
                     className="object-cover"
                   />
                 </div>
@@ -549,12 +528,12 @@ export default function Home() {
           <div className="mt-12 pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
             <p>© {new Date().getFullYear()} Barangay Rabon. All rights reserved.</p>
             <div className="flex items-center gap-6">
-              <button className="hover:text-sky-300 transition-colors">
+              <a href="/privacy-policy" className="hover:text-sky-300 transition-colors">
                 Privacy Policy
-              </button>
-              <button className="hover:text-sky-300 transition-colors">
+              </a>
+              <a href="/terms-of-service" className="hover:text-sky-300 transition-colors">
                 Terms of Service
-              </button>
+              </a>
             </div>
           </div>
         </div>

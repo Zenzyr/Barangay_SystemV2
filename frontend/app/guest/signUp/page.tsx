@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, FormEvent } from "react";
+import { useState, useRef, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -371,6 +371,25 @@ function UploadBox({
 export default function SignUpPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [activePuroks, setActivePuroks] = useState<{name: string}[]>([]);
+  const [loadingPuroks, setLoadingPuroks] = useState(true);
+
+  // Fetch active puroks on mount
+  useEffect(() => {
+    const fetchPuroks = async () => {
+      try {
+        const response = await axiosInstance.get("barangay/puroks?status=active");
+        setActivePuroks(response.data);
+      } catch (error) {
+        console.error("Failed to fetch puroks:", error);
+      } finally {
+        setLoadingPuroks(false);
+      }
+    };
+        console.log("Fetching puroks from:", axiosInstance.defaults.baseURL + "/barangay/puroks?status=active");
+    fetchPuroks();
+  }, []);
+
   const [showPassword, setShowPassword] = useState(false);
 
   // Form fields
@@ -381,6 +400,7 @@ export default function SignUpPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [consent, setConsent] = useState(false);
 
   // New profile fields
   const [gender, setGender] = useState("");
@@ -521,6 +541,11 @@ export default function SignUpPage() {
       return;
     }
 
+    if (!consent) {
+      errorAlert("You must agree to the Privacy Policy and Terms of Service to continue");
+      return;
+    }
+
     // UX-only identity check (ONE PERSON = ONE ACCOUNT). The backend
     // carries out the authoritative check when the account is created.
     let censusAutoFill: Record<string, string> | null = null;
@@ -570,6 +595,12 @@ export default function SignUpPage() {
       formData.append("idFront", idFront);
       formData.append("idBack", idBack);
       formData.append("idSelfie", idSelfie);
+      formData.append("legalConsent", JSON.stringify({
+        privacyPolicyVersion: "1.0",
+        termsOfServiceVersion: "1.0",
+        acceptedAt: new Date().toISOString()
+      }));
+
 
       await axiosInstance.post("/account", formData, {
         headers: { "Content-Type": "multipart/form-data" },
@@ -629,6 +660,7 @@ export default function SignUpPage() {
               src="/assets/logo.jpg"
               alt="Barangay Logo"
               fill
+              sizes="64px"
               className="object-cover"
             />
           </div>
@@ -906,7 +938,6 @@ export default function SignUpPage() {
                   </div>
                   <FieldError message={touched.civilStatus ? errors.civilStatus : undefined} />
                 </div>
-
                 {/* Purok */}
                 <div className="space-y-1.5">
                   <Label htmlFor="purok" className="text-sm font-medium text-gray-700">
@@ -919,17 +950,21 @@ export default function SignUpPage() {
                       value={purok}
                       onChange={(e) => setPurok(e.target.value)}
                       onBlur={handleBlur("purok")}
+                      disabled={loadingPuroks}
                       className={`w-full h-10 pl-10 pr-3 rounded-lg border bg-white text-sm text-gray-700 focus:ring-2 transition-all appearance-none cursor-pointer ${
                         touched.purok && errors.purok
                           ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
                           : "border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
                       }`}
                     >
-                      <option value="" disabled>Select purok</option>
-                      <option value="Purok 1">Purok 1</option>
-                      <option value="Purok 2">Purok 2</option>
-                      <option value="Purok 3">Purok 3</option>
-                      <option value="Purok 4">Purok 4</option>
+                      <option value="" disabled>
+                        {loadingPuroks ? "Loading..." : "Select purok"}
+                      </option>
+                      {activePuroks.map((p) => (
+                        <option key={p.name} value={p.name}>
+                          {p.name}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <FieldError message={touched.purok ? errors.purok : undefined} />
@@ -1044,15 +1079,24 @@ export default function SignUpPage() {
                   <>
                     <Loader2 className="size-4 animate-spin" />
                     Creating account...
+              <Link href="/guest/signIn" className="w-full">
+                <Button variant="outline" type="button" className="w-full">
+                  Back
+                </Button>
+              </Link>
+
                   </>
                 ) : (
                   <>
+
                     <Upload className="size-4" />
                     Create Account
                   </>
                 )}
               </Button>
-              <p className="text-center text-sm text-gray-500">
+
+
+                 <p className="text-center text-sm text-gray-500">
                 Already have an account?{" "}
                 <Link
                   href="/guest/signIn"
@@ -1061,6 +1105,25 @@ export default function SignUpPage() {
                   Sign in
                 </Link>
               </p>
+
+            {/* Consent */}
+            <div className="space-y-5 pt-5 pb-5 border-t border-slate-100">
+              <div className="flex items-start gap-6">
+                <input
+                  type="checkbox"
+                  id="consent"
+                  checked={consent}
+                  onChange={(e) => setConsent(e.target.checked)}
+                  className="mt-1 size-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                />
+                <Label htmlFor="consent" className="text-sm text-gray-600 leading-snug">
+                  I have read and agree to the{' '}
+                  <a href="/privacy-policy?from=signup" className="text-sky-600 hover:text-sky-700 underline font-medium">Privacy Policy</a>
+                  {' '}and{' '}
+                  <a href="/terms-of-service?from=signup" className="text-sky-600 hover:text-sky-700 underline font-medium">Terms of Service</a>.
+                </Label>
+              </div>
+            </div>
             </div>
           </form>
         </div>
@@ -1070,6 +1133,7 @@ export default function SignUpPage() {
           By registering, you agree to the terms and privacy policy of Barangay
           Rabon.
         </p>
+
       </div>
     </div>
   );

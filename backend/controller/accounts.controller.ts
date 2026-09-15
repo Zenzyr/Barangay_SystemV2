@@ -1,3 +1,4 @@
+import { PurokService } from "../services/purok.service";
 import { Response } from "express";
 import { AuthRequest } from "../types/request.type";
 import { accountInterfaceInput } from "../types/accounts.type";
@@ -65,6 +66,15 @@ export class AccountController {
       const purok = String(body.purok || "").trim();
       const voterStatus = String(body.voterStatus || "").trim();
       const houseHoldNumber = String(body.houseHoldNumber || "").trim();
+      const legalConsent = String(body.legalConsent || "");
+
+
+
+      // Verify purok is active
+      const activePuroks = await PurokService.getAll({ status: 'active' });
+      if (!activePuroks.some((p: any) => p.name === purok)) {
+        return response.status(400).send("Invalid purok selected");
+      }
 
       // ── Field validation ─────────────────────────────────────
       if (!isNonEmptyString(name)) return response.status(400).send("Full name is required");
@@ -161,6 +171,8 @@ export class AccountController {
         idImg: { idFront, idBack, idSelfie },
         skills: [],
         reviews: [],
+        legalConsent: legalConsent ? JSON.parse(legalConsent) : undefined,
+
         ...(identityHash ? { identityHash } : {}),
         ...(assessment.status === "flagged" && assessment.reason
           ? {

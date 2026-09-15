@@ -14,6 +14,7 @@ import barangaySettingsRoute from "./barangaySettings.route"
 import notificationRoute from "./notification.route"
 import certificateTemplateRoute from "./certificateTemplate.route"
 import documentTemplateRoute from "./documentTemplate.route"
+import publicRoute from "./public.route"
 
 const routes = Router()
 
@@ -36,5 +37,8 @@ routes.use("/notification", notificationRoute)
 routes.use("/certificate-templates", certificateTemplateRoute)
 // New data-driven document template system (visual editor + PDF generation)
 routes.use("/document-templates", documentTemplateRoute)
+routes.use("/public", publicRoute)
+
+routes.use("/public", publicRoute)
 
 export default routes

@@ -26,6 +26,10 @@ export interface accountInterfaceInput {
         idBack? :  string,
         idSelfie? :  string,
     },
+    legalConsent?: {
+        privacyPolicy?: boolean,
+        termsOfService?: boolean,
+    },
     skills : {
         skill  :  string,
         experience : number,

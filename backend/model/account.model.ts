@@ -73,6 +73,12 @@ const AccountSchema = new Schema({
         message :  { type: String, required: true },
     }],
 }, {
+    legalConsent: {
+      privacyPolicyVersion: { type: String, required: false },
+      termsOfServiceVersion: { type: String, required: false },
+      acceptedAt: { type: Date, required: false },
+    },
+
   // Creation timestamp for the verification register (new registrations).
   timestamps: true,
 });
