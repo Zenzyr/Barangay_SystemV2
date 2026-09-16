@@ -77,7 +77,7 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 
 function ManagementCard({ title, items }: { title: string; items: ManageItem[] }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white">
+    <section className="glass-card">
       <div className="border-b border-slate-100 px-4 py-3">
         <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
       </div>
@@ -136,7 +136,11 @@ export default function SuperAdminHomePage() {
   ];
 
   return (
-    <div className="w-full space-y-6 p-4 sm:p-6">
+    <div className="min-h-screen">
+      {/* Ambient Background Overlay */}
+      <div className="fixed inset-0 pointer-events-none bg-ambient-pattern opacity-10" />
+
+      <div className="w-full space-y-6 p-4 sm:p-6">
       {/* ── Header ── */}
       <header className="flex items-center gap-3">
         <span className="flex size-9 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-500">
@@ -189,7 +193,7 @@ export default function SuperAdminHomePage() {
       </div>
 
       {/* ── Pending Resident Verification ── */}
-      <section className="rounded-xl border border-slate-200 bg-white">
+      <section className="glass-card">
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
           <div>
             <h3 className="text-sm font-semibold text-slate-800">
@@ -268,6 +272,7 @@ export default function SuperAdminHomePage() {
           </div>
         )}
       </section>
+      </div>
     </div>
   );
 }
