@@ -35,7 +35,7 @@ export default function RootLayout({
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <body
-        className={`${inter.variable} ${merriweather.variable} ${robotoMono.variable} antialiased`}
+        className={`${inter.variable} ${merriweather.variable} ${robotoMono.variable} antialiased bg-ambient-pattern`}
       >
         <QueryClientProvider client={queryClient}>
           {children}

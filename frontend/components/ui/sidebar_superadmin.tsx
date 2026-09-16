@@ -30,6 +30,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import useBarangaySettingsStore from "@/app/store/useBarangaySettingsStore";
+import { SidebarBrand } from "@/components/ui/sidebar_shared";
 
 interface NavItem {
   title: string;
@@ -71,39 +72,6 @@ interface AppSidebarProps {
   className?: string
 }
 
-function SidebarBrand({
-  subtitle,
-  href,
-  onNavigate,
-}: {
-  subtitle: string
-  href: string
-  onNavigate?: () => void
-}) {
-  const settings = useBarangaySettingsStore((s) => s.settings);
-  const name = settings?.barangay?.name || "Barangay Rabon";
-  const logo = settings?.barangay?.logoUrl || "/assets/logo.jpg";
-
-  return (
-    <Link
-      href={href}
-      onClick={onNavigate}
-      className="group flex items-center gap-3"
-    >
-      <div className="relative size-9 shrink-0 overflow-hidden rounded-lg border border-slate-200">
-        <img src={logo} alt="Logo" className="h-full w-full object-cover" />
-      </div>
-      <div className="min-w-0 leading-tight">
-        <span className="block truncate text-sm font-semibold tracking-tight text-slate-800">
-          {name}
-        </span>
-        <span className="block text-[10px] font-medium uppercase tracking-[0.14em] text-slate-500">
-          Admin Portal
-        </span>
-      </div>
-    </Link>
-  )
-}
 
 function NavLink({
   item,
@@ -183,7 +151,7 @@ export function SidebarSuperAdmin({ className }: AppSidebarProps) {
   return (
     <>
       {/* ── Mobile Navbar ── */}
-      <div className="fixed left-0 right-0 top-0 z-50 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
+      <div className="fixed left-0 right-0 top-0 z-50 flex items-center justify-between border-b border-slate-200/50 bg-white/50 backdrop-blur-md px-4 py-3 lg:hidden">
         <SidebarBrand subtitle="Super Admin" href="/pages/superadmin/home" />
         <button
           onClick={toggleMobileMenu}
@@ -243,7 +211,7 @@ export function SidebarSuperAdmin({ className }: AppSidebarProps) {
       {/* ── Desktop Sidebar ── */}
       <Sidebar
         className={cn(
-          "hidden border-r border-slate-200 bg-white lg:flex",
+          "hidden border-r border-slate-200/50 bg-white/70 backdrop-blur-md shadow-sm lg:flex",
           className
         )}
       >

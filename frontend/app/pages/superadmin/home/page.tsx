@@ -1,6 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { DashboardCard } from "@/components/ui/dashboard-card";
+import { DataError, DataEmpty } from "@/components/ui/data-state-renderer";
+import { Button } from "@/components/ui/button";
+
+
 import { useQuery } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -77,10 +82,7 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 
 function ManagementCard({ title, items }: { title: string; items: ManageItem[] }) {
   return (
-    <section className="glass-card">
-      <div className="border-b border-slate-100 px-4 py-3">
-        <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
-      </div>
+    <DashboardCard title={title}>
       <div className="divide-y divide-slate-100">
         {items.map((item) => (
           <Link
@@ -99,12 +101,12 @@ function ManagementCard({ title, items }: { title: string; items: ManageItem[] }
           </Link>
         ))}
       </div>
-    </section>
+    </DashboardCard>
   );
 }
 
 export default function SuperAdminHomePage() {
-  const { data: accounts = [], isLoading } = useQuery<accountInterface[]>({
+  const { data: accounts = [], isLoading, isError, refetch } = useQuery<accountInterface[]>({
     queryKey: ["accounts"],
     queryFn: async () => (await axiosInstance.get("/account")).data,
   });
@@ -137,7 +139,6 @@ export default function SuperAdminHomePage() {
 
   return (
     <div className="min-h-screen">
-      {/* Ambient Background Overlay */}
       <div className="fixed inset-0 pointer-events-none bg-ambient-pattern opacity-10" />
 
       <div className="w-full space-y-6 p-4 sm:p-6">
@@ -159,29 +160,35 @@ export default function SuperAdminHomePage() {
         <div className="border-b border-slate-100 px-4 py-3">
           <SectionHeading>System Overview</SectionHeading>
         </div>
-        <div className="grid grid-cols-2 divide-slate-100 lg:grid-cols-4 lg:divide-x">
-          {STATS.map((stat) => (
-            <Link
-              key={stat.label}
-              href={stat.href}
-              className="flex items-center gap-3 px-4 py-4 transition-colors hover:bg-slate-50"
-            >
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500">
-                <stat.icon className="size-4" />
-              </span>
-              <span className="min-w-0">
-                {isLoading ? (
-                  <Skeleton className="h-6 w-10" />
-                ) : (
-                  <span className="block text-xl font-semibold tabular-nums text-slate-900">
-                    {stat.value}
-                  </span>
-                )}
-                <span className="block truncate text-xs text-slate-500">{stat.label}</span>
-              </span>
-            </Link>
-          ))}
-        </div>
+        {isError ? (
+          <div className="py-6">
+            <DataError message="Failed to load system statistics" refetch={refetch} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 divide-slate-100 lg:grid-cols-4 lg:divide-x">
+            {STATS.map((stat) => (
+              <Link
+                key={stat.label}
+                href={stat.href}
+                className="flex items-center gap-3 px-4 py-4 transition-colors hover:bg-slate-50"
+              >
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-500">
+                  <stat.icon className="size-4" />
+                </span>
+                <span className="min-w-0">
+                  {isLoading ? (
+                    <Skeleton className="h-6 w-10" />
+                  ) : (
+                    <span className="block text-xl font-semibold tabular-nums text-slate-900">
+                      {stat.value}
+                    </span>
+                  )}
+                  <span className="block truncate text-xs text-slate-500">{stat.label}</span>
+                </span>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* ── System Management + Monitoring & Insights ── */}
@@ -220,10 +227,17 @@ export default function SuperAdminHomePage() {
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-10 w-full" />
           </div>
+        ) : isError ? (
+          <div className="p-6">
+            <DataError message="Failed to load pending verifications" refetch={refetch} />
+          </div>
         ) : pendingList.length === 0 ? (
-          <p className="px-4 py-5 text-sm text-slate-500">
-            No residents are currently awaiting verification.
-          </p>
+          <div className="p-6">
+            <DataEmpty
+              title="No Pending Verifications"
+              description="No residents are currently awaiting verification."
+            />
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

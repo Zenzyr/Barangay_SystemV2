@@ -310,7 +310,7 @@ export default function EditProfileModal({
                     id="edit-civilStatus"
                     value={civilStatus}
                     onChange={(e) => setCivilStatus(e.target.value)}
-                    className="w-full h-10 pl-10 pr-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 transition-all appearance-none cursor-pointer"
+                    className="w-full h-10 pl-10 pr-3 rounded-lg border border-input bg-transparent text-sm text-foreground outline-none transition-all appearance-none cursor-pointer focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
                     <option value="" disabled>Select civil status</option>
                     <option value="Single">Single</option>

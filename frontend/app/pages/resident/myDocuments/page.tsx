@@ -26,6 +26,8 @@ import {
   formatRequestDate,
 } from "@/app/utils/documentRequestOptions";
 import { confirmAlert, errorAlert } from "@/app/utils/alert";
+import { StatusBadge } from "@/components/ui/shared/StatusBadge";
+
 import { getDocumentPrice } from "@/app/utils/documents";
 import { payMongoPayment } from "@/app/utils/payMongo";
 import {
@@ -134,15 +136,15 @@ export default function MyDocumentsPage() {
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-slate-50/80">
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50/80">Document Type</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50/80 hidden sm:table-cell">Price</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50/80 hidden sm:table-cell">Date Requested</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50/80">Status</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50/80">Paid</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50/80 text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
+                <TableRow className="border-b border-slate-100 hover:bg-transparent">
+                  <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Document</TableHead>
+                  <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 hidden sm:table-cell">Price</TableHead>
+                  <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 hidden sm:table-cell">Date</TableHead>
+                  <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Status</TableHead>
+                  <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 hidden md:table-cell">Paid</TableHead>
+                  <TableHead className="text-right px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
             <TableBody>
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, i) => (
@@ -207,10 +209,8 @@ export default function MyDocumentsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${statusCfg.bg} ${statusCfg.text} ${statusCfg.border}`}>
-                          <StatusIcon className={`size-3 ${doc.status === "processing" ? "animate-spin" : ""}`} />
-                          {statusCfg.label}
-                        </span>
+                        <StatusBadge status={doc.status} config={STATUS_CONFIG} />
+
                       </TableCell>
                       <TableCell>
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${

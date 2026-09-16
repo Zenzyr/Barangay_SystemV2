@@ -1,6 +1,14 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query";
+import { DashboardCard } from "@/components/ui/dashboard-card";
+import { STATUS_CONFIG } from "@/lib/constants/status";
+import { StatusBadge } from "@/components/ui/shared/StatusBadge";
+
+import { DataError, DataEmpty } from "@/components/ui/data-state-renderer";
+import { Button } from "@/components/ui/button";
+
+
 import Link from "next/link";
 import axiosInstance from "@/app/utils/axios";
 import { documentRequestInterface } from "@/app/types/documentRequest";
@@ -44,16 +52,6 @@ const DOCUMENT_NAMES: Record<string, string> = {
   endorsementLetter: "Endorsement Letter",
 };
 
-// ─── Status config ───────────────────────────────────────────────
-const STATUS_CONFIG: Record<
-  string,
-  { label: string; icon: React.ElementType; bg: string; text: string; border: string }
-> = {
-  pending: { label: "Pending", icon: Clock, bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
-  processing: { label: "Processing", icon: Loader2, bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200" },
-  "to claim": { label: "To Claim", icon: FileCheck, bg: "bg-violet-50", text: "text-violet-700", border: "border-violet-200" },
-  completed: { label: "Completed", icon: CheckCircle2, bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
-};
 
 function formatDate(dateStr: string | undefined): string {
   if (!dateStr) return "—";
@@ -66,8 +64,11 @@ function formatDate(dateStr: string | undefined): string {
 }
 
 export default function Page() {
+      {/* Ambient Background Overlay */}
+      <div className="fixed inset-0 pointer-events-none bg-ambient-pattern opacity-10" />
+
   // ── Active (non-completed) document requests ──────────────────
-  const { data: activeDocs, isLoading: activeLoading } = useQuery<documentRequestInterface[]>({
+  const { data: activeDocs, isLoading: activeLoading, isError: activeError, refetch: refetchActiveDocs } = useQuery<documentRequestInterface[]>({
     queryKey: ["document-requests", "secretary", "active"],
     queryFn: async () => {
       const res = await axiosInstance.get("/document-request", { params: { statusNot: "completed" } });
@@ -76,7 +77,7 @@ export default function Page() {
   });
 
   // ── Completed document requests (for stats) ────────────────────
-  const { data: completedDocs, isLoading: completedLoading } = useQuery<documentRequestInterface[]>({
+  const { data: completedDocs, isLoading: completedLoading, isError: completedError, refetch: refetchCompletedDocs } = useQuery<documentRequestInterface[]>({
     queryKey: ["document-requests", "secretary", "completed"],
     queryFn: async () => {
       const res = await axiosInstance.get("/document-request", { params: { status: "completed" } });
@@ -85,7 +86,7 @@ export default function Page() {
   });
 
   // ── Residents pending verification ─────────────────────────────
-  const { data: pendingResidents, isLoading: pendingLoading } = useQuery<accountInterface[]>({
+  const { data: pendingResidents, isLoading: pendingLoading, isError: pendingError, refetch: refetchPendingResidents } = useQuery<accountInterface[]>({
     queryKey: ["accounts", "pending"],
     queryFn: async () => {
       const res = await axiosInstance.get("/account", { params: { status: "pending" } });
@@ -94,7 +95,7 @@ export default function Page() {
   });
 
   // ── All accounts (for total resident count) ─────────────────────
-  const { data: allAccounts, isLoading: allLoading } = useQuery<accountInterface[]>({
+  const { data: allAccounts, isLoading: allLoading, isError: allError, refetch: refetchAllAccounts } = useQuery<accountInterface[]>({
     queryKey: ["accounts", "all"],
     queryFn: async () => {
       const res = await axiosInstance.get("/account");
@@ -136,6 +137,9 @@ export default function Page() {
 
   return (
     <div className="w-full min-h-dvh p-4 sm:p-6 space-y-6">
+      {/* Ambient Background Overlay */}
+      <div className="fixed inset-0 pointer-events-none bg-ambient-pattern opacity-10" />
+
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -210,13 +214,14 @@ export default function Page() {
                   <Skeleton className="h-3 w-28" />
                 </div>
               ))
+            ) : activeError ? (
+              <DataError message="Unable to load document requests" refetch={refetchActiveDocs} />
             ) : recentDocs.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 text-gray-400 py-12">
-                <div className="size-12 rounded-full bg-slate-100 text-slate-300 flex items-center justify-center">
-                  <Inbox className="size-6" />
-                </div>
-                <p className="text-sm font-medium">No active requests</p>
-              </div>
+              <DataEmpty
+                title="No active requests"
+                description="There are currently no document requests requiring your attention."
+                icon={Inbox}
+              />
             ) : (
               recentDocs.map((doc) => {
                 const cfg = STATUS_CONFIG[doc.status] || STATUS_CONFIG.pending;
@@ -255,19 +260,18 @@ export default function Page() {
         </div>
 
         {/* ── Residents Pending Verification ── */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-              <UserPlus2 className="size-4 text-sky-600" />
-              Awaiting Verification
-            </h2>
+        <DashboardCard
+          title="Awaiting Verification"
+          icon={UserPlus2}
+          headerAction={
             <Link
               href="/pages/secretary/verifyResident"
               className="text-xs text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1"
             >
               View all <ArrowUpRight className="size-3" />
             </Link>
-          </div>
+          }
+        >
           <div className="divide-y divide-gray-100">
             {pendingLoading ? (
               Array.from({ length: 4 }).map((_, i) => (
@@ -276,14 +280,14 @@ export default function Page() {
                   <Skeleton className="h-3 w-20" />
                 </div>
               ))
+            ) : pendingError ? (
+              <DataError message="Unable to load pending residents" refetch={refetchPendingResidents} />
             ) : recentResidents.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 text-gray-400 py-12">
-                <div className="size-12 rounded-full bg-slate-100 text-slate-300 flex items-center justify-center">
-                  <CheckCircle2 className="size-6" />
-                </div>
-                <p className="text-sm font-medium">All caught up!</p>
-                <p className="text-xs">No residents awaiting verification</p>
-              </div>
+              <DataEmpty
+                title="No Pending Verifications"
+                description="There are currently no resident verification requests requiring your attention."
+                icon={CheckCircle2}
+              />
             ) : (
               recentResidents.map((res) => (
                 <div key={res._id} className="flex items-center gap-3 px-5 py-3.5">
@@ -298,7 +302,7 @@ export default function Page() {
               ))
             )}
           </div>
-        </div>
+        </DashboardCard>
       </div>
 
       {/* ── Quick Links ── */}
@@ -307,7 +311,7 @@ export default function Page() {
           <Link
             key={link.title}
             href={link.href}
-            className="group flex items-start gap-3 bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 hover:border-sky-300 hover:shadow-md transition-all"
+            className="group flex items-start gap-3 glass-card p-4 hover:border-sky-300 hover:shadow-md transition-all"
           >
             <div className={`size-10 rounded-xl flex items-center justify-center shrink-0 ${link.bg}`}>
               <link.icon className={`size-5 ${link.color}`} />

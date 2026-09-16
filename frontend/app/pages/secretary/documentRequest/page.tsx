@@ -210,8 +210,7 @@ export default function SecretaryDocumentRequestsPage() {
     { key: "rejected", label: "Rejected" },
   ];
 
-  const selectClass =
-    "h-9 rounded-lg border border-gray-200 bg-white px-2.5 pr-7 text-xs text-gray-600 focus:border-sky-400 focus:ring-sky-400/20 focus:outline-none";
+  const selectClass = "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 
   return (
     <div className="w-full min-h-dvh p-4 sm:p-6 space-y-6">
@@ -345,13 +344,12 @@ export default function SecretaryDocumentRequestsPage() {
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="bg-slate-50/80">
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50/80">Resident</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50/80 hidden sm:table-cell">Document Type</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50/80 hidden md:table-cell">Date Requested</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50/80">Status</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50/80">Payment</TableHead>
-                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50/80 text-right">Actions</TableHead>
+              <TableRow className="border-b border-slate-100 hover:bg-transparent">
+                <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Resident</TableHead>
+                <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 hidden sm:table-cell">Document</TableHead>
+                <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Status</TableHead>
+                <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 hidden md:table-cell">Date</TableHead>
+                <TableHead className="text-right px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

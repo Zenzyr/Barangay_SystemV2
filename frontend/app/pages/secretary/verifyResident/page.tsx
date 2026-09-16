@@ -182,22 +182,12 @@ export default function VerifyResidentPage() {
       <div className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50/80">
-              <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Name
-              </TableHead>
-              <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 hidden sm:table-cell">
-                Email
-              </TableHead>
-              <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 hidden md:table-cell">
-                Address
-              </TableHead>
-              <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                Status
-              </TableHead>
-              <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 text-right">
-                Action
-              </TableHead>
+            <TableRow className="border-b border-slate-200 bg-slate-50/80 hover:bg-slate-50/80">
+              <TableHead className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-slate-500">Name</TableHead>
+              <TableHead className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-slate-500 hidden sm:table-cell">Email</TableHead>
+              <TableHead className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-slate-500 hidden md:table-cell">Address</TableHead>
+              <TableHead className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-slate-500">Status</TableHead>
+              <TableHead className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-slate-500 text-right">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

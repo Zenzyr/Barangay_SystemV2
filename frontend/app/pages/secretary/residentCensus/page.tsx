@@ -6,6 +6,15 @@ import axiosInstance from "@/app/utils/axios";
 import { successAlert, errorAlert } from "@/app/utils/alert";
 import { confirmAlert } from "@/app/utils/alert";
 import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+} from "@/components/ui/table";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -407,55 +416,55 @@ export default function ResidentCensusPage() {
       {/* ── Table ── */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-100 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Sex</th>
-                <th className="px-4 py-3">Age</th>
-                <th className="px-4 py-3">Occupation</th>
-                <th className="px-4 py-3">Purok</th>
-                <th className="px-4 py-3">Household</th>
-                <th className="px-4 py-3">Tags</th>
-                <th className="px-4 py-3">Cellphone</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-slate-50/80 border-b border-slate-100 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                <TableHead className="px-4 py-3">Name</TableHead>
+                <TableHead className="px-4 py-3">Sex</TableHead>
+                <TableHead className="px-4 py-3">Age</TableHead>
+                <TableHead className="px-4 py-3">Occupation</TableHead>
+                <TableHead className="px-4 py-3">Purok</TableHead>
+                <TableHead className="px-4 py-3">Household</TableHead>
+                <TableHead className="px-4 py-3">Tags</TableHead>
+                <TableHead className="px-4 py-3">Cellphone</TableHead>
+                <TableHead className="px-4 py-3 text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-gray-100">
               {isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i}>
-                    <td colSpan={9} className="px-4 py-3">
+                  <TableRow key={i}>
+                    <TableCell colSpan={9} className="px-4 py-3">
                       <Skeleton className="h-5 w-full" />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-gray-400">
+                <TableRow>
+                  <TableCell colSpan={9} className="px-4 py-12 text-center text-gray-400">
                     <div className="flex flex-col items-center gap-2">
                       <div className="size-12 rounded-full bg-slate-100 text-slate-300 flex items-center justify-center">
                         <Users className="size-6" />
                       </div>
                       <p className="text-sm font-medium">No records found</p>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ) : (
                 filtered.map((r) => (
-                  <tr key={r._id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{r.name}</td>
-                    <td className="px-4 py-3 text-gray-600">{r.sex}</td>
-                    <td className="px-4 py-3 text-gray-600">{r.age}</td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{r.occupation}</td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                  <TableRow key={r._id} className="hover:bg-slate-50/60 transition-colors">
+                    <TableCell className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{r.name}</TableCell>
+                    <TableCell className="px-4 py-3 text-gray-600">{r.sex}</TableCell>
+                    <TableCell className="px-4 py-3 text-gray-600">{r.age}</TableCell>
+                    <TableCell className="px-4 py-3 text-gray-600 whitespace-nowrap">{r.occupation}</TableCell>
+                    <TableCell className="px-4 py-3 text-gray-600 whitespace-nowrap">
                       <span className="inline-flex items-center gap-1">
                         <MapPin className="size-3 text-gray-400" />
                         {r.purok}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{r.householdNumber}</td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-gray-600 whitespace-nowrap">{r.householdNumber}</TableCell>
+                    <TableCell className="px-4 py-3">
                       <div className="flex flex-wrap gap-1 max-w-[220px]">
                         {r.isSenior === "YES" && <Badge tone="amber">Senior</Badge>}
                         {r.isPWD === "YES" && <Badge tone="violet">PWD</Badge>}
@@ -465,9 +474,9 @@ export default function ResidentCensusPage() {
                           <span className="text-gray-300 text-xs">—</span>
                         )}
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{r.cellphone}</td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-gray-600 whitespace-nowrap">{r.cellphone}</TableCell>
+                    <TableCell className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => openEditModal(r)}
@@ -482,12 +491,12 @@ export default function ResidentCensusPage() {
                           <Trash2 className="size-3.5" />
                         </button>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
         {!isLoading && filtered.length > 0 && (
           <div className="px-4 py-2.5 border-t border-slate-100 text-xs text-gray-400">

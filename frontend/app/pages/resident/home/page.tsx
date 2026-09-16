@@ -1,6 +1,11 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { DashboardCard } from "@/components/ui/dashboard-card";
+import { DataError, DataEmpty } from "@/components/ui/data-state-renderer";
+import { Button } from "@/components/ui/button";
+
+
 import Link from "next/link";
 import axiosInstance from "@/app/utils/axios";
 import useUserStore from "@/app/store/useUserStore";
@@ -104,7 +109,7 @@ export default function Page() {
   const { user } = useUserStore();
 
   // ── Fetch this resident's document requests ──────────────────
-  const { data: documents, isLoading: docsLoading } = useQuery<documentRequestInterface[]>({
+  const { data: documents, isLoading: docsLoading, isError: docsError, refetch: refetchDocs } = useQuery<documentRequestInterface[]>({
     queryKey: ["document-requests", "resident", user?._id],
     queryFn: async () => {
       const res = await axiosInstance.get(`/document-request/resident/${user?._id}`);
@@ -114,7 +119,7 @@ export default function Page() {
   });
 
   // ── Fetch recent activity ─────────────────────────────────────
-  const { data: activity, isLoading: activityLoading } = useQuery<UserActivity[]>({
+  const { data: activity, isLoading: activityLoading, isError: activityError, refetch: refetchActivity } = useQuery<UserActivity[]>({
     queryKey: ["activity", user?._id],
     queryFn: async () => {
       const res = await axiosInstance.get(`/account/activity/${user?._id}`);
@@ -154,6 +159,9 @@ export default function Page() {
 
   return (
     <div className="w-full min-h-dvh p-4 sm:p-6 space-y-6">
+      {/* Ambient Background Overlay */}
+      <div className="fixed inset-0 pointer-events-none bg-ambient-pattern opacity-10" />
+
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -206,8 +214,8 @@ export default function Page() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ── Recent Document Requests ── */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div className="lg:col-span-2 glass-card overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-white/50">
             <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
               <FileText className="size-4 text-sky-600" />
               Recent Document Requests
@@ -227,14 +235,19 @@ export default function Page() {
                   <Skeleton className="h-3 w-24" />
                 </div>
               ))
+            ) : docsError ? (
+              <DataError message="Unable to load document requests" refetch={refetchDocs} />
             ) : recentDocs.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 text-gray-400 py-12">
-                <Inbox className="size-8" />
-                <p className="text-sm font-medium">No document requests yet</p>
-                <Link href="/pages/resident/documentRequest" className="text-xs text-sky-600 hover:underline">
-                  Request your first document
-                </Link>
-              </div>
+              <DataEmpty
+                title="No Document Requests"
+                description="You haven't submitted a document request yet."
+                icon={Inbox}
+                action={
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/pages/resident/documentRequest">Request a Document</Link>
+                  </Button>
+                }
+              />
             ) : (
               recentDocs.map((doc) => {
                 const cfg = STATUS_CONFIG[doc.status] || STATUS_CONFIG.pending;
@@ -261,19 +274,18 @@ export default function Page() {
         </div>
 
         {/* ── Recent Activity ── */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-              <Activity className="size-4 text-sky-600" />
-              Recent Activity
-            </h2>
+        <DashboardCard
+          title="Recent Activity"
+          icon={Activity}
+          headerAction={
             <Link
               href="/pages/resident/activity"
               className="text-xs text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1"
             >
               View all <ArrowUpRight className="size-3" />
             </Link>
-          </div>
+          }
+        >
           <div className="divide-y divide-gray-100">
             {activityLoading ? (
               Array.from({ length: 4 }).map((_, i) => (
@@ -282,11 +294,14 @@ export default function Page() {
                   <Skeleton className="h-3 w-16" />
                 </div>
               ))
+            ) : activityError ? (
+              <DataError message="Unable to load recent activity" refetch={refetchActivity} />
             ) : recentActivity.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 text-gray-400 py-12">
-                <Activity className="size-8" />
-                <p className="text-sm font-medium">No activity yet</p>
-              </div>
+              <DataEmpty
+                title="No activity yet"
+                description="Your recent actions will appear here."
+                icon={Activity}
+              />
             ) : (
               recentActivity.map((act) => {
                 const { icon: Icon, bg, iconColor } = getActivityIcon(act.activity);
@@ -304,7 +319,7 @@ export default function Page() {
               })
             )}
           </div>
-        </div>
+        </DashboardCard>
       </div>
 
       {/* ── Quick Links ── */}
@@ -313,7 +328,7 @@ export default function Page() {
           <Link
             key={link.title}
             href={link.href}
-            className="group flex items-start gap-3 bg-white rounded-2xl border border-gray-200 shadow-sm p-4 hover:border-sky-300 hover:shadow-md transition-all"
+            className="group flex items-start gap-3 glass-card p-4 hover:border-sky-300 hover:shadow-md transition-all"
           >
             <div className={`size-10 rounded-lg flex items-center justify-center shrink-0 ${link.bg}`}>
               <link.icon className={`size-5 ${link.color}`} />

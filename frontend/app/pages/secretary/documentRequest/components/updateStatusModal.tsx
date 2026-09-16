@@ -11,7 +11,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { successAlert, errorAlert } from "@/app/utils/alert";
+import { successAlert, errorAlert, confirmAlert } from "@/app/utils/alert";
 import {
   Loader2,
   Clock,
@@ -152,85 +152,87 @@ export default function UpdateStatusModal({ open, onOpenChange, document: doc }:
           <div className="space-y-2.5">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Change Status To</p>
 
-            {/* Processing */}
-            {doc.status !== "processing" && (
-              <Button
-                onClick={() => statusMutation.mutate("processing")}
-                disabled={isPendingAction}
-                className="w-full h-9 justify-start gap-2.5 bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 hover:text-sky-800 transition-all"
-                variant="outline"
-              >
-                <Loader2 className="size-4" />
-                Mark as Processing
-              </Button>
-            )}
+            {/* Actions */}
+            <div className="space-y-2 p-5 border-t border-gray-100 bg-gray-50/50">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                Available Actions
+              </p>
 
-            {/* To Claim */}
-            {doc.status !== "to claim" && (
-              <Button
-                onClick={() => statusMutation.mutate("to claim")}
-                disabled={isPendingAction}
-                className="w-full h-9 justify-start gap-2.5 bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 hover:text-violet-800 transition-all"
-                variant="outline"
-              >
-                <FileCheck className="size-4" />
-                Mark as Ready to Claim
-              </Button>
-            )}
+              {/* Processing */}
+              {doc.status !== "processing" && (
+                <Button
+                  onClick={() => statusMutation.mutate("processing")}
+                  disabled={isPendingAction}
+                  className="w-full h-10 justify-start gap-3 bg-sky-50 text-sky-700 border border-sky-100 shadow-sm hover:bg-sky-100 hover:text-sky-800 transition-all font-medium"
+                  variant="outline"
+                >
+                  <Loader2 className={`size-4 ${isPendingAction ? "animate-spin" : ""}`} />
+                  {isPendingAction ? "Updating..." : "Mark as Processing"}
+                </Button>
+              )}
 
-            {/* Completed — only if paid */}
-            {doc.status !== "completed" && (
-              <Button
-                onClick={() => statusMutation.mutate("completed")}
-                disabled={isPendingAction || !doc.isPaid}
-                className={`w-full h-9 justify-start gap-2.5 transition-all ${
-                  doc.isPaid
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 hover:text-emerald-800"
-                    : "bg-gray-50 text-gray-400 border border-gray-200 cursor-not-allowed"
-                }`}
-                variant="outline"
-              >
-                {doc.isPaid ? (
+              {/* To Claim */}
+              {doc.status !== "to claim" && (
+                <Button
+                  onClick={() => statusMutation.mutate("to claim")}
+                  disabled={isPendingAction}
+                  className="w-full h-10 justify-start gap-3 bg-violet-50 text-violet-700 border border-violet-100 shadow-sm hover:bg-violet-100 hover:text-violet-800 transition-all font-medium"
+                  variant="outline"
+                >
+                  <FileCheck className="size-4" />
+                  {isPendingAction ? "Updating..." : "Mark as Ready to Claim"}
+                </Button>
+              )}
+
+              {/* Completed */}
+              {doc.status !== "completed" && (
+                <Button
+                  onClick={() => statusMutation.mutate("completed")}
+                  disabled={isPendingAction || !doc.isPaid}
+                  className={`w-full h-10 justify-start gap-3 transition-all font-medium ${
+                    doc.isPaid
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-100 shadow-sm hover:bg-emerald-100 hover:text-emerald-800"
+                      : "bg-gray-50 text-gray-400 border border-gray-200 cursor-not-allowed"
+                  }`}
+                  variant="outline"
+                >
                   <CheckCircle2 className="size-4" />
-                ) : (
+                  {isPendingAction ? "Updating..." : "Mark as Completed"}
+                </Button>
+              )}
+
+              {/* Rejected */}
+              {doc.status !== "rejected" && (
+                <Button
+                  onClick={() => {
+                    confirmAlert(
+                      "This will mark the request as rejected. The resident may need to submit a correction.",
+                      "Confirm Rejection",
+                      () => statusMutation.mutate("rejected")
+                    );
+                  }}
+                  disabled={isPendingAction}
+                  className="w-full h-10 justify-start gap-3 bg-rose-50 text-rose-700 border border-rose-100 shadow-sm hover:bg-rose-100 hover:text-rose-800 transition-all font-medium"
+                  variant="outline"
+                >
                   <Ban className="size-4" />
-                )}
-                {doc.isPaid ? "Mark as Completed" : "Complete (requires payment)"}
-              </Button>
-            )}
+                  Reject Request
+                </Button>
+              )}
 
-            {/* Rejected */}
-            {doc.status !== "rejected" && (
-              <Button
-                onClick={() => statusMutation.mutate("rejected")}
-                disabled={isPendingAction}
-                className="w-full h-9 justify-start gap-2.5 bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 hover:text-rose-800 transition-all"
-                variant="outline"
-              >
-                <Ban className="size-4" />
-                Reject Request
-              </Button>
-            )}
-
-            {/* Reopen — for rejected or statuses locked for editing */}
-            {doc.status === "rejected" || doc.status === "to claim" || doc.status === "completed" ? (
-              <Button
-                onClick={() => statusMutation.mutate("pending")}
-                disabled={isPendingAction}
-                className="w-full h-9 justify-start gap-2.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 hover:text-amber-800 transition-all"
-                variant="outline"
-              >
-                <Clock className="size-4" />
-                Reopen as Pending
-              </Button>
-            ) : null}
-
-            {isPendingAction && (
-              <div className="flex items-center justify-center gap-2 text-sm text-sky-600 py-2">
-                <Loader2 className="size-4 animate-spin" />
-                Updating status...
-              </div>
-            )}
+              {/* Reopen */}
+              {(doc.status === "rejected" || doc.status === "to claim" || doc.status === "completed") && (
+                <Button
+                  onClick={() => statusMutation.mutate("pending")}
+                  disabled={isPendingAction}
+                  className="w-full h-10 justify-start gap-3 bg-amber-50 text-amber-700 border border-amber-100 shadow-sm hover:bg-amber-100 hover:text-amber-800 transition-all font-medium"
+                  variant="outline"
+                >
+                  <Clock className="size-4" />
+                  Reopen as Pending
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </DialogContent>

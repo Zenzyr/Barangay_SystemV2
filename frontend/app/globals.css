@@ -191,7 +191,7 @@
   }
 
   .glass-card {
-    @apply border border-white/70 bg-white/70 backdrop-blur-md shadow-sm;
+    @apply border border-white/70 bg-white/70 backdrop-blur-md shadow-sm rounded-2xl;
   }
 
   .bg-grid-glow {
@@ -199,6 +199,13 @@
       linear-gradient(to right, oklch(0.869 0.02 215 / 8%) 1px, transparent 1px),
       linear-gradient(to bottom, oklch(0.869 0.02 215 / 8%) 1px, transparent 1px);
     background-size: 42px 42px;
+  }
+
+  .bg-ambient-pattern {
+    background-color: oklch(0.985 0.005 220);
+    background-image:
+      radial-gradient(at 0% 0%, oklch(0.90 0.06 220 / 0.35) 0px, transparent 60%),
+      radial-gradient(at 100% 100%, oklch(0.88 0.07 160 / 0.25) 0px, transparent 60%);
   }
 }
 

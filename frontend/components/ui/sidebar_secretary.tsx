@@ -30,6 +30,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import useBarangaySettingsStore from "@/app/store/useBarangaySettingsStore";
+import { SidebarBrand } from "@/components/ui/sidebar_shared";
 
 const navigationItems = [
   { title: "Dashboard", url: "/pages/secretary/home", icon: Home },
@@ -40,7 +41,6 @@ const navigationItems = [
   { title: "Request History", url: "/pages/secretary/requestHistory", icon: History },
   { title: "Resident Census", url: "/pages/secretary/residentCensus", icon: ClipboardList },
   { title: "Resident Skills", url: "/pages/secretary/residentSkills", icon: Award },
-  { title: "Verify Business", url: "/pages/secretary/verifyBusiness", icon: Store },
   { title: "Officials", url: "/pages/secretary/barangaySettings/officials", icon: Landmark },
   { title: "Puroks", url: "/pages/secretary/barangaySettings/puroks", icon: MapPin },
   { title: "Document Templates", url: "/pages/secretary/document-templates", icon: FileText },
@@ -51,47 +51,6 @@ interface AppSidebarProps {
   className?: string
 }
 
-function SidebarBrand({
-  subtitle,
-  href,
-  role,
-  onNavigate,
-}: {
-  subtitle: string
-  href: string
-  role?: string
-  onNavigate?: () => void
-}) {
-  const settings = useBarangaySettingsStore((s) => s.settings);
-  const name =
-    settings?.barangay?.name || "Barangay Rabon";
-  const logo = settings?.barangay?.logoUrl || "/assets/logo.jpg";
-
-  return (
-    <Link
-      href={href}
-      onClick={onNavigate}
-      className="group flex items-center gap-3"
-    >
-      <div className="relative size-10 shrink-0 overflow-hidden rounded-xl shadow-sm ring-2 ring-sky-100 transition-all duration-300 group-hover:ring-sky-300">
-        <img src={logo} alt="Logo" className="h-full w-full object-cover" />
-      </div>
-      <div className="min-w-0 leading-tight">
-        <span className="block truncate text-sm font-bold tracking-tight text-slate-800">
-          {name}
-        </span>
-        <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-600/80">
-          {subtitle} Portal
-        </span>
-        {role && (
-          <span className="block truncate text-[10px] font-medium text-slate-400">
-            {role}
-          </span>
-        )}
-      </div>
-    </Link>
-  )
-}
 
 export function SidebarSecretary({ className }: AppSidebarProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -112,7 +71,7 @@ export function SidebarSecretary({ className }: AppSidebarProps) {
   return (
     <>
       {/* ── Mobile Navbar ── */}
-      <div className="fixed left-0 right-0 top-0 z-50 flex items-center justify-between border-b border-slate-200/80 bg-white/80 px-4 py-3 shadow-sm backdrop-blur-md lg:hidden">
+      <div className="fixed left-0 right-0 top-0 z-50 flex items-center justify-between border-b border-slate-200/50 bg-white/50 px-4 py-3 shadow-sm backdrop-blur-md lg:hidden">
         <SidebarBrand subtitle="Secretary" href="/pages/secretary/home" />
         <button
           onClick={toggleMobileMenu}
@@ -130,7 +89,7 @@ export function SidebarSecretary({ className }: AppSidebarProps) {
           onClick={closeMobileMenu}
         >
           <div
-            className="flex h-full w-72 max-w-[85vw] flex-col bg-white shadow-2xl"
+            className="flex h-full w-72 max-w-[85vw] flex-col bg-white/70 backdrop-blur-md shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">

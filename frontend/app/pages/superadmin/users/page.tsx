@@ -1,5 +1,13 @@
 "use client";
 
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from "@/components/ui/table";
 import { useState, useMemo, Suspense } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
@@ -201,17 +209,17 @@ function UsersContent() {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/80 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                  <th className="px-4 py-3 font-semibold">Name</th>
-                  <th className="px-4 py-3 font-semibold hidden md:table-cell">Email</th>
-                  <th className="px-4 py-3 font-semibold">Role</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-b border-slate-200 bg-slate-50/80 hover:bg-slate-50/80">
+                  <TableHead className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-slate-500">Name</TableHead>
+                  <TableHead className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-slate-500 hidden md:table-cell">Email</TableHead>
+                  <TableHead className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-slate-500">Role</TableHead>
+                  <TableHead className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-slate-500">Status</TableHead>
+                  <TableHead className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wider text-slate-500 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody className="divide-y divide-slate-100">
                 {filtered.map((a) => {
                   const pendingRole = pendingRoles[a._id] ?? a.role ?? "resident";
                   const changed = pendingRole !== (a.role ?? "resident");
@@ -304,8 +312,8 @@ function UsersContent() {
                     </tr>
                   );
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>

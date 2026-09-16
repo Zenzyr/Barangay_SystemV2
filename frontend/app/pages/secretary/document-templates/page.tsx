@@ -169,46 +169,66 @@ export default function Page() {
           {filtered.map((template) => {
             const dims = PAGE_DIMS[template.page.size] || PAGE_DIMS.A4;
             return (
-              <div key={template._id} className="rounded-xl border bg-white p-5 flex flex-col gap-3">
-                <div className="flex items-start justify-between gap-2">
+              <div
+                key={template._id}
+                className="group flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-slate-300 hover:shadow-md"
+              >
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="font-semibold leading-snug truncate">{template.name}</h3>
-                    <p className="text-xs text-muted-foreground">
+                    <h3 className="font-semibold text-base leading-snug text-slate-900 truncate">
+                      {template.name}
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-500 uppercase tracking-wider font-medium">
                       {DOCUMENT_NAMES[template.documentType] || template.documentType}
-                      <span className="mx-1.5 text-slate-300">·</span>
-                      <span className="font-mono">v{template.version}</span>
+                      <span className="mx-2 text-slate-300">|</span>
+                      v{template.version}
                     </p>
                   </div>
-                  <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full border capitalize ${STATUS_STYLES[template.status] || STATUS_STYLES.inactive}`}>
+                  <span
+                    className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full border capitalize ${
+                      STATUS_STYLES[template.status] || STATUS_STYLES.inactive
+                    }`}
+                  >
                     {template.status}
                   </span>
                 </div>
 
-                <p className="text-sm text-muted-foreground line-clamp-2 flex-1">
-                  {template.description || "No description."}
+                <p className="text-sm text-slate-600 line-clamp-3 flex-1 leading-relaxed">
+                  {template.description || "No description provided for this document template."}
                 </p>
 
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground border-t pt-3">
-                  <span className="font-semibold text-slate-900">{money(template.fee, template.currency)}</span>
-                  <span>{PAGE_SIZES[template.page.size] || template.page.size} · {(template.page.orientation || "portrait") === "landscape" ? `${dims.h}×${dims.w}` : `${dims.w}×${dims.h}`}pt</span>
-                  <span>{template.elements.length} element(s)</span>
-                </div>
+                <div className="border-t border-slate-100 pt-4 mt-auto">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500 mb-4">
+                    <span className="font-semibold text-slate-900 bg-slate-50 px-2 py-0.5 rounded border">
+                      {money(template.fee, template.currency)}
+                    </span>
+                    <span>
+                      {PAGE_SIZES[template.page.size] || template.page.size}
+                      <span className="mx-1.5 opacity-50">·</span>
+                      {(template.page.orientation || "portrait") === "landscape"
+                        ? `${dims.h}×${dims.w}`
+                        : `${dims.w}×${dims.h}`}
+                      pt
+                    </span>
+                    <span>{template.elements.length} element(s)</span>
+                  </div>
 
-                <div className="flex items-center gap-2">
-                  <Button asChild variant="outline" size="sm" className="flex-1">
-                    <Link href={`/pages/secretary/document-templates/edit/${template._id}`}>
-                      <Edit className="size-3.5 mr-1" /> Edit
-                    </Link>
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handlePreview(template)}>
-                    <Eye className="size-3.5" />
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleDuplicate(template)} disabled={duplicateMutation.isPending}>
-                    <Copy className="size-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDelete(template)}>
-                    <Trash2 className="size-3.5" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button asChild variant="outline" size="sm" className="flex-1">
+                      <Link href={`/pages/secretary/document-templates/edit/${template._id}`}>
+                        <Edit className="size-3.5 mr-1.5" /> Edit
+                      </Link>
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handlePreview(template)} title="Preview">
+                      <Eye className="size-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDuplicate(template)} disabled={duplicateMutation.isPending} title="Duplicate">
+                      <Copy className="size-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="text-slate-500 hover:text-red-600 hover:bg-red-50" onClick={() => handleDelete(template)} title="Delete">
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             );

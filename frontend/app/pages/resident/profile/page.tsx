@@ -219,6 +219,8 @@ export default function ProfilePage() {
 
   return (
     <div className="w-full min-h-dvh p-4 sm:p-6 space-y-6">
+      <div className="fixed inset-0 pointer-events-none bg-ambient-pattern opacity-10" />
+
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="size-11 rounded-xl bg-gradient-to-br from-sky-100 to-emerald-100 text-sky-600 flex items-center justify-center shrink-0">
@@ -235,7 +237,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Profile Info Card */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="glass-card overflow-hidden">
         {isLoading ? (
           <div className="p-6 space-y-4">
             <Skeleton className="h-14 w-14 rounded-2xl" />

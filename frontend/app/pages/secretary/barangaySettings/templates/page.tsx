@@ -313,7 +313,7 @@ function OverlaySlotRow({
             if (e.target.value === "__custom") return;
             set("position", e.target.value);
           }}
-          className="w-full h-10 rounded-md border border-slate-300 bg-slate-50 px-3 text-sm focus:border-sky-500 focus:outline-none"
+          className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
         >
           <option value="__custom" disabled={positions.includes(slot.position)}>
             {positions.includes(slot.position) ? slot.position : "Custom: " + slot.position}

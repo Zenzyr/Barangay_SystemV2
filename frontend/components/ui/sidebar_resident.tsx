@@ -28,6 +28,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import useBarangaySettingsStore from "@/app/store/useBarangaySettingsStore";
 import { NotificationBell } from "@/components/ui/notificationBell";
+import { SidebarBrand } from "@/components/ui/sidebar_shared";
+
 
 const navigationItems = [
   { title: "Dashboard", url: "/pages/resident/home", icon: Home },
@@ -45,38 +47,6 @@ interface AppSidebarProps {
   className?: string
 }
 
-function SidebarBrand({
-  subtitle,
-  href,
-  onNavigate,
-}: {
-  subtitle: string
-  href: string
-  onNavigate?: () => void
-}) {
-  const settings = useBarangaySettingsStore((s) => s.settings);
-  const name = settings?.barangay?.name || "Barangay";
-  const logo = settings?.barangay?.logoUrl || "/assets/logo.jpg";
-  return (
-    <Link
-      href={href}
-      onClick={onNavigate}
-      className="group flex items-center gap-3"
-    >
-      <div className="relative size-10 shrink-0 overflow-hidden rounded-xl shadow-sm ring-2 ring-sky-100 transition-all duration-300 group-hover:ring-sky-300">
-        <img src={logo} alt="Logo" className="h-full w-full object-cover" />
-      </div>
-      <div className="min-w-0 leading-tight">
-        <span className="block truncate text-sm font-bold tracking-tight text-slate-800">
-          {name}
-        </span>
-        <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-600/80">
-          {subtitle} Portal
-        </span>
-      </div>
-    </Link>
-  )
-}
 
 export function SidebarResident({ className }: AppSidebarProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -97,7 +67,7 @@ export function SidebarResident({ className }: AppSidebarProps) {
   return (
     <>
       {/* ── Mobile Navbar ── */}
-      <div className="fixed left-0 right-0 top-0 z-50 flex items-center justify-between border-b border-slate-200/80 bg-white/80 px-4 py-3 shadow-sm backdrop-blur-md lg:hidden">
+      <div className="fixed left-0 right-0 top-0 z-50 flex items-center justify-between border-b border-slate-200/50 bg-white/50 px-4 py-3 shadow-sm backdrop-blur-md lg:hidden">
         <SidebarBrand subtitle="Resident" href="/pages/resident/home" />
         <div className="flex items-center gap-1.5">
           <NotificationBell position="mobile" />
@@ -136,7 +106,7 @@ export function SidebarResident({ className }: AppSidebarProps) {
               </button>
             </div>
 
-            <nav className="scrollbar-thin flex-1 space-y-1 overflow-y-auto px-3 py-4">
+            <nav className="scrollbar-thin flex-1 space-y-1 overflow-y-auto px-3 py-4 bg-ambient-pattern/30">
               {navigationItems.map((item) => {
                 const active = isActive(item.url)
                 return (
@@ -184,7 +154,7 @@ export function SidebarResident({ className }: AppSidebarProps) {
       {/* ── Desktop Sidebar ── */}
       <Sidebar
         className={cn(
-          "hidden border-r border-slate-200/80 bg-white/95 shadow-sm lg:flex",
+          "hidden border-r border-slate-200/50 bg-white/70 backdrop-blur-md shadow-sm lg:flex",
           className
         )}
       >

@@ -671,7 +671,7 @@ export default function SignUpPage() {
         </div>
 
         {/* Form Card */}
-        <div className="relative overflow-hidden rounded-3xl border border-sky-100 bg-white/80 shadow-2xl shadow-sky-100/60 backdrop-blur-sm">
+        <div className="glass-card">
           <form onSubmit={handleSubmit} noValidate className="p-6 sm:p-8 space-y-8">
             {/* Personal Information */}
             <div>

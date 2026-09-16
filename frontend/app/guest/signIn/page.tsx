@@ -247,7 +247,7 @@ export default function SignInPage() {
           </div>
 
           {/* Form Card */}
-          <div className="overflow-hidden rounded-3xl border border-sky-100 bg-white/80 shadow-2xl shadow-sky-100/60 backdrop-blur-sm">
+          <div className="glass-card p-8">
             <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6">
               {/* Email */}
               <div className="space-y-1.5">
@@ -262,7 +262,7 @@ export default function SignInPage() {
                     placeholder="juan@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 h-11 border-gray-200 focus:border-sky-400 focus:ring-sky-400/20 transition-all"
+                    className="pl-10 h-11 bg-white/60 backdrop-blur-sm border-gray-200/50 focus:border-sky-400 focus:ring-sky-400/20 transition-all rounded-xl"
                     required
                   />
                 </div>
@@ -281,7 +281,7 @@ export default function SignInPage() {
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10 h-11 border-gray-200 focus:border-sky-400 focus:ring-sky-400/20 transition-all"
+                    className="pl-10 pr-10 h-11 bg-white/60 backdrop-blur-sm border-gray-200/50 focus:border-sky-400 focus:ring-sky-400/20 transition-all rounded-xl"
                     required
                   />
                   <button
@@ -353,7 +353,7 @@ export default function SignInPage() {
 
       {/* ── Forgot Password Modal ── */}
       <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm glass-card border-none">
           {forgotStep === "email" && (
             <>
               <DialogHeader>
