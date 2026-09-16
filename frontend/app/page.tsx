@@ -28,10 +28,12 @@ export default function Home() {
     skilledNeighbors: null,
   });
 
+
   useEffect(() => {
+
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
-    
+
     fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL_LIVE}/public/stats`)
       .then((res) => res.json())
       .then((data) => setStats(data))
@@ -49,11 +51,10 @@ export default function Home() {
     <div className="flex flex-col min-h-screen font-sans">
       {/* ── Navigation ── */}
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          scrolled
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
             ? "bg-white/80 backdrop-blur-xl shadow-lg shadow-sky-900/5"
             : "bg-white/20 backdrop-blur-md border-b border-white/10 shadow-sm"
-        }`}
+          }`}
       >
         <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
           {/* Logo + Brand */}

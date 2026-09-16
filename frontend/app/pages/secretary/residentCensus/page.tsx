@@ -360,7 +360,8 @@ export default function ResidentCensusPage() {
             </div>
           </div>
         </div>
-        <Button onClick={openAddModal} className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white shadow-lg shadow-sky-200/50 gap-1.5">
+     <div className="flex items-center justify-center gap-2">
+         <Button onClick={openAddModal} className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white shadow-lg shadow-sky-200/50 gap-1.5">
           <Plus className="size-4" />
           Add Record
         </Button>
@@ -368,6 +369,7 @@ export default function ResidentCensusPage() {
           <Upload className="size-4" />
           Import CSV
         </Button>
+     </div>
       </div>
 
       {/* ── Stats ── */}
