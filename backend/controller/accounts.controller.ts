@@ -19,7 +19,7 @@ import { NotificationService } from "../services/notification.service";
 import { ResidentCensusService } from "../services/residentCensus.service";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SystemInfoService } from "../services/systemInfo.service";
-import { BusinessService } from "../services/business.service";
+
 import { WorkService } from "../services/work.service";
 import { AuditLogService } from "../services/auditLog.service";
 import { ROLES, ROLE_LIST } from "../utils/roles";
@@ -883,7 +883,7 @@ export class AccountController {
 
       const residentsInfo = await AccountService.getAccountsForAI();
 
-      const businessInfo = await BusinessService.getBusinessForAI();
+
 
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -905,9 +905,6 @@ export class AccountController {
 
             residentsInfo (information about resident)
             ${residentsInfo}
-
-            businessInfo (information about business)
-            ${businessInfo}
 
             Previous Conversation:
             ${Array.isArray(convo) ? convo.join("\n") : ""}
