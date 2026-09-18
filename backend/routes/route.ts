@@ -15,6 +15,7 @@ import notificationRoute from "./notification.route"
 import certificateTemplateRoute from "./certificateTemplate.route"
 import documentTemplateRoute from "./documentTemplate.route"
 import publicRoute from "./public.route"
+import backupRoute from "./backup.route"
 
 const routes = Router()
 
@@ -38,7 +39,6 @@ routes.use("/certificate-templates", certificateTemplateRoute)
 // New data-driven document template system (visual editor + PDF generation)
 routes.use("/document-templates", documentTemplateRoute)
 routes.use("/public", publicRoute)
-
-routes.use("/public", publicRoute)
+routes.use("/backup", backupRoute)
 
 export default routes

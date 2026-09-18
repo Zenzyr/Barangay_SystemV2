@@ -1,6 +1,7 @@
-"use client"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Home,
   User,
@@ -15,68 +16,124 @@ import {
   X,
   ChevronRight,
   Briefcase,
-} from "lucide-react"
-import { useState } from "react"
+} from "lucide-react";
+import { useState } from "react";
+
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
+
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import useBarangaySettingsStore from "@/app/store/useBarangaySettingsStore";
+
 import { NotificationBell } from "@/components/ui/notificationBell";
 import { SidebarBrand } from "@/components/ui/sidebar_shared";
 
-
 const navigationItems = [
-  { title: "Dashboard", url: "/pages/resident/home", icon: Home },
-  { title: "Profile", url: "/pages/resident/profile", icon: User },
-  { title: "My Documents", url: "/pages/resident/myDocuments", icon: FolderOpen },
-  { title: "Request Document", url: "/pages/resident/documentRequest", icon: FileText },
-  { title: "Resident Skills", url: "/pages/resident/residentSkills", icon: Wrench },
-  { title: "Service Requests", url: "/pages/resident/serviceRequests", icon: ListChecks },
-  { title: "Work Requests", url: "/pages/resident/workRequest", icon: Briefcase },
-  { title: "My Contracts", url: "/pages/resident/contracts", icon: FileStack },
-  { title: "Activity", url: "/pages/resident/activity", icon: Activity },
-]
+  {
+    title: "Dashboard",
+    url: "/pages/resident/home",
+    icon: Home,
+  },
+  {
+    title: "Profile",
+    url: "/pages/resident/profile",
+    icon: User,
+  },
+  {
+    title: "My Documents",
+    url: "/pages/resident/myDocuments",
+    icon: FolderOpen,
+  },
+  {
+    title: "Request Document",
+    url: "/pages/resident/documentRequest",
+    icon: FileText,
+  },
+  {
+    title: "Resident Skills",
+    url: "/pages/resident/residentSkills",
+    icon: Wrench,
+  },
+  {
+    title: "Service Requests",
+    url: "/pages/resident/serviceRequests",
+    icon: ListChecks,
+  },
+  {
+    title: "Work Requests",
+    url: "/pages/resident/workRequest",
+    icon: Briefcase,
+  },
+  {
+    title: "My Contracts",
+    url: "/pages/resident/contracts",
+    icon: FileStack,
+  },
+  {
+    title: "Activity",
+    url: "/pages/resident/activity",
+    icon: Activity,
+  },
+];
 
 interface AppSidebarProps {
-  className?: string
+  className?: string;
 }
 
-
 export function SidebarResident({ className }: AppSidebarProps) {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen)
-  const closeMobileMenu = () => setIsMobileMenuOpen(false)
-  const queryClient = useQueryClient()
-  const pathname = usePathname()
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  const queryClient = useQueryClient();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen((prev) => !prev);
+  };
+
+  const closeMobileMenu = () => {
+    setIsMobileMenuOpen(false);
+  };
 
   const isActive = (url: string) =>
-    pathname === url || pathname.startsWith(`${url}/`)
+    pathname === url || pathname.startsWith(`${url}/`);
 
-  const logoutHandler = async () => {
+  const logoutHandler = () => {
     queryClient.clear();
     localStorage.clear();
     sessionStorage.clear();
+    setIsMobileMenuOpen(false);
+    router.replace("/");
   };
 
   return (
     <>
       {/* ── Mobile Navbar ── */}
       <div className="fixed left-0 right-0 top-0 z-50 flex items-center justify-between border-b border-slate-200/50 bg-white/50 px-4 py-3 shadow-sm backdrop-blur-md lg:hidden">
-        <SidebarBrand subtitle="Resident" href="/pages/resident/home" />
+        <SidebarBrand
+          subtitle="Resident"
+          href="/pages/resident/home"
+        />
+
         <div className="flex items-center gap-1.5">
           <NotificationBell position="mobile" />
+
           <button
+            type="button"
             onClick={toggleMobileMenu}
             aria-label="Toggle menu"
             className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100"
           >
-            {isMobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+            {isMobileMenuOpen ? (
+              <X className="size-5" />
+            ) : (
+              <Menu className="size-5" />
+            )}
           </button>
         </div>
       </div>
@@ -97,7 +154,9 @@ export function SidebarResident({ className }: AppSidebarProps) {
                 href="/pages/resident/home"
                 onNavigate={closeMobileMenu}
               />
+
               <button
+                type="button"
                 onClick={closeMobileMenu}
                 aria-label="Close menu"
                 className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100"
@@ -106,9 +165,10 @@ export function SidebarResident({ className }: AppSidebarProps) {
               </button>
             </div>
 
-            <nav className="scrollbar-thin flex-1 space-y-1 overflow-y-auto px-3 py-4 bg-ambient-pattern/30">
+            <nav className="scrollbar-thin flex-1 space-y-1 overflow-y-auto bg-ambient-pattern/30 px-3 py-4">
               {navigationItems.map((item) => {
-                const active = isActive(item.url)
+                const active = isActive(item.url);
+
                 return (
                   <Link
                     key={item.title}
@@ -124,27 +184,32 @@ export function SidebarResident({ className }: AppSidebarProps) {
                     <item.icon
                       className={cn(
                         "size-4 shrink-0 transition-colors duration-200",
-                        active ? "text-emerald-600" : "text-slate-400"
+                        active
+                          ? "text-emerald-600"
+                          : "text-slate-400"
                       )}
                     />
+
                     <span className="flex-1">{item.title}</span>
-                    {active && <ChevronRight className="size-3.5 text-emerald-500" />}
+
+                    {active && (
+                      <ChevronRight className="size-3.5 text-emerald-500" />
+                    )}
                   </Link>
-                )
+                );
               })}
             </nav>
 
+            {/* Mobile Logout */}
             <div className="border-t border-slate-100 p-3">
               <button
                 type="button"
-                onClick={() => {
-                  closeMobileMenu();
-                  logoutHandler();
-                }}
+                onClick={logoutHandler}
                 className="flex w-full items-center gap-3 rounded-xl bg-rose-50/70 px-3 py-2.5 text-sm font-medium text-rose-600 transition-all duration-200 hover:bg-rose-100/80 hover:text-rose-700"
               >
                 <LogOut className="size-4 shrink-0 text-rose-500" />
-                <span className="flex-1">Logout</span>
+
+                <span className="flex-1 text-left">Logout</span>
               </button>
             </div>
           </div>
@@ -154,12 +219,15 @@ export function SidebarResident({ className }: AppSidebarProps) {
       {/* ── Desktop Sidebar ── */}
       <Sidebar
         className={cn(
-          "hidden border-r border-slate-200/50 bg-white/70 backdrop-blur-md shadow-sm lg:flex",
+          "hidden border-r border-slate-200/50 bg-white/70 shadow-sm backdrop-blur-md lg:flex",
           className
         )}
       >
         <SidebarHeader className="border-b border-slate-100 px-4 py-5">
-          <SidebarBrand subtitle="Resident" href="/pages/resident/home" />
+          <SidebarBrand
+            subtitle="Resident"
+            href="/pages/resident/home"
+          />
         </SidebarHeader>
 
         {/* Navigation */}
@@ -167,9 +235,11 @@ export function SidebarResident({ className }: AppSidebarProps) {
           <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
             Menu
           </p>
+
           <nav className="space-y-1">
             {navigationItems.map((item) => {
-              const active = isActive(item.url)
+              const active = isActive(item.url);
+
               return (
                 <Link
                   key={item.title}
@@ -184,31 +254,38 @@ export function SidebarResident({ className }: AppSidebarProps) {
                   <item.icon
                     className={cn(
                       "size-4 shrink-0 transition-colors duration-200",
-                      active ? "text-emerald-600" : "text-slate-400"
+                      active
+                        ? "text-emerald-600"
+                        : "text-slate-400"
                     )}
                   />
+
                   <span className="flex-1">{item.title}</span>
-                  {active && <ChevronRight className="size-3.5 text-emerald-500" />}
+
+                  {active && (
+                    <ChevronRight className="size-3.5 text-emerald-500" />
+                  )}
                 </Link>
-              )
+              );
             })}
           </nav>
         </SidebarContent>
 
         {/* Footer */}
         <SidebarFooter className="border-t border-slate-100 p-4">
-          <Link
-            href="/"
+          <button
+            type="button"
             onClick={logoutHandler}
-            className="flex items-center gap-3 rounded-xl bg-rose-50/70 px-3 py-2.5 text-[13px] font-medium text-rose-600 transition-all duration-200 hover:bg-rose-100/80 hover:text-rose-700"
+            className="flex w-full items-center gap-3 rounded-xl bg-rose-50/70 px-3 py-2.5 text-[13px] font-medium text-rose-600 transition-all duration-200 hover:bg-rose-100/80 hover:text-rose-700"
           >
             <LogOut className="size-4 shrink-0 text-rose-500" />
-            <span className="flex-1">Logout</span>
-          </Link>
+
+            <span className="flex-1 text-left">Logout</span>
+          </button>
         </SidebarFooter>
 
         <SidebarRail />
       </Sidebar>
     </>
-  )
+  );
 }

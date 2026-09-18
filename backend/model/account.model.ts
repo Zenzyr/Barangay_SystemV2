@@ -21,6 +21,7 @@ const AccountSchema = new Schema({
     purok: { type: String, required: false, default: "" },
     voterStatus: { type: String, required: false, default: "" },
     houseHoldNumber: { type: String, required: false, default: "" },
+    idType: { type: String, enum: ["national_id", "voters_id"], required: false },
 
     password: { type: String, required: true },
     status :  { type: String, required: true },

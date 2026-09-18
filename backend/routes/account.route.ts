@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { AccountController } from "../controller/accounts.controller";
-import { uploadIdImages, uploadProfilePicMiddleware } from "../utils/upload";
+import { uploadIdImages, uploadProfilePicMiddleware, uploadIdFrontBack } from "../utils/upload";
 import { authenticateJWT, requireRoles } from "../middleware/auth";
 import { ROLES } from "../utils/roles";
 import { handler } from "../utils/handler";
@@ -26,6 +26,7 @@ route.post("/check-duplicate", handler(AccountController.checkDuplicate))
 // Read-only possible-duplicate report for administrator review.
 route.get("/duplicates/report", ...superAdminOnly, handler(AccountController.duplicatesReport))
 route.post("/verify-id", handler(AccountController.verifyIdImage))
+route.post("/verify-id-document", uploadIdFrontBack, handler(AccountController.verifyIdDocument))
 route.post("/login", handler(AccountController.login))
 route.post("/forgot-password", handler(AccountController.forgotPassword))
 route.post("/verify-reset-code", handler(AccountController.verifyResetCode))

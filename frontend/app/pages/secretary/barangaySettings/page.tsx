@@ -12,6 +12,7 @@ import {
   ScrollText,
   Landmark,
   ChevronRight,
+  DatabaseBackup,
 } from "lucide-react";
 
 const SECTIONS = [
@@ -70,6 +71,13 @@ const SECTIONS = [
     description:
       "Review a history of every change made to officials and barangay settings for accountability.",
     icon: ScrollText,
+  },
+  {
+    href: "/pages/secretary/barangaySettings/backup",
+    label: "Backup & Restore",
+    description:
+      "Create a full backup of the barangay system data, download it, or restore from a previous backup.",
+    icon: DatabaseBackup,
   },
 ] as const;
 

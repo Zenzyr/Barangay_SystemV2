@@ -49,7 +49,9 @@ app.use((error: any, _request: Request, response: Response, _next: NextFunction)
   if (error && error.name === "MulterError") {
     const message =
       error.code === "LIMIT_FILE_SIZE"
-        ? "File is too large (max 10MB)"
+        ? error.field === "backupFile"
+          ? "Backup file is too large (max 100MB)"
+          : "File is too large (max 10MB)"
         : error.message || "File upload error";
     response.status(400).json({ message });
     return;

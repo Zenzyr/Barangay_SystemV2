@@ -9,9 +9,12 @@ import { SidebarSuperAdmin } from "@/components/ui/sidebar_superadmin";
 export default function SuperAdminLayout({ children }: { children: React.ReactNode }) {
 
     const router = useRouter();
-    const { user } = useUserStore();
+    const { user, _hasHydrated } = useUserStore();
 
     useEffect(() => {
+    
+      if (!_hasHydrated) return;
+
       // Dedicated Super Admin area — system configuration pages. Only the
       // "super_admin" role may enter.
       if (!user) {
@@ -21,9 +24,9 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
       if (user.role !== "super_admin") {
         router.replace("/pages/resident/home");
       }
-    }, [user, router]);
+    }, [user, router, _hasHydrated]);
 
-    if (!user || user.role !== "super_admin") {
+    if (!_hasHydrated || !user || user.role !== "super_admin") {
       return null;
     }
 
