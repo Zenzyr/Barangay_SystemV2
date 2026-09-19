@@ -1,6 +1,6 @@
 "use client"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import {
   Home,
   Users,
@@ -141,11 +141,15 @@ export function SidebarSuperAdmin({ className }: AppSidebarProps) {
   const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen)
   const closeMobileMenu = () => setIsMobileMenuOpen(false)
   const queryClient = useQueryClient()
+  const router = useRouter()
+
 
   const logoutHandler = async () => {
     queryClient.clear();
     localStorage.clear();
     sessionStorage.clear();
+    setIsMobileMenuOpen(false);
+    router.replace("/");
   };
 
   return (
@@ -194,10 +198,7 @@ export function SidebarSuperAdmin({ className }: AppSidebarProps) {
             <div className="border-t border-slate-200 p-3">
               <button
                 type="button"
-                onClick={() => {
-                  closeMobileMenu();
-                  logoutHandler();
-                }}
+                onClick={logoutHandler}
                 className="flex w-full items-center gap-3 rounded-md bg-rose-50 px-3 py-2 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-100"
               >
                 <LogOut className="size-4 shrink-0 text-rose-500" />

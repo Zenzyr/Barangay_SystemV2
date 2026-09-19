@@ -8,7 +8,11 @@ import {
   InsightSeverity,
 } from "../../types/ai.type";
 
-const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+const slug = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 
 const VALID_SEVERITIES: InsightSeverity[] = ["warning", "info", "positive"];
 
@@ -47,14 +51,6 @@ Rules:
   sparse or healthy everywhere, say so with a "positive" insight instead of inventing problems.
 - Keep titles under ~70 characters. Write in clear, practical English.`;
 
-/**
- * Gemini provider — a real LLM implementation of the AIInsightProvider contract.
- *
- * Uses the official @google/generative-ai SDK with the key from
- * GEMINI_API_KEY (or GOOGLE_API_KEY) in backend/.env. The model is
- * configurable via GEMINI_MODEL (default "gemini-3.6-flash") and the API
- * version via GEMINI_API_VERSION (default "v1beta").
- */
 export class GeminiAIProvider implements AIInsightProvider {
   readonly info: AIProviderInfo = {
     provider: "gemini",
@@ -62,23 +58,25 @@ export class GeminiAIProvider implements AIInsightProvider {
     connected: true,
   };
 
-  async generateInsights(analyticsData: AnalyticsSummary): Promise<AIInsightOutput> {
+  async generateInsights(
+    analyticsData: AnalyticsSummary,
+  ): Promise<AIInsightOutput> {
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     if (!apiKey) {
       throw new Error(
-        'AI_PROVIDER=gemini requires GEMINI_API_KEY (or GOOGLE_API_KEY) in backend/.env. ' +
-          "Get one for free from Google AI Studio (https://aistudio.google.com/apikey)."
+        "AI_PROVIDER=gemini requires GEMINI_API_KEY (or GOOGLE_API_KEY) in backend/.env. " +
+          "Get one for free from Google AI Studio (https://aistudio.google.com/apikey).",
       );
     }
 
-    const modelName = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+    const modelName = process.env.GEMINI_MODEL as string;
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel(
       {
         model: modelName,
         generationConfig: { temperature: 0.3, maxOutputTokens: 8192 },
       },
-      { apiVersion: process.env.GEMINI_API_VERSION || "v1beta" }
+      { apiVersion: process.env.GEMINI_API_VERSION || "v1beta" },
     );
 
     const payload = JSON.stringify({
@@ -100,7 +98,7 @@ export class GeminiAIProvider implements AIInsightProvider {
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       throw new Error(
-        `Gemini API request failed (model "${modelName}", provider gemini). ${detail}`
+        `Gemini API request failed (model "${modelName}", provider gemini). ${detail}`,
       );
     }
 
@@ -111,11 +109,17 @@ export class GeminiAIProvider implements AIInsightProvider {
 
 /** Strip markdown fences / surrounding noise then JSON.parse, throwing on failure. */
 function parseModelJson(text: string): AIInsightOutput {
-  const cleaned = text.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+  const cleaned = text
+    .trim()
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/, "")
+    .trim();
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
   if (start === -1 || end === -1 || end <= start) {
-    throw new Error(`Gemini provider returned no JSON object. Raw output:\n${text.slice(0, 500)}`);
+    throw new Error(
+      `Gemini provider returned no JSON object. Raw output:\n${text.slice(0, 500)}`,
+    );
   }
   try {
     return JSON.parse(cleaned.slice(start, end + 1)) as AIInsightOutput;
@@ -127,7 +131,10 @@ function parseModelJson(text: string): AIInsightOutput {
 
 /** Coerce whatever the model returned into the strict InsightItem/RecommendationItem shape. */
 function normalizeOutput(raw: Partial<AIInsightOutput>): AIInsightOutput {
-  const normalizeItem = (item: Record<string, unknown>, fallbackCategory: string): InsightItem | null => {
+  const normalizeItem = (
+    item: Record<string, unknown>,
+    fallbackCategory: string,
+  ): InsightItem | null => {
     const severity = VALID_SEVERITIES.includes(item.severity as InsightSeverity)
       ? (item.severity as InsightSeverity)
       : "info";
@@ -135,7 +142,8 @@ function normalizeOutput(raw: Partial<AIInsightOutput>): AIInsightOutput {
     if (!title) return null;
     return {
       id: slug(title).slice(0, 48) || slug(fallbackCategory),
-      category: String(item.category ?? fallbackCategory).trim() || fallbackCategory,
+      category:
+        String(item.category ?? fallbackCategory).trim() || fallbackCategory,
       title,
       why: String(item.why ?? "").trim(),
       action: String(item.action ?? "").trim(),
@@ -144,15 +152,23 @@ function normalizeOutput(raw: Partial<AIInsightOutput>): AIInsightOutput {
   };
 
   const insights = (Array.isArray(raw.insights) ? raw.insights : [])
-    .map((i) => normalizeItem(i as unknown as Record<string, unknown>, "Overall"))
+    .map((i) =>
+      normalizeItem(i as unknown as Record<string, unknown>, "Overall"),
+    )
     .filter((x): x is InsightItem => x !== null);
 
-  const recommendations = (Array.isArray(raw.recommendations) ? raw.recommendations : [])
-    .map((i) => normalizeItem(i as unknown as Record<string, unknown>, "Overall"))
+  const recommendations = (
+    Array.isArray(raw.recommendations) ? raw.recommendations : []
+  )
+    .map((i) =>
+      normalizeItem(i as unknown as Record<string, unknown>, "Overall"),
+    )
     .filter((x): x is InsightItem => x !== null);
 
   const confidence =
-    typeof raw.confidence === "number" && raw.confidence >= 0 && raw.confidence <= 1
+    typeof raw.confidence === "number" &&
+    raw.confidence >= 0 &&
+    raw.confidence <= 1
       ? raw.confidence
       : null;
 

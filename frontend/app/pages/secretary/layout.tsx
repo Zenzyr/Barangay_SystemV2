@@ -12,9 +12,11 @@ const STAFF_ROLES = ["secretary", "super_admin"];
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
 
     const router = useRouter();
-    const { user } = useUserStore();
+    const { user, _hasHydrated } = useUserStore();
 
     useEffect(() => {
+      if (!_hasHydrated) return;
+
       // These pages are shared by operational staff: the Secretary and the
       // Super Admin (who may also operate the barangay office). The role is
       // set by the backend during login and verified here on every protected
@@ -26,9 +28,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       if (!STAFF_ROLES.includes(user.role || "")) {
         router.replace("/pages/resident/home");
       }
-    }, [user, router]);
+    }, [user, router, _hasHydrated]);
 
-    if (!user || !STAFF_ROLES.includes(user.role || "")) {
+    if (!_hasHydrated || !user || !STAFF_ROLES.includes(user.role || "")) {
       return null;
     }
 

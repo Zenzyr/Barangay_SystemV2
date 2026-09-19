@@ -12,5 +12,6 @@
     "strictNullChecks": true,                         /* When type checking, take into account 'null' and 'undefined'. */
     "strictFunctionTypes": true,                      /* When assigning functions, check to ensure parameters and the return values are subtype-compatible. */
     "skipLibCheck": true                                 /* Skip type checking all .d.ts files. */
-  }
+  },
+  "exclude": ["__tests__", "dist", "node_modules"]
 }

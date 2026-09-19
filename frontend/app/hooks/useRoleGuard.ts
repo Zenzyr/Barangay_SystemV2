@@ -8,9 +8,12 @@ import useUserStore from "@/app/store/useUserStore";
  */
 export function useSuperAdminGuard() {
   const router = useRouter();
-  const { user } = useUserStore();
+  const { user, _hasHydrated } = useUserStore();
 
   useEffect(() => {
+
+    if (!_hasHydrated) return;
+
     if (!user) {
       router.replace("/guest/signIn");
       return;
@@ -18,7 +21,7 @@ export function useSuperAdminGuard() {
     if (user.role !== "super_admin") {
       router.replace("/pages/secretary/home");
     }
-  }, [user, router]);
+  }, [user, router, _hasHydrated]);
 
-  return { isSuperAdmin: !!user && user.role === "super_admin" };
+  return { isSuperAdmin: _hasHydrated && !!user && user.role === "super_admin" };
 }

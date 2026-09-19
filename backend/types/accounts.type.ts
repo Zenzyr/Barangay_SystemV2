@@ -11,6 +11,7 @@ export interface accountInterfaceInput {
     purok?: string,
     voterStatus?: string,
     houseHoldNumber?: string,
+    idType?: "national_id" | "voters_id",
 
     password: string,
     status :  string,

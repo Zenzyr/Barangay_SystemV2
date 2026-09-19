@@ -1,8 +1,36 @@
 import { Response } from "express";
 import { AuthRequest } from "../types/request.type";
-import { DocumentTemplateService } from "../services/documentTemplate.service";
+import {
+  DocumentTemplateService,
+  TemplateInputError,
+} from "../services/documentTemplate.service";
 import { DocumentTemplateRenderer } from "../services/documentTemplateRenderer.service";
 import { isObjectId } from "../utils/validation";
+import { validateTiptapDoc } from "../utils/tiptapDoc";
+
+const previewSample = () => ({
+  _id: "000000000000000000000001",
+  fullName: "Juan Dela Cruz",
+  address: "Purok 1, Barangay Rabon",
+  dateOfBirth: "1990-01-15",
+  civilStatus: "Single",
+  nationality: "Filipino",
+  occupation: "Farmer",
+  yrsOfResidency: 12,
+  purpose: "school enrolment",
+  contact: "09171234567",
+  purok: "Purok 1",
+  age: 35,
+  spouseName: "Maria Dela Cruz",
+  annualIncome: "120,000",
+  businessName: "Dela Cruz Sari-Sari Store",
+  documentNumber: "BR-2026-0001",
+  dateIssued: new Date().toLocaleDateString("en-PH", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }),
+});
 
 export class DocumentTemplateController {
   /** Staff list of ALL templates (manager page). */
@@ -65,20 +93,37 @@ export class DocumentTemplateController {
         return;
       }
       if (!String(body.documentType || "").trim()) {
-        response.status(400).send("A document type key is required (e.g. certificateOfIndigency)");
+        response
+          .status(400)
+          .send(
+            "A document type key is required (e.g. certificateOfIndigency)",
+          );
         return;
       }
-      const existing = await DocumentTemplateService.getByDocumentType(String(body.documentType));
+      const existing = await DocumentTemplateService.getByDocumentType(
+        String(body.documentType),
+      );
       if (existing) {
-        response.status(409).send("A template for this document type already exists");
+        response
+          .status(409)
+          .send("A template for this document type already exists");
         return;
       }
-      const template = await DocumentTemplateService.create(body, request.account?._id);
+      const template = await DocumentTemplateService.create(
+        body,
+        request.account?._id,
+      );
       response.status(201).send(template);
     } catch (error: any) {
+      if (error instanceof TemplateInputError) {
+        response.status(error.status).send(error.message);
+        return;
+      }
       console.error("[DOC-TEMPLATES CREATE ERROR]", error);
       if (error?.code === 11000) {
-        response.status(409).send("A template with this document type already exists");
+        response
+          .status(409)
+          .send("A template with this document type already exists");
         return;
       }
       response.status(500).send("Failed to create document template");
@@ -92,13 +137,21 @@ export class DocumentTemplateController {
         response.status(400).send("Invalid document template id");
         return;
       }
-      const template = await DocumentTemplateService.update(id, request.body || {}, request.account?._id);
+      const template = await DocumentTemplateService.update(
+        id,
+        request.body || {},
+        request.account?._id,
+      );
       if (!template) {
         response.status(404).send("Document template not found");
         return;
       }
       response.send(template);
     } catch (error) {
+      if (error instanceof TemplateInputError) {
+        response.status(error.status).send(error.message);
+        return;
+      }
       console.error("[DOC-TEMPLATES UPDATE ERROR]", error);
       response.status(500).send("Failed to update document template");
     }
@@ -111,7 +164,10 @@ export class DocumentTemplateController {
         response.status(400).send("Invalid document template id");
         return;
       }
-      const copy = await DocumentTemplateService.duplicate(id, request.account?._id);
+      const copy = await DocumentTemplateService.duplicate(
+        id,
+        request.account?._id,
+      );
       if (!copy) {
         response.status(404).send("Document template not found");
         return;
@@ -150,32 +206,71 @@ export class DocumentTemplateController {
         response.status(400).send("Invalid document template id");
         return;
       }
-      const sampleObjectId = "000000000000000000000001";
-      const sample = {
-        _id: sampleObjectId,
-        fullName: "Juan Dela Cruz",
-        address: "Purok 1, Barangay Rabon",
-        dateOfBirth: "1990-01-15",
-        civilStatus: "Single",
-        nationality: "Filipino",
-        occupation: "Farmer",
-        yrsOfResidency: 12,
-        purpose: "school enrolment",
-        contact: "09171234567",
-        purok: "Purok 1",
-        age: 35,
-        spouseName: "Maria Dela Cruz",
-        annualIncome: "120,000",
-        businessName: "Dela Cruz Sari-Sari Store",
-        documentNumber: "BR-2026-0001",
-        dateIssued: new Date().toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" }),
-      };
-      const pdf = await DocumentTemplateRenderer.renderPDF(id, { data: sample, lenient: true });
+      const sample = previewSample();
+      const pdf = await DocumentTemplateRenderer.renderPDF(id, {
+        data: sample,
+        lenient: true,
+      });
       response.setHeader("Content-Type", "application/pdf");
-      response.setHeader("Content-Disposition", `inline; filename="${id}-preview.pdf"`);
+      response.setHeader(
+        "Content-Disposition",
+        `inline; filename="${id}-preview.pdf"`,
+      );
       response.send(pdf);
     } catch (error) {
       console.error("[DOC-TEMPLATES PREVIEW ERROR]", error);
+      response.status(500).send("Failed to render document template preview");
+    }
+  };
+
+  /**
+   * What the editor opens: the stored Tiptap document, or a converted draft of a
+   * legacy layout (with notes on what could not be carried over). Read-only.
+   */
+  static getEditorContent = async (
+    request: AuthRequest,
+    response: Response,
+  ) => {
+    try {
+      const { id } = request.params;
+      if (!isObjectId(id)) {
+        response.status(400).send("Invalid document template id");
+        return;
+      }
+      const result = await DocumentTemplateService.getEditorContent(id);
+      if (!result) {
+        response.status(404).send("Document template not found");
+        return;
+      }
+      response.send(result);
+    } catch (error) {
+      console.error("[DOC-TEMPLATES EDITOR-CONTENT ERROR]", error);
+      response.status(500).send("Failed to load the template content");
+    }
+  };
+
+  /** PDF preview of editor content that has not been saved yet (sample data). */
+  static previewContent = async (request: AuthRequest, response: Response) => {
+    try {
+      const { editorContent, page } = request.body || {};
+      const error = validateTiptapDoc(editorContent);
+      if (error) {
+        response.status(400).send(error);
+        return;
+      }
+      const pdf = await DocumentTemplateRenderer.renderContentPDF(
+        editorContent,
+        page || {},
+        previewSample(),
+      );
+      response.setHeader("Content-Type", "application/pdf");
+      response.setHeader(
+        "Content-Disposition",
+        'inline; filename="template-preview.pdf"',
+      );
+      response.send(pdf);
+    } catch (error) {
+      console.error("[DOC-TEMPLATES PREVIEW-CONTENT ERROR]", error);
       response.status(500).send("Failed to render document template preview");
     }
   };
@@ -189,7 +284,8 @@ export class DocumentTemplateController {
         response.status(400).send("A valid document request id is required");
         return;
       }
-      const { DocumentRequestService } = await import("../services/documentRequest.service");
+      const { DocumentRequestService } =
+        await import("../services/documentRequest.service");
       const doc = await DocumentRequestService.get(requestId);
       if (!doc) {
         response.status(404).send("Document request not found");
@@ -197,7 +293,10 @@ export class DocumentTemplateController {
       }
       const pdf = await DocumentTemplateRenderer.renderPDF(id, { data: doc });
       response.setHeader("Content-Type", "application/pdf");
-      response.setHeader("Content-Disposition", `attachment; filename="document-${requestId}.pdf"`);
+      response.setHeader(
+        "Content-Disposition",
+        `attachment; filename="document-${requestId}.pdf"`,
+      );
       response.send(pdf);
     } catch (error) {
       console.error("[DOC-TEMPLATES RENDER ERROR]", error);

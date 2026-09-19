@@ -12,7 +12,7 @@ import routes from "./routes/route"
 import cors from "cors";
 
 const app = express();
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 5001;
 const mongodb_uri = process.env.MONGODB_URI || "";
 
 app.set('trust proxy', 1);
@@ -26,27 +26,12 @@ const allowedOrigins = (process.env.CORS_ORIGINS || "")
   .map((o) => o.trim())
   .filter(Boolean);
 
-app.use(cors({
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.length === 0) {
-      // Allow non-browser / same-origin requests; if no origins configured,
-      // only allow requests without an Origin header (e.g. server-to-server).
-      if (allowedOrigins.length === 0 && origin) {
-        callback(new Error("Not allowed by CORS"));
-        return;
-      }
-      callback(null, true);
-      return;
-    }
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true,
-}));
-
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  })
+);
 app.use(routes)
 
 app.get('/', async (request: Request, response: Response) => {
@@ -64,7 +49,9 @@ app.use((error: any, _request: Request, response: Response, _next: NextFunction)
   if (error && error.name === "MulterError") {
     const message =
       error.code === "LIMIT_FILE_SIZE"
-        ? "File is too large (max 10MB)"
+        ? error.field === "backupFile"
+          ? "Backup file is too large (max 100MB)"
+          : "File is too large (max 10MB)"
         : error.message || "File upload error";
     response.status(400).json({ message });
     return;

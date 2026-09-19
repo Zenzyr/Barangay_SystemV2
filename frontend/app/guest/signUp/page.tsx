@@ -28,6 +28,7 @@ import {
   Heart,
   Vote,
   AlertCircle,
+  XCircle,
 } from "lucide-react";
 
 // ─── Validation rules ────────────────────────────────────────────
@@ -44,7 +45,31 @@ type FormValues = {
   purok: string;
   voterStatus: string;
   houseHoldNumber: string;
+  idType: string;
 };
+
+const ID_TYPES: { value: "national_id" | "voters_id"; label: string }[] = [
+  { value: "national_id", label: "Philippine National ID" },
+  { value: "voters_id", label: "Philippine Voter's ID" },
+];
+
+// Gemini verification runs once, as soon as ID type + front + back are all
+// selected — not again on Create Account. See runIdDocumentVerification.
+type IdVerificationStatus = "idle" | "verifying" | "verified" | "failed";
+
+
+const BLOCKED_EMAIL_DOMAINS = new Set([
+  "example.com",
+  "example.net",
+  "example.org",
+  "example.edu",
+  "test.com",
+  "test.org",
+  "testing.com",
+  "fake.com",
+  "sample.com",
+  "dummy.com",
+]);
 
 const validators: {
   [K in keyof FormValues]: (value: string, values: FormValues) => string;
@@ -62,6 +87,10 @@ const validators: {
       /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
     if (!emailRegex.test(email)) {
       return "Enter a valid email address (e.g. name@domain.com)";
+    }
+    const domain = email.split("@")[1]?.toLowerCase();
+    if (domain && BLOCKED_EMAIL_DOMAINS.has(domain)) {
+      return "Please use a real, active email address";
     }
     return "";
   },
@@ -106,6 +135,7 @@ const validators: {
   purok: (v) => (!v ? "Please select a purok" : ""),
   voterStatus: (v) => (!v ? "Please select a voter status" : ""),
   houseHoldNumber: (v) => (!v.trim() ? "Household number is required" : ""),
+  idType: (v) => (!v ? "Please select the type of ID you are uploading" : ""),
 };
 
 // ─── ID image verification ───────────────────────────────────────
@@ -323,7 +353,7 @@ function UploadBox({
         <div className="absolute inset-0 z-10 rounded-xl bg-white/75 backdrop-blur-sm flex items-center justify-center">
           <div className="flex flex-col items-center gap-2 text-sky-600">
             <Loader2 className="size-6 animate-spin" />
-            <span className="text-xs font-medium text-gray-600">Verifying ID...</span>
+            <span className="text-xs font-medium text-gray-600">Uploading ID...</span>
           </div>
         </div>
       )}
@@ -409,6 +439,7 @@ export default function SignUpPage() {
   const [purok, setPurok] = useState("");
   const [voterStatus, setVoterStatus] = useState("");
   const [houseHoldNumber, setHouseHoldNumber] = useState("");
+  const [idType, setIdType] = useState("");
 
   // Validation state
   const [errors, setErrors] = useState<Partial<Record<keyof FormValues, string>>>({});
@@ -427,6 +458,7 @@ export default function SignUpPage() {
     purok,
     voterStatus,
     houseHoldNumber,
+    idType,
   };
 
   const validateField = (field: keyof FormValues, values: FormValues = formValues) => {
@@ -476,9 +508,83 @@ export default function SignUpPage() {
 
   const [verifyingSide, setVerifyingSide] = useState<"front" | "back" | null>(null);
 
+  // ─── Gemini ID document verification (runs once per selected file pair) ──
+  const [idVerificationStatus, setIdVerificationStatus] = useState<IdVerificationStatus>("idle");
+  const [idVerificationReason, setIdVerificationReason] = useState("");
+  const [idVerificationFailureReason, setIdVerificationFailureReason] = useState<
+    "not_id" | "type_mismatch" | "uncertain_type" | "inconsistent" | "unreadable" | null
+  >(null);
+  const [idVerificationToken, setIdVerificationToken] = useState<string | null>(null);
+  // Synchronous lock (state updates are async and can't prevent a second
+  // call fired within the same tick) + a key of the last file pair we've
+  // already verified, so re-renders/unrelated field changes/double-clicks
+  // never trigger a second Gemini request for the same selection.
+  const verifyingDocumentRef = useRef(false);
+  const lastVerifiedKeyRef = useRef<string | null>(null);
+
   const frontRef = useRef<HTMLInputElement>(null);
   const backRef = useRef<HTMLInputElement>(null);
   const selfieRef = useRef<HTMLInputElement>(null);
+
+  const fileSignature = (f: File) => `${f.name}:${f.size}:${f.lastModified}`;
+
+  const resetIdVerification = () => {
+    lastVerifiedKeyRef.current = null;
+    setIdVerificationStatus("idle");
+    setIdVerificationReason("");
+    setIdVerificationFailureReason(null);
+    setIdVerificationToken(null);
+  };
+
+  const runIdDocumentVerification = async (front: File, back: File, type: string) => {
+    const key = `${type}::${fileSignature(front)}::${fileSignature(back)}`;
+    // Already verifying, or already resolved (verified/failed) this exact
+    // idType + front + back combination — never fire a second request for it.
+    if (verifyingDocumentRef.current || lastVerifiedKeyRef.current === key) return;
+
+    verifyingDocumentRef.current = true;
+    lastVerifiedKeyRef.current = key;
+    setIdVerificationStatus("verifying");
+    setIdVerificationReason("");
+    setIdVerificationFailureReason(null);
+    setIdVerificationToken(null);
+
+    try {
+      const docForm = new FormData();
+      docForm.append("idType", type);
+      docForm.append("idFront", front);
+      docForm.append("idBack", back);
+      const { data } = await axiosInstance.post("/account/verify-id-document", docForm, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      if (data?.passed && data?.verificationToken) {
+        setIdVerificationStatus("verified");
+        setIdVerificationToken(data.verificationToken);
+      } else {
+        setIdVerificationStatus("failed");
+        setIdVerificationFailureReason(data?.failure_reason ?? null);
+        setIdVerificationReason(
+          data?.reason || "This does not look like a valid National ID or Voter's ID. Please upload a valid ID."
+        );
+      }
+    } catch (err) {
+      setIdVerificationStatus("failed");
+      setIdVerificationFailureReason(null);
+      const message = (err as { response?: { data?: unknown } })?.response?.data;
+      setIdVerificationReason(
+        typeof message === "string" ? message : "Could not verify your ID right now. Please try again."
+      );
+    } finally {
+      verifyingDocumentRef.current = false;
+    }
+  };
+
+  /** Kicks off verification only once all three inputs it needs are present. */
+  const maybeRunIdDocumentVerification = (type: string, front: File | null, back: File | null) => {
+    if (type && front && back) {
+      runIdDocumentVerification(front, back, type);
+    }
+  };
 
   const handleFileSelect = async (
     file: File,
@@ -516,6 +622,15 @@ export default function SignUpPage() {
     }
     setFile(file);
     setPreview(URL.createObjectURL(file));
+
+    // Immediately kick off the Gemini document check once both sides (and
+    // the selected ID type) are available — the front/back pair the user
+    // JUST picked, joined with whatever the other side already holds.
+    if (side === "front") {
+      maybeRunIdDocumentVerification(idType, file, idBack);
+    } else if (side === "back") {
+      maybeRunIdDocumentVerification(idType, idFront, file);
+    }
   };
 
   const removeImage = (
@@ -546,38 +661,54 @@ export default function SignUpPage() {
       return;
     }
 
-    // UX-only identity check (ONE PERSON = ONE ACCOUNT). The backend
-    // carries out the authoritative check when the account is created.
-    let censusAutoFill: Record<string, string> | null = null;
-    try {
-      const precheck = await axiosInstance.post("/account/check-duplicate", {
-        name: name.trim(),
-        dateOfBirth,
-        gender,
-        contact,
-      });
-      if (precheck.data?.status === "blocked") {
-        errorAlert(
-          "This person is already registered in the system. Please log in using your existing account or use account recovery."
-        );
-        return;
-      }
-      if (precheck.data?.status === "flagged" && precheck.data?.census) {
-        censusAutoFill = precheck.data.census;
-        successAlert("Resident found in census — empty fields have been pre-filled");
-      }
-    } catch {
-      // Network hiccup — the backend check will catch duplicates anyway.
-    }
-
-    if (!idFront || !idBack || !idSelfie) {
-      errorAlert("Please upload all 3 ID images (front, back, selfie)");
-      return;
-    }
-
+    // Disable the submit button immediately so a fast double-click can't
+    // fire this handler twice while the duplicate precheck is in flight.
     setLoading(true);
 
     try {
+      // UX-only identity check (ONE PERSON = ONE ACCOUNT). The backend
+      // carries out the authoritative check when the account is created.
+      let censusAutoFill: Record<string, string> | null = null;
+      try {
+        const precheck = await axiosInstance.post("/account/check-duplicate", {
+          name: name.trim(),
+          dateOfBirth,
+          gender,
+          contact,
+        });
+        if (precheck.data?.status === "blocked") {
+          errorAlert(
+            "This person is already registered in the system. Please log in using your existing account or use account recovery."
+          );
+          return;
+        }
+        if (precheck.data?.status === "flagged" && precheck.data?.census) {
+          censusAutoFill = precheck.data.census;
+          successAlert("Resident found in census — empty fields have been pre-filled");
+        }
+      } catch {
+        // Network hiccup — the backend check will catch duplicates anyway.
+      }
+
+      if (!idFront || !idBack || !idSelfie) {
+        errorAlert("Please upload all 3 ID images (front, back, selfie)");
+        return;
+      }
+
+      // ID verification already ran (and finished) the moment the front/back
+      // images were selected — see runIdDocumentVerification. We only check
+      // the result here; Gemini is NEVER called again on submit.
+      if (idVerificationStatus === "verifying") {
+        errorAlert("Please wait for ID verification to finish.");
+        return;
+      }
+      if (idVerificationStatus !== "verified" || !idVerificationToken) {
+        errorAlert(
+          idVerificationReason || "Please upload a valid National ID or Voter's ID and wait for it to be verified."
+        );
+        return;
+      }
+
       const formData = new FormData();
       formData.append("name", name.trim());
       formData.append("address", address.trim());
@@ -591,6 +722,8 @@ export default function SignUpPage() {
       formData.append("purok", censusAutoFill?.purok && !purok ? censusAutoFill.purok : purok);
       formData.append("voterStatus", voterStatus);
       formData.append("houseHoldNumber", censusAutoFill?.householdNumber && !houseHoldNumber.trim() ? censusAutoFill.householdNumber : houseHoldNumber.trim());
+      formData.append("idType", idType);
+      formData.append("verificationToken", idVerificationToken);
       formData.append("profile", "/assets/profile.jpg");
       formData.append("idFront", idFront);
       formData.append("idBack", idBack);
@@ -1032,6 +1165,37 @@ export default function SignUpPage() {
                 Upload a clear photo of your valid government-issued ID for
                 verification.
               </p>
+
+              <div className="space-y-1.5 mb-4 sm:max-w-xs">
+                <Label htmlFor="idType" className="text-sm font-medium text-gray-700">
+                  ID Type
+                </Label>
+                <div className="relative">
+                  <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400 pointer-events-none" />
+                  <select
+                    id="idType"
+                    value={idType}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setIdType(value);
+                      maybeRunIdDocumentVerification(value, idFront, idBack);
+                    }}
+                    onBlur={handleBlur("idType")}
+                    className={`w-full h-10 pl-10 pr-3 rounded-lg border bg-white text-sm text-gray-700 focus:ring-2 transition-all appearance-none cursor-pointer ${
+                      touched.idType && errors.idType
+                        ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
+                        : "border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
+                    }`}
+                  >
+                    <option value="" disabled>Select ID type</option>
+                    {ID_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <FieldError message={touched.idType ? errors.idType : undefined} />
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <UploadBox
                   label="Front of ID"
@@ -1040,7 +1204,10 @@ export default function SignUpPage() {
                   preview={idFrontPreview}
                   inputRef={frontRef}
                   onSelect={(f) => handleFileSelect(f, "front", setIdFront, setIdFrontPreview)}
-                  onRemove={() => removeImage(setIdFront, setIdFrontPreview, frontRef)}
+                  onRemove={() => {
+                    removeImage(setIdFront, setIdFrontPreview, frontRef);
+                    resetIdVerification();
+                  }}
                   accentColor="border-sky-300 hover:border-sky-400 hover:bg-sky-50/50"
                   verifying={verifyingSide === "front"}
                 />
@@ -1051,7 +1218,10 @@ export default function SignUpPage() {
                   preview={idBackPreview}
                   inputRef={backRef}
                   onSelect={(f) => handleFileSelect(f, "back", setIdBack, setIdBackPreview)}
-                  onRemove={() => removeImage(setIdBack, setIdBackPreview, backRef)}
+                  onRemove={() => {
+                    removeImage(setIdBack, setIdBackPreview, backRef);
+                    resetIdVerification();
+                  }}
                   accentColor="border-emerald-300 hover:border-emerald-400 hover:bg-emerald-50/50"
                   verifying={verifyingSide === "back"}
                 />
@@ -1066,29 +1236,71 @@ export default function SignUpPage() {
                   accentColor="border-sky-300 hover:border-sky-400 hover:bg-sky-50/50"
                 />
               </div>
+
+              {idVerificationStatus !== "idle" && (
+                <div
+                  className={`mt-4 flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium ${
+                    idVerificationStatus === "verified"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : idVerificationStatus === "failed"
+                      ? "border-red-200 bg-red-50 text-red-600"
+                      : "border-sky-200 bg-sky-50 text-sky-600"
+                  }`}
+                >
+                  {idVerificationStatus === "verifying" && (
+                    <>
+                      <Loader2 className="size-4 shrink-0 animate-spin" />
+                      Verifying ID...
+                    </>
+                  )}
+                  {idVerificationStatus === "verified" && (
+                    <>
+                      <CheckCircle2 className="size-4 shrink-0" />
+                      ID Verified
+                    </>
+                  )}
+                  {idVerificationStatus === "failed" && (
+                    <>
+                      <XCircle className="size-4 shrink-0" />
+                      <span>
+                        <span className="block">
+                          {idVerificationFailureReason === "type_mismatch"
+                            ? "ID Type Mismatch"
+                            : idVerificationFailureReason === "not_id"
+                            ? "Invalid ID"
+                            : idVerificationFailureReason === "uncertain_type"
+                            ? "Unable to verify ID type"
+                            : "ID verification failed"}
+                        </span>
+                        {idVerificationReason && (
+                          <span className="mt-0.5 block font-normal">{idVerificationReason}</span>
+                        )}
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Submit */}
             <div className="space-y-4">
               <Button
                 type="submit"
-                disabled={loading || verifyingSide !== null}
+                disabled={loading || verifyingSide !== null || idVerificationStatus === "verifying"}
                 className="w-full h-11 bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-medium rounded-xl shadow-lg shadow-sky-200/50 hover:shadow-emerald-200/50 transition-all duration-300 disabled:opacity-60"
               >
                 {loading ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
                     Creating account...
-              <Link href="/guest/signIn" className="w-full">
-                <Button variant="outline" type="button" className="w-full">
-                  Back
-                </Button>
-              </Link>
-
+                  </>
+                ) : idVerificationStatus === "verifying" ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Verifying ID...
                   </>
                 ) : (
                   <>
-
                     <Upload className="size-4" />
                     Create Account
                   </>

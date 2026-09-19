@@ -16,6 +16,8 @@ route.get("/:id", authenticateJWT, requireRoles(...STAFF), handler(DocumentTempl
 route.post("/", authenticateJWT, requireRoles(...STAFF), handler(DocumentTemplateController.create));
 route.post("/seed", authenticateJWT, requireRoles(ROLES.SUPER_ADMIN), handler(DocumentTemplateController.seed));
 route.put("/:id", authenticateJWT, requireRoles(...STAFF), handler(DocumentTemplateController.update));
+route.post("/preview", authenticateJWT, requireRoles(...STAFF), handler(DocumentTemplateController.previewContent));
+route.get("/:id/editor-content", authenticateJWT, requireRoles(...STAFF), handler(DocumentTemplateController.getEditorContent));
 route.post("/:id/duplicate", authenticateJWT, requireRoles(...STAFF), handler(DocumentTemplateController.duplicate));
 route.post("/:id/render", authenticateJWT, requireRoles(...STAFF), handler(DocumentTemplateController.renderDocument));
 route.get("/:id/preview", authenticateJWT, requireRoles(...STAFF), handler(DocumentTemplateController.preview));

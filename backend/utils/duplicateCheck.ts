@@ -43,11 +43,28 @@ export const DUPLICATE_PERSON_MSG =
 export const EMAIL_IN_USE_MSG =
   "An account already exists for this email. Please sign in or use account recovery.";
 
+export const DUPLICATE_NAME_REASON =
+  "An account with this full name already exists";
+
+export const DUPLICATE_NAME_MSG =
+  "An account with this full name already exists.";
+
 // ── Name normalization (order-aware, so "Dela Cruz Juan Michael" and
 //    "Juan Michael Dela Cruz" compare equal) ───────────────────────────
 const SUFFIX_TOKENS = new Set([
-  "jr", "sr", "i", "ii", "iii", "iv", "v", "vi",
-  "1st", "2nd", "3rd", "4th", "5th",
+  "jr",
+  "sr",
+  "i",
+  "ii",
+  "iii",
+  "iv",
+  "v",
+  "vi",
+  "1st",
+  "2nd",
+  "3rd",
+  "4th",
+  "5th",
 ]);
 
 function nameTokens(raw: unknown): string[] {
@@ -61,28 +78,34 @@ function nameTokens(raw: unknown): string[] {
 }
 
 /** Sorted token set — order-insensitive but ignores nothing else. */
-function nameKey(raw: unknown): string {
+export function nameKey(raw: unknown): string {
   return nameTokens(raw).sort().join(" ");
 }
 
 function nameParts(raw: unknown): { first: string; last: string } {
   const s = String(raw || "").trim();
   // "Surname,Given Names" (census) vs "Given Names Surname" (accounts).
-  const commaSplit = s.split(",").map((p) => p.trim()).filter(Boolean);
+  const commaSplit = s
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
   const withoutY = (toks: string[]) => toks.filter((t) => t !== "y");
   const toks = withoutY(nameTokens(s));
 
   if (commaSplit.length >= 2) {
     const sur = withoutY(nameTokens(commaSplit[0])).pop() || "";
     const given = withoutY(nameTokens(commaSplit[1])).filter(
-      (t) => !SUFFIX_TOKENS.has(t)
+      (t) => !SUFFIX_TOKENS.has(t),
     );
     return { last: sur, first: given[0] || "" };
   }
 
   let last = "";
   for (let i = toks.length - 1; i >= 0; i--) {
-    if (!SUFFIX_TOKENS.has(toks[i])) { last = toks[i]; break; }
+    if (!SUFFIX_TOKENS.has(toks[i])) {
+      last = toks[i];
+      break;
+    }
   }
   return { first: toks[0] || "", last };
 }
@@ -97,20 +120,47 @@ export function surname(raw: unknown): string {
 
 // ── Date normalization: many formats to a YYYYMMDD key ───────────────
 const MONTHS: Record<string, number> = {
-  jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4,
-  may: 5, jun: 6, june: 6, jul: 7, july: 7, aug: 8, august: 8,
-  sep: 9, sept: 9, september: 9, oct: 10, october: 10,
-  nov: 11, november: 11, dec: 12, december: 12,
+  jan: 1,
+  january: 1,
+  feb: 2,
+  february: 2,
+  mar: 3,
+  march: 3,
+  apr: 4,
+  april: 4,
+  may: 5,
+  jun: 6,
+  june: 6,
+  jul: 7,
+  july: 7,
+  aug: 8,
+  august: 8,
+  sep: 9,
+  sept: 9,
+  september: 9,
+  oct: 10,
+  october: 10,
+  nov: 11,
+  november: 11,
+  dec: 12,
+  december: 12,
 };
 
 export function normalizeDate(raw: unknown): string | null {
-  const s = String(raw || "").trim().toLowerCase();
+  const s = String(raw || "")
+    .trim()
+    .toLowerCase();
   if (!s) return null;
 
   const pad = (n: number) => String(n).padStart(2, "0");
   const ymd = (y: number, m: number, d: number): string | null => {
     const dt = new Date(Date.UTC(y, m - 1, d));
-    if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== m - 1 || dt.getUTCDate() !== d) return null;
+    if (
+      dt.getUTCFullYear() !== y ||
+      dt.getUTCMonth() !== m - 1 ||
+      dt.getUTCDate() !== d
+    )
+      return null;
     if (y < 1900 || y > 2100) return null;
     return `${y}${pad(m)}${pad(d)}`;
   };
@@ -131,7 +181,8 @@ export function normalizeDate(raw: unknown): string | null {
   // produces a valid calendar date; only accept when one interpretation works.
   m = /^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2}|\d{4})$/.exec(s);
   if (m) {
-    let y = Number(m[3]); if (y < 100) y += y < 50 ? 2000 : 1900;
+    let y = Number(m[3]);
+    if (y < 100) y += y < 50 ? 2000 : 1900;
     const a = ymd(y, Number(m[1]), Number(m[2]));
     const b = ymd(y, Number(m[2]), Number(m[1]));
     if (a && !b) return a;
@@ -144,7 +195,9 @@ export function normalizeDate(raw: unknown): string | null {
 
 /** First letter of the gender, so "Male"/"Male"/"m" all normalize. */
 function genderNorm(raw: unknown): string {
-  const s = String(raw || "").trim().toLowerCase();
+  const s = String(raw || "")
+    .trim()
+    .toLowerCase();
   if (s.startsWith("m")) return "m";
   if (s.startsWith("f")) return "f";
   if (s.startsWith("o")) return "o";
@@ -169,9 +222,9 @@ interface RawIdentity {
 // Never treats a name match alone as a duplicate. Date of birth (or a
 // phone number) must agree before we call two records the same person.
 export function matchPerson(c: RawIdentity, e: RawIdentity): MatchLevel {
-  const fullEq =
-    !!nameKey(c.name) && nameKey(c.name) === nameKey(e.name);
-  const firstEq = !!firstName(c.name) && firstName(c.name) === firstName(e.name);
+  const fullEq = !!nameKey(c.name) && nameKey(c.name) === nameKey(e.name);
+  const firstEq =
+    !!firstName(c.name) && firstName(c.name) === firstName(e.name);
   const lastEq = !!surname(c.name) && surname(c.name) === surname(e.name);
 
   const dobC = normalizeDate(c.dob);
@@ -187,9 +240,9 @@ export function matchPerson(c: RawIdentity, e: RawIdentity): MatchLevel {
   const contactEq = !!contactC && !!contactE && contactC === contactE;
 
   // Same name but a KNOWN different DOB → different people (e.g. two
-  // "Juan Dela Cruz" born on different dates). Never block, never flag.
   if (fullEq || (firstEq && lastEq)) {
     if (dobEq) return genderConflict ? "likely" : "confident";
+    if (contactEq) return genderConflict ? "likely" : "confident";
     if (dobC && dobE) return "clean";
     return "likely"; // name matches but DOB missing somewhere — uncertain
   }
@@ -241,9 +294,7 @@ export async function assessPersonRegistration(candidate: {
   };
 
   const [accounts, census] = await Promise.all([
-    AccountModel.find({})
-      .select("_id name dateOfBirth gender contact")
-      .lean(),
+    AccountModel.find({}).select("_id name dateOfBirth gender contact").lean(),
     ResidentCensusModel.find({})
       .select("_id name birthday sex cellphone")
       .lean(),
@@ -277,6 +328,22 @@ export async function assessPersonRegistration(candidate: {
         records: [ref],
       };
     }
+
+    const exactNameMatch =
+      !!nameKey(c.name) && nameKey(c.name) === nameKey(a.name);
+    if (exactNameMatch) {
+      const dobC = normalizeDate(c.dob);
+      const dobA = normalizeDate(a.dateOfBirth);
+      const clearlyDifferentPerson = !!dobC && !!dobA && dobC !== dobA;
+      if (!clearlyDifferentPerson) {
+        return {
+          status: "blocked",
+          reason: DUPLICATE_NAME_REASON,
+          records: [ref],
+        };
+      }
+    }
+
     if (level === "likely") flagged.push({ level, ref });
   }
 
@@ -330,9 +397,7 @@ const REASON_BY_LEVEL: Record<MatchLevel, string> = {
 
 export async function buildDuplicateReport(): Promise<DuplicateReportEntry[]> {
   const [accounts, census] = await Promise.all([
-    AccountModel.find({})
-      .select("_id name dateOfBirth gender contact")
-      .lean(),
+    AccountModel.find({}).select("_id name dateOfBirth gender contact").lean(),
     ResidentCensusModel.find({})
       .select("_id name birthday sex cellphone")
       .lean(),
@@ -345,7 +410,7 @@ export async function buildDuplicateReport(): Promise<DuplicateReportEntry[]> {
   const add = (a: IdentityRef, b: IdentityRef) => {
     const level = matchPerson(
       { name: a.name, dob: a.dob, gender: a.gender, contact: a.contact },
-      { name: b.name, dob: b.dob, gender: b.gender, contact: b.contact }
+      { name: b.name, dob: b.dob, gender: b.gender, contact: b.contact },
     );
     if (level !== "clean") {
       entries.push({ a, b, level, reason: REASON_BY_LEVEL[level] });
@@ -359,7 +424,8 @@ export async function buildDuplicateReport(): Promise<DuplicateReportEntry[]> {
     for (const bc of censusRefs) add(a, bc);
   }
   for (let i = 0; i < censusRefs.length; i++) {
-    for (let j = i + 1; j < censusRefs.length; j++) add(censusRefs[i], censusRefs[j]);
+    for (let j = i + 1; j < censusRefs.length; j++)
+      add(censusRefs[i], censusRefs[j]);
   }
 
   return entries.slice(0, 500);

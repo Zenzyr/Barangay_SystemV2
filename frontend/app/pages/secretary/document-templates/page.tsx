@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getTemplates, deleteTemplate, duplicateTemplate, seedTemplates, fetchTemplatePreviewPdf, type DocumentTemplate } from "@/app/utils/documentTemplateService";
-import { Plus, Search, Edit, Eye, Copy, Trash2, Sparkles, RefreshCcw, X } from "lucide-react";
+import { Plus, Search, Edit, Eye, Copy, Trash2, Sparkles, RefreshCcw, X, FileType } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -115,6 +115,12 @@ export default function Page() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/pages/secretary/document-templates/docx">
+              <FileType className="size-4 mr-1" />
+              DOCX Templates
+            </Link>
+          </Button>
           <Button variant="outline" size="sm" onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending}>
             <Sparkles className="size-4 mr-1" />
             {seedMutation.isPending ? "Seeding..." : "Seed Defaults"}
@@ -210,7 +216,9 @@ export default function Page() {
                         : `${dims.w}×${dims.h}`}
                       pt
                     </span>
-                    <span>{template.elements.length} element(s)</span>
+                    <span>
+                      {template.contentFormat === "tiptap" ? "Rich document" : `${template.elements.length} element(s)`}
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-2">

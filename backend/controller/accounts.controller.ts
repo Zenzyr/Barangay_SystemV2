@@ -4,17 +4,33 @@ import { AuthRequest } from "../types/request.type";
 import { accountInterfaceInput } from "../types/accounts.type";
 import { AccountService } from "../services/acccount.service";
 import jwt from "jsonwebtoken";
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 import bcrypt from "bcrypt";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload";
-import { isJpegPngWebpFile } from "../utils/upload";
+import { detectImageFormat, bufferToImageDataUri } from "../utils/upload";
 import { UserActivityService } from "../services/userActivity.service";
 import { formattedDate } from "../utils/customFunc";
 import { sendNotification, sendSms } from "../utils/sms";
 import { smsTemplates } from "../utils/smsTemplates";
 import { sendEmail } from "../utils/email";
-import { generateResetCode, hashResetCode, compareResetCode, resetCodeEmailHtml, resetCodeSmsMessage, RESET_CODE_TTL_MINUTES } from "../utils/passwordReset";
+import {
+  generateResetCode,
+  hashResetCode,
+  compareResetCode,
+  resetCodeEmailHtml,
+  resetCodeSmsMessage,
+  RESET_CODE_TTL_MINUTES,
+} from "../utils/passwordReset";
 import { verifyIdWithOcr } from "../utils/idVerification";
+import {
+  verifyIdDocumentWithGemini,
+  IdDocumentType,
+} from "../utils/geminiIdVerification";
+import {
+  hashIdImages,
+  signIdVerificationToken,
+  verifyIdVerificationToken,
+} from "../utils/idVerificationToken";
 import { NotificationService } from "../services/notification.service";
 import { ResidentCensusService } from "../services/residentCensus.service";
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -28,6 +44,8 @@ import {
   buildDuplicateReport,
   computeIdentityHash,
   DUPLICATE_PERSON_MSG,
+  DUPLICATE_NAME_MSG,
+  DUPLICATE_NAME_REASON,
   EMAIL_IN_USE_MSG,
 } from "../utils/duplicateCheck";
 import {
@@ -50,12 +68,13 @@ const secret = process.env.JWT_SECRET || "";
 const GENERIC_LOGIN_MSG = "Invalid email or password";
 
 export class AccountController {
-
   static register = async (request: AuthRequest, response: Response) => {
     try {
       // Multipart form-data fields arrive as strings.
       const body = (request.body || {}) as Record<string, unknown>;
-      const email = String(body.email || "").trim().toLowerCase();
+      const email = String(body.email || "")
+        .trim()
+        .toLowerCase();
       const name = String(body.name || "").trim();
       const address = String(body.address || "").trim();
       const contact = String(body.contact || "").trim();
@@ -66,28 +85,47 @@ export class AccountController {
       const purok = String(body.purok || "").trim();
       const voterStatus = String(body.voterStatus || "").trim();
       const houseHoldNumber = String(body.houseHoldNumber || "").trim();
+      const idType = String(body.idType || "").trim();
       const legalConsent = String(body.legalConsent || "");
 
-
-
       // Verify purok is active
-      const activePuroks = await PurokService.getAll({ status: 'active' });
+      const activePuroks = await PurokService.getAll({ status: "active" });
       if (!activePuroks.some((p: any) => p.name === purok)) {
         return response.status(400).send("Invalid purok selected");
       }
 
       // ── Field validation ─────────────────────────────────────
-      if (!isNonEmptyString(name)) return response.status(400).send("Full name is required");
-      if (!isName(name)) return response.status(400).send("Name can only contain letters, spaces, periods, hyphens and apostrophes");
-      if (!withinLength(name, MAX_NAME_LENGTH)) return response.status(400).send(`Name must be at most ${MAX_NAME_LENGTH} characters`);
+      if (!isNonEmptyString(name))
+        return response.status(400).send("Full name is required");
+      if (!isName(name))
+        return response
+          .status(400)
+          .send(
+            "Name can only contain letters, spaces, periods, hyphens and apostrophes",
+          );
+      if (!withinLength(name, MAX_NAME_LENGTH))
+        return response
+          .status(400)
+          .send(`Name must be at most ${MAX_NAME_LENGTH} characters`);
 
-      if (!isEmail(email)) return response.status(400).send("A valid email address is required");
-      if (!withinLength(email, MAX_EMAIL_LENGTH)) return response.status(400).send("Email is too long");
+      if (!isEmail(email))
+        return response.status(400).send("A valid email address is required");
+      if (!withinLength(email, MAX_EMAIL_LENGTH))
+        return response.status(400).send("Email is too long");
 
-      if (!isPhilippineMobile(contact)) return response.status(400).send("A valid 11-digit Philippine mobile number is required (e.g. 09171234567)");
+      if (!isPhilippineMobile(contact))
+        return response
+          .status(400)
+          .send(
+            "A valid 11-digit Philippine mobile number is required (e.g. 09171234567)",
+          );
 
-      if (!isNonEmptyString(address)) return response.status(400).send("Address is required");
-      if (!withinLength(address, MAX_ADDRESS_LENGTH)) return response.status(400).send(`Address must be at most ${MAX_ADDRESS_LENGTH} characters`);
+      if (!isNonEmptyString(address))
+        return response.status(400).send("Address is required");
+      if (!withinLength(address, MAX_ADDRESS_LENGTH))
+        return response
+          .status(400)
+          .send(`Address must be at most ${MAX_ADDRESS_LENGTH} characters`);
 
       const passwordError = passwordStrengthError(password);
       if (passwordError) return response.status(400).send(passwordError);
@@ -97,6 +135,7 @@ export class AccountController {
         civilStatus: ["Single", "Married", "Widowed", "Separated", "Divorced"],
         purok: ["Purok 1", "Purok 2", "Purok 3", "Purok 4"],
         voterStatus: ["Registered", "Not Registered"],
+        idType: ["national_id", "voters_id"],
       };
       for (const [field, allowed] of Object.entries(requiredEnums)) {
         const value = String(body[field] || "").trim();
@@ -123,29 +162,71 @@ export class AccountController {
         contact,
       });
       if (assessment.status === "blocked") {
-        return response.status(409).send(DUPLICATE_PERSON_MSG);
+        const message =
+          assessment.reason === DUPLICATE_NAME_REASON
+            ? DUPLICATE_NAME_MSG
+            : DUPLICATE_PERSON_MSG;
+        return response.status(409).send(message);
       }
 
       // ── File validation ──────────────────────────────────────
-      const files = request.files as { [fieldname: string]: { path: string }[] } | undefined;
-      if (!files?.['idFront']?.[0] || !files?.['idBack']?.[0] || !files?.['idSelfie']?.[0]) {
-        return response.status(400).send("All 3 ID images (front ID, back ID, selfie with ID) are required");
+      // Multer keeps these in memory (see utils/upload.ts's uploadIdImages)
+      // — they are NEVER written to backend/uploads. Their only destination
+      // is Cloudinary (below); until then they exist only as buffers here.
+      const files = request.files as
+        | { [fieldname: string]: { buffer: Buffer; mimetype: string }[] }
+        | undefined;
+      if (
+        !files?.["idFront"]?.[0] ||
+        !files?.["idBack"]?.[0] ||
+        !files?.["idSelfie"]?.[0]
+      ) {
+        return response
+          .status(400)
+          .send(
+            "All 3 ID images (front ID, back ID, selfie with ID) are required",
+          );
       }
 
       // Reject files whose actual content is not a JPG/PNG/WEBP image, even
-      // if the MIME header was spoofed or the type was renamed.
-      for (const key of ['idFront', 'idBack', 'idSelfie'] as const) {
-        if (!(await isJpegPngWebpFile(files[key][0].path))) {
-          return response.status(400).send("All 3 ID images must be valid JPG, PNG or WEBP photos");
+      // if the MIME header was spoofed or the type was renamed. The detected
+      // format is also what we tell Cloudinary when uploading below.
+      const idImageFormat: Partial<Record<"idFront" | "idBack" | "idSelfie", "jpeg" | "png" | "webp">> = {};
+      for (const key of ["idFront", "idBack", "idSelfie"] as const) {
+        const format = detectImageFormat(files[key][0].buffer);
+        if (!format) {
+          return response
+            .status(400)
+            .send("All 3 ID images must be valid JPG, PNG or WEBP photos");
         }
+        idImageFormat[key] = format;
       }
 
-      // ── Upload ID images ─────────────────────────────────────
-      const accountData: accountInterfaceInput = request.body as accountInterfaceInput;
-      const idFront = await uploadToCloudinary(files['idFront'][0].path);
-      const idBack = await uploadToCloudinary(files['idBack'][0].path);
-      const idSelfie = await uploadToCloudinary(files['idSelfie'][0].path);
+      // ── Confirm the ID was already verified (no second Gemini call) ──
+      // The frontend runs the Gemini document check as soon as the ID is
+      // selected (POST /account/verify-id-document) and gets back a signed
+      // token on success. Here we only need to check that signed token
+      // against a hash of THESE exact uploaded files — never a raw
+      // frontend boolean, and never a second call to Gemini.
+      const verificationToken = String(body.verificationToken || "");
+      const idFrontBuffer = files["idFront"][0].buffer;
+      const idBackBuffer = files["idBack"][0].buffer;
+      const idImageHash = hashIdImages(idFrontBuffer, idBackBuffer);
+      if (
+        !verifyIdVerificationToken(verificationToken, {
+          idType,
+          imageHash: idImageHash,
+        })
+      ) {
+        return response
+          .status(400)
+          .send(
+            "Your ID could not be confirmed as verified. Please re-upload your ID and wait for it to be verified before submitting.",
+          );
+      }
 
+      const accountData: accountInterfaceInput =
+        request.body as accountInterfaceInput;
       const hashedPassword = await bcrypt.hash(password, 10);
 
       // Public registration can ONLY ever create a resident account.
@@ -153,6 +234,13 @@ export class AccountController {
       // Super Admin role-management process, never from this form.
       const identityHash = computeIdentityHash(name, dateOfBirth);
 
+      // ── Create the account FIRST, before touching Cloudinary ──────
+      // idImg starts empty. This is the step most likely to still fail here
+      // (a race-condition duplicate caught by the unique identityHash/email
+      // index — see the E11000 handler below) even though every check above
+      // passed, so we only spend a Cloudinary upload once we know the
+      // account itself was actually created. That way a failed registration
+      // can never leave an orphaned Cloudinary file behind.
       const account = await AccountService.create({
         profile: String(body.profile || ""),
         name,
@@ -165,10 +253,11 @@ export class AccountController {
         purok,
         voterStatus,
         houseHoldNumber,
+        idType: idType as "national_id" | "voters_id",
         password: hashedPassword,
         status: "pending",
         role: "resident",
-        idImg: { idFront, idBack, idSelfie },
+        idImg: { idFront: "", idBack: "", idSelfie: "" },
         skills: [],
         reviews: [],
         legalConsent: legalConsent ? JSON.parse(legalConsent) : undefined,
@@ -195,8 +284,36 @@ export class AccountController {
       // re-run (idempotent): if the person is already in the census, it
       // skips instead of creating a duplicate.
       await ResidentCensusService.upsertFromAccount(account).catch((err) =>
-        console.error("[CENSUS-SYNC ERROR]", err)
+        console.error("[CENSUS-SYNC ERROR]", err),
       );
+
+      // ── Upload ID images to Cloudinary now that the account exists ──
+      // Registration itself has already succeeded at this point — an
+      // upload failure here is logged and left for the resident/staff to
+      // resolve via PUT /account/:id/resubmit, never a reason to fail the
+      // whole signup (the account, and the identity/duplicate protections
+      // that already ran, are real either way).
+      try {
+        const idFront = await uploadToCloudinary(
+          bufferToImageDataUri(idFrontBuffer, idImageFormat.idFront!),
+        );
+        const idBack = await uploadToCloudinary(
+          bufferToImageDataUri(idBackBuffer, idImageFormat.idBack!),
+        );
+        const idSelfie = await uploadToCloudinary(
+          bufferToImageDataUri(files["idSelfie"][0].buffer, idImageFormat.idSelfie!),
+        );
+        await AccountService.update(account._id.toString(), {
+          idImg: { idFront, idBack, idSelfie },
+        });
+      } catch (uploadError) {
+        console.error(
+          `[REGISTER] Cloudinary upload failed for account ${account._id} — account was created, ID images are pending resubmission:`,
+          uploadError instanceof Error ? uploadError.message : "unknown error",
+        );
+        // Nothing to clean up locally — these images were only ever in
+        // memory and are discarded automatically once this request ends.
+      }
 
       return response.status(201).json({ userId: account._id });
     } catch (error: any) {
@@ -212,7 +329,7 @@ export class AccountController {
       }
       return response.status(500).send("Failed to register account");
     }
-  }
+  };
 
   /**
    * Public, low-noise pre-registration identity check for UX only.
@@ -237,8 +354,15 @@ export class AccountController {
         return;
       }
 
-      const assessment = await assessPersonRegistration({ name, dateOfBirth, gender, contact });
-      const censusMatch = (assessment.records || []).find((r) => r.kind === "census");
+      const assessment = await assessPersonRegistration({
+        name,
+        dateOfBirth,
+        gender,
+        contact,
+      });
+      const censusMatch = (assessment.records || []).find(
+        (r) => r.kind === "census",
+      );
 
       const payload: Record<string, any> = { status: assessment.status };
       if (censusMatch) {
@@ -262,13 +386,16 @@ export class AccountController {
       console.error("[CHECK-DUPLICATE ERROR]", error);
       response.status(500).send("Duplicate check unavailable");
     }
-  }
+  };
 
   /**
    * Super Admin only. Read-only report of possible duplicate people across
    * accounts and the resident census. Nothing is deleted or merged.
    */
-  static duplicatesReport = async (request: AuthRequest, response: Response) => {
+  static duplicatesReport = async (
+    request: AuthRequest,
+    response: Response,
+  ) => {
     try {
       const entries = await buildDuplicateReport();
       response.send({ generatedAt: new Date().toISOString(), entries });
@@ -276,7 +403,7 @@ export class AccountController {
       console.error("[DUPLICATES-REPORT ERROR]", error);
       response.status(500).send("Failed to generate duplicate report");
     }
-  }
+  };
 
   static verifyIdImage = async (request: AuthRequest, response: Response) => {
     try {
@@ -290,11 +417,85 @@ export class AccountController {
         response.status(400).send("Image too large");
         return;
       }
-      const result = await verifyIdWithOcr(base64, side === "back" ? "back" : "front");
+      const result = await verifyIdWithOcr(
+        base64,
+        side === "back" ? "back" : "front",
+      );
       response.send(result);
     } catch (error) {
       console.error("[VERIFY-ID ERROR]", error);
       response.status(500).send("ID verification service unavailable");
+    }
+  };
+
+  /**
+   * Pre-submission check: does the uploaded front/back pair look like a
+   * real, readable ID of the applicant's selected type, and do the two
+   * sides belong to the same document? Uses Gemini (see
+   * utils/geminiIdVerification.ts) — NOT official government identity
+   * verification, and not a replacement for admin approval.
+   *
+   * The uploaded files here are temporary (multer disk storage) and are
+   * deleted immediately after being read — they are never persisted or
+   * uploaded to Cloudinary; that only happens on the real POST /account
+   * submission.
+   */
+  static verifyIdDocument = async (
+    request: AuthRequest,
+    response: Response,
+  ) => {
+    try {
+      // In-memory only (see utils/upload.ts's uploadIdFrontBack) — never
+      // touches backend/uploads. These images are discarded once this
+      // request ends; only a signed token derived from their hash survives.
+      const files = request.files as
+        | { [fieldname: string]: { buffer: Buffer; mimetype: string }[] }
+        | undefined;
+      const front = files?.["idFront"]?.[0];
+      const back = files?.["idBack"]?.[0];
+
+      const body = (request.body || {}) as { idType?: string };
+      const idType = body.idType;
+      if (idType !== "national_id" && idType !== "voters_id") {
+        return response.status(400).send("A valid ID type is required");
+      }
+      if (!front || !back) {
+        return response
+          .status(400)
+          .send("Both the front and back ID images are required");
+      }
+
+      const frontFormat = detectImageFormat(front.buffer);
+      const backFormat = detectImageFormat(back.buffer);
+      if (!frontFormat || !backFormat) {
+        return response
+          .status(400)
+          .send("Both ID images must be valid JPG, PNG or WEBP photos");
+      }
+
+      const result = await verifyIdDocumentWithGemini({
+        idType: idType as IdDocumentType,
+        frontBase64: front.buffer.toString("base64"),
+        frontMimeType: front.mimetype,
+        backBase64: back.buffer.toString("base64"),
+        backMimeType: back.mimetype,
+      });
+
+      // Only issue a token when the check actually passed — this is what
+      // register() will later require and re-verify, so a failed check
+      // must never be redeemable. Bound to a hash of these exact image
+      // bytes so the token can't be reused for a different upload.
+      const verificationToken = result.passed
+        ? signIdVerificationToken(idType, hashIdImages(front.buffer, back.buffer))
+        : undefined;
+
+      return response.json({ ...result, verificationToken });
+    } catch (error) {
+      console.error(
+        "[VERIFY-ID-DOCUMENT ERROR]",
+        error instanceof Error ? error.message : "unknown error",
+      );
+      return response.status(500).send("ID verification service unavailable");
     }
   };
 
@@ -307,22 +508,26 @@ export class AccountController {
     } catch (error) {
       response.status(500).send("Failed to fetch accounts");
     }
-  }
+  };
 
-  static getActivityByResident = async (request: AuthRequest, response: Response) => {
-      try {
-        const { id } = request.params;
-        if (!isObjectId(id)) {
-          response.status(400).send("Invalid account id");
-          return;
-        }
-        const activity = await UserActivityService.getByAccount(id);
-        response.send(activity);
-      } catch (error) {
-        response.status(500).send("Failed to fetch activity requests by resident");
+  static getActivityByResident = async (
+    request: AuthRequest,
+    response: Response,
+  ) => {
+    try {
+      const { id } = request.params;
+      if (!isObjectId(id)) {
+        response.status(400).send("Invalid account id");
+        return;
       }
-  }
-  
+      const activity = await UserActivityService.getByAccount(id);
+      response.send(activity);
+    } catch (error) {
+      response
+        .status(500)
+        .send("Failed to fetch activity requests by resident");
+    }
+  };
 
   static updateStatus = async (request: AuthRequest, response: Response) => {
     try {
@@ -333,8 +538,10 @@ export class AccountController {
         response.status(400).send("Invalid account id");
         return;
       }
-      if (!['approved', 'rejected'].includes(status)) {
-        response.status(400).send("Invalid status. Must be 'approved' or 'rejected'");
+      if (!["approved", "rejected"].includes(status)) {
+        response
+          .status(400)
+          .send("Invalid status. Must be 'approved' or 'rejected'");
         return;
       }
 
@@ -352,7 +559,7 @@ export class AccountController {
       // re-inserted.
       if (status === "approved") {
         await ResidentCensusService.upsertFromAccount(account).catch((err) =>
-          console.error("[CENSUS-SYNC ERROR]", err)
+          console.error("[CENSUS-SYNC ERROR]", err),
         );
       }
 
@@ -366,7 +573,14 @@ export class AccountController {
         type: "account",
       }).catch(() => null);
 
-      sendNotification("status", account.contact, smsTemplates.accountStatus(account.name, status as "approved" | "rejected"));
+      sendNotification(
+        "status",
+        account.contact,
+        smsTemplates.accountStatus(
+          account.name,
+          status as "approved" | "rejected",
+        ),
+      );
 
       await AuditLogService.create({
         actor: request.account?.name ?? "System",
@@ -384,7 +598,7 @@ export class AccountController {
     } catch (error) {
       response.status(500).send("Failed to update account status");
     }
-  }
+  };
 
   static updateRole = async (request: AuthRequest, response: Response) => {
     try {
@@ -396,7 +610,9 @@ export class AccountController {
         return;
       }
       if (!ROLE_LIST.includes(role)) {
-        response.status(400).send(`Invalid role. Must be one of: ${ROLE_LIST.join(", ")}`);
+        response
+          .status(400)
+          .send(`Invalid role. Must be one of: ${ROLE_LIST.join(", ")}`);
         return;
       }
 
@@ -410,9 +626,13 @@ export class AccountController {
 
       // Never allow demoting the last remaining super admin account.
       if (currentRole === ROLES.SUPER_ADMIN && role !== ROLES.SUPER_ADMIN) {
-        const superAdminCount = await AccountService.countByRole(ROLES.SUPER_ADMIN);
+        const superAdminCount = await AccountService.countByRole(
+          ROLES.SUPER_ADMIN,
+        );
         if (superAdminCount <= 1) {
-          response.status(400).send("Cannot demote the last super admin account");
+          response
+            .status(400)
+            .send("Cannot demote the last super admin account");
           return;
         }
       }
@@ -440,7 +660,7 @@ export class AccountController {
     } catch (error) {
       response.status(500).send("Failed to update account role");
     }
-  }
+  };
 
   static resubmitImages = async (request: AuthRequest, response: Response) => {
     try {
@@ -450,21 +670,37 @@ export class AccountController {
         return;
       }
 
-      // Get uploaded files from multer
-      const files = request.files as { [fieldname: string]: { path: string }[] } | undefined;
+      // Get uploaded files from multer — in-memory only, never written to
+      // backend/uploads (see utils/upload.ts's uploadIdImages).
+      const files = request.files as
+        | { [fieldname: string]: { buffer: Buffer }[] }
+        | undefined;
 
       // Validate that all 3 ID images are provided
-      if (!files?.['idFront']?.[0] || !files?.['idBack']?.[0] || !files?.['idSelfie']?.[0]) {
-        response.status(400).send("All 3 ID images (front ID, back ID, selfie with ID) are required");
+      if (
+        !files?.["idFront"]?.[0] ||
+        !files?.["idBack"]?.[0] ||
+        !files?.["idSelfie"]?.[0]
+      ) {
+        response
+          .status(400)
+          .send(
+            "All 3 ID images (front ID, back ID, selfie with ID) are required",
+          );
         return;
       }
 
       // Reject files whose actual content is not a JPG/PNG/WEBP image.
-      for (const key of ['idFront', 'idBack', 'idSelfie'] as const) {
-        if (!(await isJpegPngWebpFile(files[key][0].path))) {
-          response.status(400).send("All 3 ID images must be valid JPG, PNG or WEBP photos");
+      const idImageFormat: Partial<Record<"idFront" | "idBack" | "idSelfie", "jpeg" | "png" | "webp">> = {};
+      for (const key of ["idFront", "idBack", "idSelfie"] as const) {
+        const format = detectImageFormat(files[key][0].buffer);
+        if (!format) {
+          response
+            .status(400)
+            .send("All 3 ID images must be valid JPG, PNG or WEBP photos");
           return;
         }
+        idImageFormat[key] = format;
       }
 
       // Find existing account
@@ -475,21 +711,23 @@ export class AccountController {
       }
 
       // Upload new ID images to Cloudinary
-      const idFront = await uploadToCloudinary(files['idFront'][0].path);
-      const idBack = await uploadToCloudinary(files['idBack'][0].path);
-      const idSelfie = await uploadToCloudinary(files['idSelfie'][0].path);
+      const idFront = await uploadToCloudinary(bufferToImageDataUri(files["idFront"][0].buffer, idImageFormat.idFront!));
+      const idBack = await uploadToCloudinary(bufferToImageDataUri(files["idBack"][0].buffer, idImageFormat.idBack!));
+      const idSelfie = await uploadToCloudinary(bufferToImageDataUri(files["idSelfie"][0].buffer, idImageFormat.idSelfie!));
 
       // Update account with new images and set status back to pending
       await AccountService.update(id, {
         idImg: { idFront, idBack, idSelfie },
-        status: 'pending',
+        status: "pending",
       });
 
-      response.send({ message: 'Images resubmitted successfully. Status set to pending.' });
+      response.send({
+        message: "Images resubmitted successfully. Status set to pending.",
+      });
     } catch (error) {
       response.status(500).send("Failed to resubmit images");
     }
-  }
+  };
 
   static getProfile = async (request: AuthRequest, response: Response) => {
     try {
@@ -508,7 +746,7 @@ export class AccountController {
     } catch (error) {
       response.status(500).send("Failed to fetch profile");
     }
-  }
+  };
 
   static addSkill = async (request: AuthRequest, response: Response) => {
     try {
@@ -520,7 +758,9 @@ export class AccountController {
         return;
       }
       if (!skill || experience === undefined || !proficiency) {
-        response.status(400).send("All fields are required: skill, experience, proficiency");
+        response
+          .status(400)
+          .send("All fields are required: skill, experience, proficiency");
         return;
       }
       if (typeof Number(experience) !== "number" || Number(experience) < 0) {
@@ -540,18 +780,17 @@ export class AccountController {
         return;
       }
 
-
       await UserActivityService.create({
-        accountId : account._id.toString(),
-        activity : "Added skills to profile",
-        date : formattedDate()
-      })
+        accountId: account._id.toString(),
+        activity: "Added skills to profile",
+        date: formattedDate(),
+      });
 
       response.send(account);
     } catch (error) {
       response.status(500).send("Failed to add skill");
     }
-  }
+  };
 
   static removeSkill = async (request: AuthRequest, response: Response) => {
     try {
@@ -569,18 +808,21 @@ export class AccountController {
       }
 
       await UserActivityService.create({
-        accountId : account._id.toString(),
-        activity : "Removed skills to profile",
-        date : formattedDate()
-      })
+        accountId: account._id.toString(),
+        activity: "Removed skills to profile",
+        date: formattedDate(),
+      });
 
       response.send(account);
     } catch (error) {
       response.status(500).send("Failed to remove skill");
     }
-  }
+  };
 
-  static uploadProfilePic = async (request: AuthRequest, response: Response) => {
+  static uploadProfilePic = async (
+    request: AuthRequest,
+    response: Response,
+  ) => {
     try {
       const { id } = request.params;
 
@@ -600,10 +842,10 @@ export class AccountController {
       }
 
       await UserActivityService.create({
-        accountId : account._id.toString(),
-        activity : "Changed Account profile picture",
-        date : formattedDate()
-      })
+        accountId: account._id.toString(),
+        activity: "Changed Account profile picture",
+        date: formattedDate(),
+      });
 
       const profilePicUrl = await uploadToCloudinary(request.file.path);
 
@@ -615,27 +857,55 @@ export class AccountController {
     } catch (error) {
       response.status(500).send("Failed to upload profile picture");
     }
-  }
+  };
 
   static updateInfo = async (request: AuthRequest, response: Response) => {
     try {
       const { id } = request.params;
-      const { name, address, contact, gender, dateOfBirth, civilStatus, purok, voterStatus, houseHoldNumber } = request.body;
+      const {
+        name,
+        address,
+        contact,
+        gender,
+        dateOfBirth,
+        civilStatus,
+        purok,
+        voterStatus,
+        houseHoldNumber,
+      } = request.body;
 
       if (!isObjectId(id)) {
         response.status(400).send("Invalid account id");
         return;
       }
-      if (!name && !address && !contact && !gender && !dateOfBirth && !civilStatus && !purok && !voterStatus && !houseHoldNumber) {
+      if (
+        !name &&
+        !address &&
+        !contact &&
+        !gender &&
+        !dateOfBirth &&
+        !civilStatus &&
+        !purok &&
+        !voterStatus &&
+        !houseHoldNumber
+      ) {
         response.status(400).send("No fields to update");
         return;
       }
       if (name && (!isName(name) || !withinLength(name, MAX_NAME_LENGTH))) {
-        response.status(400).send("Name can only contain letters, spaces, periods, hyphens and apostrophes");
+        response
+          .status(400)
+          .send(
+            "Name can only contain letters, spaces, periods, hyphens and apostrophes",
+          );
         return;
       }
       if (contact && !isPhilippineMobile(contact)) {
-        response.status(400).send("A valid 11-digit Philippine mobile number is required (e.g. 09171234567)");
+        response
+          .status(400)
+          .send(
+            "A valid 11-digit Philippine mobile number is required (e.g. 09171234567)",
+          );
         return;
       }
 
@@ -657,21 +927,21 @@ export class AccountController {
       }
 
       await UserActivityService.create({
-        accountId : account._id.toString(),
-        activity : "Update User Info",
-        date : formattedDate()
-      })
+        accountId: account._id.toString(),
+        activity: "Update User Info",
+        date: formattedDate(),
+      });
 
       // Keep the linked census record in step with the updated profile.
       await ResidentCensusService.syncLinkedCensus(id).catch((err) =>
-        console.error("[CENSUS-SYNC ERROR]", err)
+        console.error("[CENSUS-SYNC ERROR]", err),
       );
 
       response.send(account);
     } catch (error) {
       response.status(500).send("Failed to update profile");
     }
-  }
+  };
 
   static changePassword = async (request: AuthRequest, response: Response) => {
     try {
@@ -708,21 +978,25 @@ export class AccountController {
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       await AccountService.update(id, { password: hashedPassword });
 
-       await UserActivityService.create({
-        accountId : account._id.toString(),
-        activity : "Changed Password",
-        date : formattedDate()
-      })
+      await UserActivityService.create({
+        accountId: account._id.toString(),
+        activity: "Changed Password",
+        date: formattedDate(),
+      });
 
       response.send({ message: "Password changed successfully" });
     } catch (error) {
       response.status(500).send("Failed to change password");
     }
-  }
+  };
 
-  static getResidentsWithSkills = async (request: AuthRequest, response: Response) => {
+  static getResidentsWithSkills = async (
+    request: AuthRequest,
+    response: Response,
+  ) => {
     try {
-      const { skill, serviceType, availability, location, search } = request.query;
+      const { skill, serviceType, availability, location, search } =
+        request.query;
       const residents = await AccountService.getResidentsWithSkills({
         skill: skill as string,
         serviceType: serviceType as string,
@@ -734,9 +1008,12 @@ export class AccountController {
     } catch (error) {
       response.status(500).send("Failed to fetch residents");
     }
-  }
+  };
 
-  static updateAvailability = async (request: AuthRequest, response: Response) => {
+  static updateAvailability = async (
+    request: AuthRequest,
+    response: Response,
+  ) => {
     try {
       const { id } = request.params;
       const { availability } = request.body;
@@ -746,7 +1023,11 @@ export class AccountController {
         return;
       }
       if (!["AVAILABLE", "NOT_AVAILABLE"].includes(availability)) {
-        response.status(400).send("Availability must be AVAILABLE or NOT_AVAILABLE (BUSY is system-managed)");
+        response
+          .status(400)
+          .send(
+            "Availability must be AVAILABLE or NOT_AVAILABLE (BUSY is system-managed)",
+          );
         return;
       }
 
@@ -759,7 +1040,7 @@ export class AccountController {
     } catch (error) {
       response.status(500).send("Failed to update availability");
     }
-  }
+  };
 
   static addReview = async (request: AuthRequest, response: Response) => {
     try {
@@ -775,7 +1056,9 @@ export class AccountController {
         return;
       }
       if (!star || !skill || !message) {
-        response.status(400).send("All fields are required: star, skill, message");
+        response
+          .status(400)
+          .send("All fields are required: star, skill, message");
         return;
       }
 
@@ -798,7 +1081,7 @@ export class AccountController {
 
       const account = await AccountService.addReview(id, {
         user: reviewerAccount.name,
-        userProfile: reviewerAccount.profile || '',
+        userProfile: reviewerAccount.profile || "",
         star: Number(star),
         skill,
         message,
@@ -816,25 +1099,33 @@ export class AccountController {
       await UserActivityService.create({
         accountId: account._id.toString(),
         activity: "Place a Review to other Resident",
-        date: formattedDate()
-      })
+        date: formattedDate(),
+      });
 
       response.send(account);
     } catch (error) {
       response.status(500).send("Failed to add review");
     }
-  }
+  };
 
   static bookWork = async (request: AuthRequest, response: Response) => {
     try {
       const { client, worker, skill, service, description } = request.body;
 
       if (!isObjectId(client) || !isObjectId(worker)) {
-        response.status(400).send("All fields are required: client, worker, skill, service, description");
+        response
+          .status(400)
+          .send(
+            "All fields are required: client, worker, skill, service, description",
+          );
         return;
       }
       if (!skill || !service || !description) {
-        response.status(400).send("All fields are required: client, worker, skill, service, description");
+        response
+          .status(400)
+          .send(
+            "All fields are required: client, worker, skill, service, description",
+          );
         return;
       }
 
@@ -851,12 +1142,19 @@ export class AccountController {
       }
 
       if (skillData.availability && skillData.availability !== "available") {
-        response.status(400).send("This skill is currently busy and cannot be booked");
+        response
+          .status(400)
+          .send("This skill is currently busy and cannot be booked");
         return;
       }
 
-      if (workerAccount.availability && workerAccount.availability !== "AVAILABLE") {
-        response.status(400).send("This worker is currently not available and cannot be booked");
+      if (
+        workerAccount.availability &&
+        workerAccount.availability !== "AVAILABLE"
+      ) {
+        response
+          .status(400)
+          .send("This worker is currently not available and cannot be booked");
         return;
       }
 
@@ -873,7 +1171,7 @@ export class AccountController {
     } catch (error) {
       response.status(500).send("Failed to book service");
     }
-  }
+  };
 
   static aiChatBot = async (request: AuthRequest, response: Response) => {
     try {
@@ -887,7 +1185,9 @@ export class AccountController {
 
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-      const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
+      const model = genAI.getGenerativeModel({
+        model: process.env.GEMINI_MODEL as string,
+      });
 
       const prompt = `
       You are an AI assistant for the Barangay Information System.
@@ -916,7 +1216,7 @@ export class AccountController {
       const result = await model.generateContent(prompt);
       const aiReply = result.response.text();
 
-      response.send(aiReply)
+      response.send(aiReply);
     } catch (error) {
       console.error(error);
 
@@ -933,7 +1233,9 @@ export class AccountController {
 
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-      const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
+      const model = genAI.getGenerativeModel({
+        model: process.env.GEMINI_MODEL as string,
+      });
 
       const prompt = `
        You are an AI advisor for a Philippine barangay.
@@ -977,7 +1279,7 @@ export class AccountController {
       const result = await model.generateContent(prompt);
       const aiReply = result.response.text();
 
-      response.send(aiReply)
+      response.send(aiReply);
     } catch (error) {
       console.error(error);
 
@@ -996,7 +1298,7 @@ export class AccountController {
     } catch (error) {
       response.status(500).send("Failed to fetch AI context");
     }
-  }
+  };
 
   static upsertAiContext = async (request: AuthRequest, response: Response) => {
     try {
@@ -1012,9 +1314,9 @@ export class AccountController {
     } catch (error) {
       response.status(500).send("Failed to save AI context");
     }
-  }
+  };
 
-  static login = async (request : AuthRequest , response : Response) => {
+  static login = async (request: AuthRequest, response: Response) => {
     try {
       const { email, password } = request.body || {};
 
@@ -1027,7 +1329,9 @@ export class AccountController {
         return;
       }
 
-      const account = await AccountService.checkEmailIfExist(String(email).trim().toLowerCase());
+      const account = await AccountService.checkEmailIfExist(
+        String(email).trim().toLowerCase(),
+      );
 
       if (!account) {
         response.status(401).send(GENERIC_LOGIN_MSG);
@@ -1054,7 +1358,7 @@ export class AccountController {
       console.error("[LOGIN ERROR]", error);
       response.status(500).send("Login failed");
     }
-  }
+  };
 
   static forgotPassword = async (request: AuthRequest, response: Response) => {
     try {
@@ -1065,7 +1369,11 @@ export class AccountController {
       if (delivery === "sms") {
         const mobile = normalizePhMobile(contact);
         if (!mobile) {
-          response.status(400).send("A valid 11-digit Philippine mobile number is required (e.g. 09171234567)");
+          response
+            .status(400)
+            .send(
+              "A valid 11-digit Philippine mobile number is required (e.g. 09171234567)",
+            );
           return;
         }
         account = await AccountService.checkContactIfExist(mobile);
@@ -1074,13 +1382,17 @@ export class AccountController {
           response.status(400).send("A valid email address is required");
           return;
         }
-        account = await AccountService.checkEmailIfExist(String(email).trim().toLowerCase());
+        account = await AccountService.checkEmailIfExist(
+          String(email).trim().toLowerCase(),
+        );
       }
 
       // Always respond the same way whether or not the account exists, so this
       // endpoint can't be used to check which emails/numbers are registered.
       if (!account) {
-        response.send({ message: "If that is registered, a reset code has been sent." });
+        response.send({
+          message: "If that is registered, a reset code has been sent.",
+        });
         return;
       }
 
@@ -1088,24 +1400,43 @@ export class AccountController {
       const codeHash = await hashResetCode(code);
       const expires = new Date(Date.now() + RESET_CODE_TTL_MINUTES * 60 * 1000);
 
-      await AccountService.setResetCode(account._id.toString(), codeHash, expires);
+      await AccountService.setResetCode(
+        account._id.toString(),
+        codeHash,
+        expires,
+      );
 
       if (delivery === "sms") {
-        const smsSent = await sendSms(account.contact, resetCodeSmsMessage(code));
+        const smsSent = await sendSms(
+          account.contact,
+          resetCodeSmsMessage(code),
+        );
         if (!smsSent) {
-          console.warn("[FORGOT-PASSWORD] SMS delivery failed, falling back to email");
-          await sendEmail(account.email, "Your Password Reset Code", resetCodeEmailHtml(account.name, code));
+          console.warn(
+            "[FORGOT-PASSWORD] SMS delivery failed, falling back to email",
+          );
+          await sendEmail(
+            account.email,
+            "Your Password Reset Code",
+            resetCodeEmailHtml(account.name, code),
+          );
         }
       } else {
-        await sendEmail(account.email, "Your Password Reset Code", resetCodeEmailHtml(account.name, code));
+        await sendEmail(
+          account.email,
+          "Your Password Reset Code",
+          resetCodeEmailHtml(account.name, code),
+        );
       }
 
-      response.send({ message: "If that is registered, a reset code has been sent." });
+      response.send({
+        message: "If that is registered, a reset code has been sent.",
+      });
     } catch (error) {
       console.error("[FORGOT-PASSWORD ERROR]", error);
       response.status(500).send("Password reset request failed");
     }
-  }
+  };
 
   static verifyResetCode = async (request: AuthRequest, response: Response) => {
     try {
@@ -1116,7 +1447,11 @@ export class AccountController {
       if (delivery === "sms") {
         const mobile = normalizePhMobile(contact);
         if (!mobile) {
-          response.status(400).send("A valid 11-digit Philippine mobile number is required (e.g. 09171234567)");
+          response
+            .status(400)
+            .send(
+              "A valid 11-digit Philippine mobile number is required (e.g. 09171234567)",
+            );
           return;
         }
         account = await AccountService.checkContactIfExist(mobile);
@@ -1125,16 +1460,25 @@ export class AccountController {
           response.status(400).send("Email and code are required");
           return;
         }
-        account = await AccountService.checkEmailIfExist(String(email).trim().toLowerCase());
+        account = await AccountService.checkEmailIfExist(
+          String(email).trim().toLowerCase(),
+        );
       }
 
-      if (!isNonEmptyString(code) || !account || !account.resetCodeHash || !account.resetCodeExpires) {
+      if (
+        !isNonEmptyString(code) ||
+        !account ||
+        !account.resetCodeHash ||
+        !account.resetCodeExpires
+      ) {
         response.status(400).send("Invalid or expired code");
         return;
       }
 
       if (new Date() > account.resetCodeExpires) {
-        response.status(400).send("Code has expired. Please request a new one.");
+        response
+          .status(400)
+          .send("Code has expired. Please request a new one.");
         return;
       }
 
@@ -1145,14 +1489,18 @@ export class AccountController {
         return;
       }
 
-      const resetToken = jwt.sign({ id: account._id, purpose: "password_reset" }, secret, { expiresIn: "10m" });
+      const resetToken = jwt.sign(
+        { id: account._id, purpose: "password_reset" },
+        secret,
+        { expiresIn: "10m" },
+      );
 
       response.send({ resetToken });
     } catch (error) {
       console.error("[VERIFY-RESET-CODE ERROR]", error);
       response.status(500).send("Could not verify reset code");
     }
-  }
+  };
 
   static resetPassword = async (request: AuthRequest, response: Response) => {
     try {
@@ -1169,7 +1517,10 @@ export class AccountController {
         return;
       }
 
-      const decoded = jwt.verify(resetToken, secret) as { id: string; purpose: string };
+      const decoded = jwt.verify(resetToken, secret) as {
+        id: string;
+        purpose: string;
+      };
 
       if (decoded.purpose !== "password_reset") {
         response.status(401).send("Invalid reset token");
@@ -1184,8 +1535,5 @@ export class AccountController {
     } catch (error) {
       response.status(401).send("Reset token is invalid or has expired");
     }
-  }
-
-
-
+  };
 }
