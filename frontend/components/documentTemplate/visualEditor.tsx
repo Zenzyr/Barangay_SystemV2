@@ -17,7 +17,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   Type,
@@ -38,13 +44,22 @@ export const DOCUMENT_TYPE_OPTIONS = [
   { value: "barangayCertificate", label: "Barangay Certificate" },
   { value: "certificateOfResidency", label: "Certificate of Residency" },
   { value: "certificateOfIndigency", label: "Certificate of Indigency" },
-  { value: "certificateOfGoodMoralCharacter", label: "Certificate of Good Moral Character" },
+  {
+    value: "certificateOfGoodMoralCharacter",
+    label: "Certificate of Good Moral Character",
+  },
   { value: "certificateOfUnemployment", label: "Certificate of Unemployment" },
   { value: "barangayBusinessClearance", label: "Barangay Business Clearance" },
   { value: "certificateOfAttestation", label: "Certificate of Attestation" },
-  { value: "certificationOfTreesCutting", label: "Certification of Trees Cutting" },
+  {
+    value: "certificationOfTreesCutting",
+    label: "Certification of Trees Cutting",
+  },
   { value: "barangayCertification", label: "Barangay Certification" },
-  { value: "certificateOfFirstTimeJobseeker", label: "Certificate of First-Time Jobseeker" },
+  {
+    value: "certificateOfFirstTimeJobseeker",
+    label: "Certificate of First-Time Jobseeker",
+  },
   { value: "firstTimeJobseekerOath", label: "First-Time Jobseeker Oath" },
   { value: "certificateOfLowIncome", label: "Certificate of Low Income" },
   { value: "endorsementLetter", label: "Endorsement Letter" },
@@ -71,22 +86,106 @@ const FONT_OPTIONS = [
 const uid = () =>
   `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 
-const defaultElement = (type: TemplateElement["type"], pageW: number, pageH: number): TemplateElement => {
+const defaultElement = (
+  type: TemplateElement["type"],
+  pageW: number,
+  pageH: number,
+): TemplateElement => {
   switch (type) {
     case "text":
-      return { id: uid(), type, content: "Sample text", x: 60, y: 120, width: pageW - 120, height: 60, fontSize: 12, fontFamily: "Times New Roman", color: "#000000", alignment: "justify", lineHeight: 1.6, zIndex: 0, wrapText: true };
+      return {
+        id: uid(),
+        type,
+        content: "Sample text",
+        x: 60,
+        y: 120,
+        width: pageW - 120,
+        height: 60,
+        fontSize: 12,
+        fontFamily: "Times New Roman",
+        color: "#000000",
+        alignment: "justify",
+        lineHeight: 1.6,
+        zIndex: 0,
+        wrapText: true,
+      };
     case "dynamicText":
-      return { id: uid(), type, field: "resident.fullName", x: 60, y: 120, width: 260, height: 24, fontSize: 12, fontFamily: "Times New Roman", color: "#000000", lineHeight: 1.4, zIndex: 0 };
+      return {
+        id: uid(),
+        type,
+        field: "resident.fullName",
+        x: 60,
+        y: 120,
+        width: 260,
+        height: 24,
+        fontSize: 12,
+        fontFamily: "Times New Roman",
+        color: "#000000",
+        lineHeight: 1.4,
+        zIndex: 0,
+      };
     case "image":
-      return { id: uid(), type, source: "", x: 40, y: 40, width: 120, height: 120, imageFit: "contain", zIndex: 0 };
+      return {
+        id: uid(),
+        type,
+        source: "",
+        x: 40,
+        y: 40,
+        width: 120,
+        height: 120,
+        imageFit: "contain",
+        zIndex: 0,
+      };
     case "signature":
-      return { id: uid(), type, signaturePosition: "Punong Barangay", width: 220, height: 90, x: Math.round(pageW / 2 - 110), y: pageH - 180, zIndex: 0 };
+      return {
+        id: uid(),
+        type,
+        signaturePosition: "Punong Barangay",
+        width: 220,
+        height: 90,
+        x: Math.round(pageW / 2 - 110),
+        y: pageH - 180,
+        zIndex: 0,
+      };
     case "line":
-      return { id: uid(), type, strokeColor: "#000000", strokeWidth: 1, x: 60, y: 300, width: pageW - 120, height: 1, zIndex: 0 };
+      return {
+        id: uid(),
+        type,
+        strokeColor: "#000000",
+        strokeWidth: 1,
+        x: 60,
+        y: 300,
+        width: pageW - 120,
+        height: 1,
+        zIndex: 0,
+      };
     case "rect":
-      return { id: uid(), type, borderColor: "#000000", borderWidth: 1, backgroundColor: "#ffffff", x: 60, y: 300, width: 200, height: 120, zIndex: 0 };
+      return {
+        id: uid(),
+        type,
+        borderColor: "#000000",
+        borderWidth: 1,
+        backgroundColor: "#ffffff",
+        x: 60,
+        y: 300,
+        width: 200,
+        height: 120,
+        zIndex: 0,
+      };
     case "table":
-      return { id: uid(), type, rows: [{ label: "", value: "" }, { label: "", value: "" }], x: 60, y: 300, width: pageW - 120, height: 80, zIndex: 0 };
+      return {
+        id: uid(),
+        type,
+        rows: [
+          { label: "", value: "" },
+          { label: "", value: "" },
+        ],
+        x: 60,
+        y: 300,
+        width: pageW - 120,
+        height: 80,
+        zIndex: 0,
+      };
   }
 };
 
@@ -95,7 +194,15 @@ const numberOr = (v: string, fallback: number) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
-function FieldSelect({ value, onChange, compact }: { value: string; onChange: (v: string) => void; compact?: boolean }) {
+function FieldSelect({
+  value,
+  onChange,
+  compact,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  compact?: boolean;
+}) {
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className={compact ? "h-8 text-sm" : ""}>
@@ -104,7 +211,9 @@ function FieldSelect({ value, onChange, compact }: { value: string; onChange: (v
       <SelectContent>
         {Object.entries(DYNAMIC_FIELD_GROUPS).map(([group, fields]) => (
           <div key={group}>
-            <p className="px-2 py-1 text-xs font-semibold capitalize">{group} fields</p>
+            <p className="px-2 py-1 text-xs font-semibold capitalize">
+              {group} fields
+            </p>
             {Object.entries(fields).map(([field, label]) => (
               <SelectItem key={`${group}.${field}`} value={`${group}.${field}`}>
                 {label}
@@ -118,9 +227,17 @@ function FieldSelect({ value, onChange, compact }: { value: string; onChange: (v
 }
 
 function NumField({
-  label, value, onChange, step, disabled,
+  label,
+  value,
+  onChange,
+  step,
+  disabled,
 }: {
-  label: string; value: number; onChange: (n: number) => void; step?: number; disabled?: boolean;
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+  step?: number;
+  disabled?: boolean;
 }) {
   return (
     <div className="space-y-1">
@@ -144,14 +261,35 @@ interface ElementCanvasProps {
   onChange: (id: string, patch: Partial<TemplateElement>) => void;
 }
 
-function ElementCanvas({ el, selected, onSelect, onChange }: ElementCanvasProps) {
-  const dragRef = useRef<{ mode: "move" | "resize"; sx: number; sy: number; ox: number; oy: number; ow: number; oh: number } | null>(null);
+function ElementCanvas({
+  el,
+  selected,
+  onSelect,
+  onChange,
+}: ElementCanvasProps) {
+  const dragRef = useRef<{
+    mode: "move" | "resize";
+    sx: number;
+    sy: number;
+    ox: number;
+    oy: number;
+    ow: number;
+    oh: number;
+  } | null>(null);
 
   const beginDrag = (e: React.PointerEvent, mode: "move" | "resize") => {
     e.stopPropagation();
     onSelect(el.id);
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    dragRef.current = { mode, sx: e.clientX, sy: e.clientY, ox: el.x, oy: el.y, ow: el.width, oh: el.height };
+    dragRef.current = {
+      mode,
+      sx: e.clientX,
+      sy: e.clientY,
+      ox: el.x,
+      oy: el.y,
+      ow: el.width,
+      oh: el.height,
+    };
   };
 
   const onMove = (e: React.PointerEvent) => {
@@ -160,7 +298,10 @@ function ElementCanvas({ el, selected, onSelect, onChange }: ElementCanvasProps)
     const dx = (e.clientX - d.sx) / PT;
     const dy = (e.clientY - d.sy) / PT;
     if (d.mode === "move") {
-      onChange(el.id, { x: Math.max(0, Math.round(d.ox + dx)), y: Math.max(0, Math.round(d.oy + dy)) });
+      onChange(el.id, {
+        x: Math.max(0, Math.round(d.ox + dx)),
+        y: Math.max(0, Math.round(d.oy + dy)),
+      });
     } else {
       onChange(el.id, {
         width: Math.max(10, Math.round(d.ow + dx)),
@@ -233,7 +374,11 @@ function ElementCanvas({ el, selected, onSelect, onChange }: ElementCanvasProps)
               padding: "2px 4px",
             }}
           >
-            <span className="truncate">{"{{"}{fieldLabel}{"}}"}</span>
+            <span className="truncate">
+              {"{{"}
+              {fieldLabel}
+              {"}}"}
+            </span>
           </div>
         );
       }
@@ -243,7 +388,13 @@ function ElementCanvas({ el, selected, onSelect, onChange }: ElementCanvasProps)
           <img
             src={el.source}
             alt=""
-            style={{ width: "100%", height: "100%", objectFit: (el.imageFit === "stretch" ? "fill" : el.imageFit) as React.CSSProperties["objectFit"] }}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: (el.imageFit === "stretch"
+                ? "fill"
+                : el.imageFit) as React.CSSProperties["objectFit"],
+            }}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-slate-50 border border-dashed border-slate-300 text-slate-400">
@@ -252,9 +403,26 @@ function ElementCanvas({ el, selected, onSelect, onChange }: ElementCanvasProps)
         );
       case "signature":
         return (
-          <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "0 6px 6px" }}>
-            <div style={{ borderBottom: "1px solid #000", height: 4, marginBottom: 6 }} />
-            <p style={{ fontSize: 9 * PT, fontWeight: "bold", lineHeight: 1.2 }}>
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "flex-end",
+              padding: "0 6px 6px",
+            }}
+          >
+            <div
+              style={{
+                borderBottom: "1px solid #000",
+                height: 4,
+                marginBottom: 6,
+              }}
+            />
+            <p
+              style={{ fontSize: 9 * PT, fontWeight: "bold", lineHeight: 1.2 }}
+            >
               {el.signaturePosition || "Punong Barangay"}
             </p>
           </div>
@@ -282,17 +450,48 @@ function ElementCanvas({ el, selected, onSelect, onChange }: ElementCanvasProps)
           />
         );
       case "table": {
-        const rows = el.rows && el.rows.length ? el.rows : [{ label: "", value: "" }];
+        const rows =
+          el.rows && el.rows.length ? el.rows : [{ label: "", value: "" }];
         return (
-          <div style={{ width: "100%", height: "100%", overflow: "hidden", border: "1px solid #000", fontSize: (el.fontSize ?? 10) * PT, fontFamily: el.fontFamily || "Times New Roman" }}>
-            <div className="flex" style={{ borderBottom: "1px solid #000", fontWeight: "bold" }}>
-              <div className="flex-1 px-1" style={{ width: "40%" }}>Label</div>
-              <div className="flex-1 px-1" style={{ borderLeft: "1px solid #000" }}>Value</div>
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              overflow: "hidden",
+              border: "1px solid #000",
+              fontSize: (el.fontSize ?? 10) * PT,
+              fontFamily: el.fontFamily || "Times New Roman",
+            }}
+          >
+            <div
+              className="flex"
+              style={{ borderBottom: "1px solid #000", fontWeight: "bold" }}
+            >
+              <div className="flex-1 px-1" style={{ width: "40%" }}>
+                Label
+              </div>
+              <div
+                className="flex-1 px-1"
+                style={{ borderLeft: "1px solid #000" }}
+              >
+                Value
+              </div>
             </div>
             {rows.map((row, i) => (
-              <div key={i} className="flex" style={{ borderBottom: i < rows.length - 1 ? "1px solid #000" : "none" }}>
+              <div
+                key={i}
+                className="flex"
+                style={{
+                  borderBottom: i < rows.length - 1 ? "1px solid #000" : "none",
+                }}
+              >
                 <div className="flex-1 px-1">{row.label}</div>
-                <div className="flex-1 px-1" style={{ borderLeft: "1px solid #000" }}>{row.value}</div>
+                <div
+                  className="flex-1 px-1"
+                  style={{ borderLeft: "1px solid #000" }}
+                >
+                  {row.value}
+                </div>
               </div>
             ))}
           </div>
@@ -302,7 +501,13 @@ function ElementCanvas({ el, selected, onSelect, onChange }: ElementCanvasProps)
   };
 
   return (
-    <div style={style} onPointerDown={(e) => beginDrag(e, "move")} onPointerMove={onMove} onPointerUp={endDrag} onPointerCancel={endDrag}>
+    <div
+      style={style}
+      onPointerDown={(e) => beginDrag(e, "move")}
+      onPointerMove={onMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+    >
       {renderBody()}
       {selected && (
         <div
@@ -320,13 +525,18 @@ interface TemplateEditorProps {
   onSaved: () => void;
 }
 
-export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditorProps) {
+export function TemplateEditor({
+  isCreate,
+  templateId,
+  onSaved,
+}: TemplateEditorProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
 
   const { data: fetched, isLoading } = useQuery({
     queryKey: ["document-template", templateId],
-    queryFn: () => (templateId ? getTemplate(templateId) : Promise.resolve(null)),
+    queryFn: () =>
+      templateId ? getTemplate(templateId) : Promise.resolve(null),
     enabled: !!templateId,
   });
 
@@ -344,7 +554,12 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
         size: base.page.size || "A4",
         orientation: base.page.orientation || "portrait",
         unit: "pt",
-        margins: base.page.margins || { top: 56, right: 56, bottom: 56, left: 56 },
+        margins: base.page.margins || {
+          top: 56,
+          right: 56,
+          bottom: 56,
+          left: 56,
+        },
         background: base.page.background,
         watermark: base.page.watermark,
       },
@@ -372,9 +587,14 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
         status: "active",
         isDefault: false,
         version: 1,
-        page: { size: "A4", orientation: "portrait", unit: "pt", margins: { top: 56, right: 56, bottom: 56, left: 56 } },
+        page: {
+          size: "A4",
+          orientation: "portrait",
+          unit: "pt",
+          margins: { top: 56, right: 56, bottom: 56, left: 56 },
+        },
         elements: [],
-      } as DocumentTemplate)
+      } as DocumentTemplate),
     );
     setInitialized(true);
   }
@@ -396,14 +616,18 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
       t
         ? {
             ...t,
-            elements: t.elements.map((el) => (el.id === id ? { ...el, ...patch } : el)),
+            elements: t.elements.map((el) =>
+              el.id === id ? { ...el, ...patch } : el,
+            ),
           }
-        : t
+        : t,
     );
   };
 
   const removeElement = (id: string) => {
-    setTemplate((t) => (t ? { ...t, elements: t.elements.filter((el) => el.id !== id) } : t));
+    setTemplate((t) =>
+      t ? { ...t, elements: t.elements.filter((el) => el.id !== id) } : t,
+    );
     if (selectedId === id) setSelectedId(null);
   };
 
@@ -412,7 +636,12 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
       if (!t) return t;
       const idx = t.elements.findIndex((el) => el.id === id);
       if (idx < 0) return t;
-      const copy = { ...t.elements[idx], id: uid(), x: t.elements[idx].x + 12, y: t.elements[idx].y + 12 };
+      const copy = {
+        ...t.elements[idx],
+        id: uid(),
+        x: t.elements[idx].x + 12,
+        y: t.elements[idx].y + 12,
+      };
       const elements = [...t.elements];
       elements.splice(idx + 1, 0, copy);
       return { ...t, elements };
@@ -447,15 +676,20 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
     setSelectedId(el.id);
   };
 
-  const selectedElement = template?.elements.find((el) => el.id === selectedId) || null;
+  const selectedElement =
+    template?.elements.find((el) => el.id === selectedId) || null;
 
   const save = async () => {
     if (!template) return;
     if (!template.name.trim()) return errorAlert("Template name is required.");
-    if (!template.documentType) return errorAlert("Please pick a document type.");
+    if (!template.documentType)
+      return errorAlert("Please pick a document type.");
     setSaving(true);
     try {
-      const payload: Partial<DocumentTemplate> = { ...template, elements: template.elements };
+      const payload: Partial<DocumentTemplate> = {
+        ...template,
+        elements: template.elements,
+      };
       if (isCreate) {
         await createTemplate(payload);
         successAlert("Template created successfully.");
@@ -483,33 +717,67 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
       <div className="space-y-4">
         <div className="space-y-1.5">
           <Label>Template Name</Label>
-          <Input value={template.name} onChange={(e) => updateTemplateInfo({ name: e.target.value })} placeholder="e.g. Barangay Certificate" />
+          <Input
+            value={template.name}
+            onChange={(e) => updateTemplateInfo({ name: e.target.value })}
+            placeholder="e.g. Barangay Certificate"
+          />
         </div>
         <div className="space-y-1.5">
           <Label>Description</Label>
-          <Textarea value={template.description} onChange={(e) => updateTemplateInfo({ description: e.target.value })} placeholder="Short description shown to residents" rows={2} />
+          <Textarea
+            value={template.description}
+            onChange={(e) =>
+              updateTemplateInfo({ description: e.target.value })
+            }
+            placeholder="Short description shown to residents"
+            rows={2}
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label>Document Type</Label>
-            <Select value={template.documentType} onValueChange={(v) => updateTemplateInfo({ documentType: v })}>
-              <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+            <Select
+              value={template.documentType}
+              onValueChange={(v) => updateTemplateInfo({ documentType: v })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
               <SelectContent>
                 {DOCUMENT_TYPE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
             <Label>Fee (&nbsp;{template.currency || "PHP"})</Label>
-            <Input type="number" min={0} value={template.fee ?? 0} onChange={(e) => updateTemplateInfo({ fee: Math.max(0, numberOr(e.target.value, 0)) })} />
+            <Input
+              type="number"
+              min={0}
+              value={template.fee ?? 0}
+              onChange={(e) =>
+                updateTemplateInfo({
+                  fee: Math.max(0, numberOr(e.target.value, 0)),
+                })
+              }
+            />
           </div>
         </div>
         <div className="space-y-1.5">
           <Label>Status</Label>
-          <Select value={template.status} onValueChange={(v) => updateTemplateInfo({ status: v as "active" | "inactive" })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+          <Select
+            value={template.status}
+            onValueChange={(v) =>
+              updateTemplateInfo({ status: v as "active" | "inactive" })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="active">Active</SelectItem>
               <SelectItem value="inactive">Inactive</SelectItem>
@@ -534,12 +802,19 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
               <ArrowLeft className="size-4 mr-1" />
               Back
             </Button>
-            <span className="text-sm text-muted-foreground">{isLoading ? "Loading template..." : "Editor"}</span>
+            <span className="text-sm text-muted-foreground">
+              {isLoading ? "Loading template..." : "Editor"}
+            </span>
           </div>
           {isLoading ? (
             <Loader2 className="size-6 animate-spin" />
           ) : (
-            <Button type="button" variant="outline" size="sm" onClick={() => router.push("/pages/secretary/document-templates")}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => router.push("/pages/secretary/document-templates")}
+            >
               <ArrowLeft className="size-4 mr-1" />
               Back to Document Templates
             </Button>
@@ -565,10 +840,14 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
             >
               <ArrowLeft className="size-4" />
             </Button>
-            <h2 className="text-lg font-bold truncate">{isCreate ? "Create Template" : template.name}</h2>
+            <h2 className="text-lg font-bold truncate">
+              {isCreate ? "Create Template" : template.name}
+            </h2>
           </div>
           {!isCreate && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">v{template.version}</span>
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+              v{template.version}
+            </span>
           )}
         </div>
 
@@ -581,8 +860,15 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Size</Label>
-              <Select value={template.page.size} onValueChange={(v) => updatePage({ size: v as "A4" | "LETTER" })}>
-                <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+              <Select
+                value={template.page.size}
+                onValueChange={(v) =>
+                  updatePage({ size: v as "A4" | "LETTER" })
+                }
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="A4">A4</SelectItem>
                   <SelectItem value="LETTER">Letter</SelectItem>
@@ -590,9 +876,18 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
               </Select>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Orientation</Label>
-              <Select value={template.page.orientation} onValueChange={(v) => updatePage({ orientation: v as "portrait" | "landscape" })}>
-                <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+              <Label className="text-xs text-muted-foreground">
+                Orientation
+              </Label>
+              <Select
+                value={template.page.orientation}
+                onValueChange={(v) =>
+                  updatePage({ orientation: v as "portrait" | "landscape" })
+                }
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="portrait">Portrait</SelectItem>
                   <SelectItem value="landscape">Landscape</SelectItem>
@@ -601,24 +896,79 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Margin T</Label>
-              <Input type="number" className="h-8" value={template.page.margins.top} onChange={(e) => updatePage({ margins: { ...template.page.margins, top: Math.max(0, numberOr(e.target.value, 0)) } })} />
+              <Input
+                type="number"
+                className="h-8"
+                value={template.page.margins.top}
+                onChange={(e) =>
+                  updatePage({
+                    margins: {
+                      ...template.page.margins,
+                      top: Math.max(0, numberOr(e.target.value, 0)),
+                    },
+                  })
+                }
+              />
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Margin R</Label>
-              <Input type="number" className="h-8" value={template.page.margins.right} onChange={(e) => updatePage({ margins: { ...template.page.margins, right: Math.max(0, numberOr(e.target.value, 0)) } })} />
+              <Input
+                type="number"
+                className="h-8"
+                value={template.page.margins.right}
+                onChange={(e) =>
+                  updatePage({
+                    margins: {
+                      ...template.page.margins,
+                      right: Math.max(0, numberOr(e.target.value, 0)),
+                    },
+                  })
+                }
+              />
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Margin B</Label>
-              <Input type="number" className="h-8" value={template.page.margins.bottom} onChange={(e) => updatePage({ margins: { ...template.page.margins, bottom: Math.max(0, numberOr(e.target.value, 0)) } })} />
+              <Input
+                type="number"
+                className="h-8"
+                value={template.page.margins.bottom}
+                onChange={(e) =>
+                  updatePage({
+                    margins: {
+                      ...template.page.margins,
+                      bottom: Math.max(0, numberOr(e.target.value, 0)),
+                    },
+                  })
+                }
+              />
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Margin L</Label>
-              <Input type="number" className="h-8" value={template.page.margins.left} onChange={(e) => updatePage({ margins: { ...template.page.margins, left: Math.max(0, numberOr(e.target.value, 0)) } })} />
+              <Input
+                type="number"
+                className="h-8"
+                value={template.page.margins.left}
+                onChange={(e) =>
+                  updatePage({
+                    margins: {
+                      ...template.page.margins,
+                      left: Math.max(0, numberOr(e.target.value, 0)),
+                    },
+                  })
+                }
+              />
             </div>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Watermark (optional)</Label>
-            <Input value={template.page.watermark || ""} onChange={(e) => updatePage({ watermark: e.target.value })} placeholder="e.g. OFFICIAL COPY" className="h-8" />
+            <Label className="text-xs text-muted-foreground">
+              Watermark (optional)
+            </Label>
+            <Input
+              value={template.page.watermark || ""}
+              onChange={(e) => updatePage({ watermark: e.target.value })}
+              placeholder="e.g. OFFICIAL COPY"
+              className="h-8"
+            />
           </div>
         </div>
 
@@ -627,15 +977,71 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
         <div className="space-y-2">
           <Label className="font-semibold text-sm">Elements</Label>
           <div className="grid grid-cols-3 gap-1.5">
-            <Button type="button" variant="outline" size="sm" onClick={() => addElement("text")} title="Add text block"><Type className="size-3.5 mr-1" />Text</Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => addElement("dynamicText")} title="Add dynamic field"><Braces className="size-3.5 mr-1" />Field</Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => addElement("image")} title="Add image"><ImageIcon className="size-3.5 mr-1" />Img</Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => addElement("signature")} title="Add signature block"><PenLine className="size-3.5 mr-1" />Sign</Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => addElement("line")} title="Add a line"><Minus className="size-3.5 mr-1" />Line</Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => addElement("rect")} title="Add a rectangle"><Square className="size-3.5 mr-1" />Rect</Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => addElement("text")}
+              title="Add text block"
+            >
+              <Type className="size-3.5 mr-1" />
+              Text
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => addElement("dynamicText")}
+              title="Add dynamic field"
+            >
+              <Braces className="size-3.5 mr-1" />
+              Field
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => addElement("image")}
+              title="Add image"
+            >
+              <ImageIcon className="size-3.5 mr-1" />
+              Img
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => addElement("signature")}
+              title="Add signature block"
+            >
+              <PenLine className="size-3.5 mr-1" />
+              Sign
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => addElement("line")}
+              title="Add a line"
+            >
+              <Minus className="size-3.5 mr-1" />
+              Line
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => addElement("rect")}
+              title="Add a rectangle"
+            >
+              <Square className="size-3.5 mr-1" />
+              Rect
+            </Button>
           </div>
           <div className="pt-1">
-            <Label className="text-xs text-muted-foreground">Insert dynamic field</Label>
+            <Label className="text-xs text-muted-foreground">
+              Insert dynamic field
+            </Label>
             <FieldSelect value={""} onChange={addDynamicField} compact />
           </div>
         </div>
@@ -643,8 +1049,12 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
         <Separator />
 
         <div className="space-y-1.5">
-          <Label className="font-semibold text-sm">Layers ({template.elements.length})</Label>
-          {template.elements.length === 0 && <p className="text-sm text-muted-foreground">No elements yet.</p>}
+          <Label className="font-semibold text-sm">
+            Layers ({template.elements.length})
+          </Label>
+          {template.elements.length === 0 && (
+            <p className="text-sm text-muted-foreground">No elements yet.</p>
+          )}
           <div className="space-y-1">
             {template.elements.map((el, i) => (
               <div
@@ -655,12 +1065,50 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
                 <span className="text-muted-foreground text-xs">{i + 1}</span>
                 <span className="flex-1 truncate font-mono text-xs">
                   {el.type}
-                  {el.type === "dynamicText" && el.field ? ` · ${FIELD_LABEL(el.field)}` : ""}
+                  {el.type === "dynamicText" && el.field
+                    ? ` · ${FIELD_LABEL(el.field)}`
+                    : ""}
                 </span>
-                <button type="button" className="text-muted-foreground hover:text-slate-900" onClick={(e) => { e.stopPropagation(); moveElement(el.id, -1); }}><ArrowUp className="size-3.5" /></button>
-                <button type="button" className="text-muted-foreground hover:text-slate-900" onClick={(e) => { e.stopPropagation(); moveElement(el.id, 1); }}><ArrowDown className="size-3.5" /></button>
-                <button type="button" className="text-muted-foreground hover:text-slate-900" onClick={(e) => { e.stopPropagation(); duplicateElement(el.id); }}><Copy className="size-3.5" /></button>
-                <button type="button" className="text-destructive hover:text-red-700" onClick={(e) => { e.stopPropagation(); removeElement(el.id); }}><Trash2 className="size-3.5" /></button>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-slate-900"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    moveElement(el.id, -1);
+                  }}
+                >
+                  <ArrowUp className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-slate-900"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    moveElement(el.id, 1);
+                  }}
+                >
+                  <ArrowDown className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-slate-900"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    duplicateElement(el.id);
+                  }}
+                >
+                  <Copy className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  className="text-destructive hover:text-red-700"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeElement(el.id);
+                  }}
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
               </div>
             ))}
           </div>
@@ -682,12 +1130,18 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
               Back
             </Button>
             <div className="text-sm text-muted-foreground truncate">
-              {landscape ? `${pageH}×${pageW}` : `${pageW}×${pageH}`} pt · {landscape ? "Landscape" : "Portrait"}
+              {landscape ? `${pageH}×${pageW}` : `${pageW}×${pageH}`} pt ·{" "}
+              {landscape ? "Landscape" : "Portrait"}
               {template.isDefault ? " · Default" : ""}
             </div>
           </div>
-          <Select value={String(zoom)} onValueChange={(v) => setZoom(numberOr(v, 0.8))}>
-            <SelectTrigger className="w-[90px] h-8"><SelectValue /></SelectTrigger>
+          <Select
+            value={String(zoom)}
+            onValueChange={(v) => setZoom(numberOr(v, 0.8))}
+          >
+            <SelectTrigger className="w-[90px] h-8">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="0.5">50%</SelectItem>
               <SelectItem value="0.65">65%</SelectItem>
@@ -709,7 +1163,13 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
             onPointerDown={() => setSelectedId(null)}
           >
             {template.elements.map((el) => (
-              <ElementCanvas key={el.id} el={el} selected={selectedId === el.id} onSelect={setSelectedId} onChange={updateElement} />
+              <ElementCanvas
+                key={el.id}
+                el={el}
+                selected={selectedId === el.id}
+                onSelect={setSelectedId}
+                onChange={updateElement}
+              />
             ))}
           </div>
         </div>
@@ -721,7 +1181,11 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
       {/* Right: properties */}
       <div className="w-72 shrink-0 border-l bg-white overflow-y-auto p-5 space-y-4">
         {selectedElement ? (
-          <ElementProperties el={selectedElement} onChange={updateElement} onRemove={() => removeElement(selectedElement.id)} />
+          <ElementProperties
+            el={selectedElement}
+            onChange={updateElement}
+            onRemove={() => removeElement(selectedElement.id)}
+          />
         ) : (
           <div className="text-sm text-muted-foreground text-center py-10">
             Select an element on the canvas to edit its properties.
@@ -734,7 +1198,11 @@ export function TemplateEditor({ isCreate, templateId, onSaved }: TemplateEditor
           {saving && <Loader2 className="size-4 animate-spin mr-2" />}
           {isCreate ? "Create Template" : "Save Changes"}
         </Button>
-        <Button variant="outline" className="w-full" onClick={() => router.push("/pages/secretary/document-templates")}>
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => router.push("/pages/secretary/document-templates")}
+        >
           Cancel
         </Button>
       </div>
@@ -758,37 +1226,76 @@ function ElementProperties({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold capitalize">{el.type} element</h3>
-        <Button variant="ghost" size="sm" className="text-destructive h-8" onClick={onRemove}>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-destructive h-8"
+          onClick={onRemove}
+        >
           <Trash2 className="size-4" />
         </Button>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <NumField label="X (pt)" value={el.x} onChange={(n) => patch({ x: n })} />
-        <NumField label="Y (pt)" value={el.y} onChange={(n) => patch({ y: n })} />
-        <NumField label="Width (pt)" value={el.width} onChange={(n) => patch({ width: n })} />
-        <NumField label="Height (pt)" value={el.height} onChange={(n) => patch({ height: n })} />
+        <NumField
+          label="X (pt)"
+          value={el.x}
+          onChange={(n) => patch({ x: n })}
+        />
+        <NumField
+          label="Y (pt)"
+          value={el.y}
+          onChange={(n) => patch({ y: n })}
+        />
+        <NumField
+          label="Width (pt)"
+          value={el.width}
+          onChange={(n) => patch({ width: n })}
+        />
+        <NumField
+          label="Height (pt)"
+          value={el.height}
+          onChange={(n) => patch({ height: n })}
+        />
       </div>
 
-      {(el.type === "text" || el.type === "dynamicText" || el.type === "table") && (
+      {(el.type === "text" ||
+        el.type === "dynamicText" ||
+        el.type === "table") && (
         <>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Font family</Label>
-            <Select value={el.fontFamily || "Times New Roman"} onValueChange={(v) => patch({ fontFamily: v })}>
-              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+            <Select
+              value={el.fontFamily || "Times New Roman"}
+              onValueChange={(v) => patch({ fontFamily: v })}
+            >
+              <SelectTrigger className="h-8">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {FONT_OPTIONS.map((f) => (
-                  <SelectItem key={f} value={f}>{f}</SelectItem>
+                  <SelectItem key={f} value={f}>
+                    {f}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <NumField label="Font size (pt)" value={el.fontSize ?? 12} onChange={(n) => patch({ fontSize: n })} />
+            <NumField
+              label="Font size (pt)"
+              value={el.fontSize ?? 12}
+              onChange={(n) => patch({ fontSize: n })}
+            />
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Align</Label>
-              <Select value={el.alignment || "left"} onValueChange={(v) => patch({ alignment: v as any })}>
-                <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+              <Select
+                value={el.alignment || "left"}
+                onValueChange={(v) => patch({ alignment: v as any })}
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="left">Left</SelectItem>
                   <SelectItem value="center">Center</SelectItem>
@@ -799,17 +1306,60 @@ function ElementProperties({
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <NumField label="Line h." value={el.lineHeight ?? 1.6} onChange={(n) => patch({ lineHeight: n })} step={0.1} />
-            <NumField label="Spacing" value={el.letterSpacing ?? 0} onChange={(n) => patch({ letterSpacing: n })} />
+            <NumField
+              label="Line h."
+              value={el.lineHeight ?? 1.6}
+              onChange={(n) => patch({ lineHeight: n })}
+              step={0.1}
+            />
+            <NumField
+              label="Spacing"
+              value={el.letterSpacing ?? 0}
+              onChange={(n) => patch({ letterSpacing: n })}
+            />
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Color</Label>
-              <Input type="color" value={el.color || "#000000"} onChange={(e) => patch({ color: e.target.value })} className="h-8 p-1" />
+              <Input
+                type="color"
+                value={el.color || "#000000"}
+                onChange={(e) => patch({ color: e.target.value })}
+                className="h-8 p-1"
+              />
             </div>
           </div>
           <div className="flex gap-2">
-            <Button type="button" variant={el.fontWeight === "bold" ? "default" : "outline"} size="sm" onClick={() => patch({ fontWeight: el.fontWeight === "bold" ? "normal" : "bold" })}><b>B</b></Button>
-            <Button type="button" variant={el.fontStyle === "italic" ? "default" : "outline"} size="sm" onClick={() => patch({ fontStyle: el.fontStyle === "italic" ? "normal" : "italic" })}><i>I</i></Button>
-            <Button type="button" variant={el.underline ? "default" : "outline"} size="sm" onClick={() => patch({ underline: !el.underline })}><u>U</u></Button>
+            <Button
+              type="button"
+              variant={el.fontWeight === "bold" ? "default" : "outline"}
+              size="sm"
+              onClick={() =>
+                patch({
+                  fontWeight: el.fontWeight === "bold" ? "normal" : "bold",
+                })
+              }
+            >
+              <b>B</b>
+            </Button>
+            <Button
+              type="button"
+              variant={el.fontStyle === "italic" ? "default" : "outline"}
+              size="sm"
+              onClick={() =>
+                patch({
+                  fontStyle: el.fontStyle === "italic" ? "normal" : "italic",
+                })
+              }
+            >
+              <i>I</i>
+            </Button>
+            <Button
+              type="button"
+              variant={el.underline ? "default" : "outline"}
+              size="sm"
+              onClick={() => patch({ underline: !el.underline })}
+            >
+              <u>U</u>
+            </Button>
           </div>
         </>
       )}
@@ -822,17 +1372,49 @@ function ElementProperties({
               value={el.content || ""}
               onChange={(e) => patch({ content: e.target.value })}
               rows={8}
-              placeholder='Support {{resident.fullName}} style placeholders'
+              placeholder="Support {{resident.fullName}} style placeholders"
             />
           ) : el.rows ? (
             <div className="space-y-1.5">
               {el.rows.map((row, i) => (
                 <div key={i} className="grid grid-cols-2 gap-1.5">
-                  <Input className="h-8 text-xs" value={row.label} placeholder="Label" onChange={(e) => patch({ rows: el.rows!.map((r, j) => (j === i ? { ...r, label: e.target.value } : r)) })} />
-                  <Input className="h-8 text-xs" value={row.value} placeholder="Value" onChange={(e) => patch({ rows: el.rows!.map((r, j) => (j === i ? { ...r, value: e.target.value } : r)) })} />
+                  <Input
+                    className="h-8 text-xs"
+                    value={row.label}
+                    placeholder="Label"
+                    onChange={(e) =>
+                      patch({
+                        rows: el.rows!.map((r, j) =>
+                          j === i ? { ...r, label: e.target.value } : r,
+                        ),
+                      })
+                    }
+                  />
+                  <Input
+                    className="h-8 text-xs"
+                    value={row.value}
+                    placeholder="Value"
+                    onChange={(e) =>
+                      patch({
+                        rows: el.rows!.map((r, j) =>
+                          j === i ? { ...r, value: e.target.value } : r,
+                        ),
+                      })
+                    }
+                  />
                 </div>
               ))}
-              <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => patch({ rows: [...(el.rows || []), { label: "", value: "" }] })}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() =>
+                  patch({
+                    rows: [...(el.rows || []), { label: "", value: "" }],
+                  })
+                }
+              >
                 + Row
               </Button>
             </div>
@@ -843,21 +1425,39 @@ function ElementProperties({
       {el.type === "dynamicText" && (
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Dynamic field</Label>
-          <FieldSelect value={el.field || ""} onChange={(v) => patch({ field: v })} />
+          <FieldSelect
+            value={el.field || ""}
+            onChange={(v) => patch({ field: v })}
+          />
           <p className="text-xs text-muted-foreground">
-            Resolved at render time from the resident&apos;s profile, certificate, or barangay info.
+            Resolved at render time from the resident&apos;s profile,
+            certificate, or barangay info.
           </p>
         </div>
       )}
 
       {el.type === "image" && (
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Image URL / data</Label>
-          <Input className="h-8 text-xs" value={el.source || ""} onChange={(e) => patch({ source: e.target.value })} placeholder="https://... or data:image/..." />
+          <Label className="text-xs text-muted-foreground">
+            Image URL / data
+          </Label>
+          <Input
+            className="h-8 text-xs"
+            value={el.source || ""}
+            onChange={(e) => patch({ source: e.target.value })}
+            placeholder="https://... or data:image/..."
+          />
           <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground truncate">Fit</Label>
-            <Select value={el.imageFit || "contain"} onValueChange={(v) => patch({ imageFit: v as any })}>
-              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+            <Label className="text-xs text-muted-foreground truncate">
+              Fit
+            </Label>
+            <Select
+              value={el.imageFit || "contain"}
+              onValueChange={(v) => patch({ imageFit: v as any })}
+            >
+              <SelectTrigger className="h-8">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="contain">Contain</SelectItem>
                 <SelectItem value="cover">Cover</SelectItem>
@@ -870,9 +1470,19 @@ function ElementProperties({
 
       {el.type === "signature" && (
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Signature position</Label>
-          <Input className="h-8 text-xs" value={el.signaturePosition || ""} onChange={(e) => patch({ signaturePosition: e.target.value })} placeholder="e.g. Punong Barangay" />
-          <p className="text-xs text-muted-foreground">The official&apos;s name is filled in automatically from the Officials list.</p>
+          <Label className="text-xs text-muted-foreground">
+            Signature position
+          </Label>
+          <Input
+            className="h-8 text-xs"
+            value={el.signaturePosition || ""}
+            onChange={(e) => patch({ signaturePosition: e.target.value })}
+            placeholder="e.g. Punong Barangay"
+          />
+          <p className="text-xs text-muted-foreground">
+            The official&apos;s name is filled in automatically from the
+            Officials list.
+          </p>
         </div>
       )}
 
@@ -880,23 +1490,51 @@ function ElementProperties({
         <div className="grid grid-cols-2 gap-3">
           {el.type === "line" && (
             <>
-              <NumField label="Thickness" value={el.strokeWidth ?? 1} onChange={(n) => patch({ strokeWidth: n })} step={0.5} />
+              <NumField
+                label="Thickness"
+                value={el.strokeWidth ?? 1}
+                onChange={(n) => patch({ strokeWidth: n })}
+                step={0.5}
+              />
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Color</Label>
-                <Input type="color" value={el.strokeColor || "#000000"} onChange={(e) => patch({ strokeColor: e.target.value })} className="h-8 p-1" />
+                <Input
+                  type="color"
+                  value={el.strokeColor || "#000000"}
+                  onChange={(e) => patch({ strokeColor: e.target.value })}
+                  className="h-8 p-1"
+                />
               </div>
             </>
           )}
           {el.type === "rect" && (
             <>
-              <NumField label="Border w." value={el.borderWidth ?? 1} onChange={(n) => patch({ borderWidth: n })} />
+              <NumField
+                label="Border w."
+                value={el.borderWidth ?? 1}
+                onChange={(n) => patch({ borderWidth: n })}
+              />
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Border color</Label>
-                <Input type="color" value={el.borderColor || "#000000"} onChange={(e) => patch({ borderColor: e.target.value })} className="h-8 p-1" />
+                <Label className="text-xs text-muted-foreground">
+                  Border color
+                </Label>
+                <Input
+                  type="color"
+                  value={el.borderColor || "#000000"}
+                  onChange={(e) => patch({ borderColor: e.target.value })}
+                  className="h-8 p-1"
+                />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground truncate">Fill color</Label>
-                <Input type="color" value={el.backgroundColor || "#ffffff"} onChange={(e) => patch({ backgroundColor: e.target.value })} className="h-8 p-1" />
+                <Label className="text-xs text-muted-foreground truncate">
+                  Fill color
+                </Label>
+                <Input
+                  type="color"
+                  value={el.backgroundColor || "#ffffff"}
+                  onChange={(e) => patch({ backgroundColor: e.target.value })}
+                  className="h-8 p-1"
+                />
               </div>
             </>
           )}

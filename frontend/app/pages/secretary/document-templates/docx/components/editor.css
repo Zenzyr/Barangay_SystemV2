@@ -1,0 +1,192 @@
+/* Paper, workspace and content styles for the Tiptap template editor. */
+
+/* Fonts used by the bundled templates. Each alias falls back through similar
+   locally-installed fonts so the layout degrades gracefully where the Windows
+   originals (Britannic Bold, Hobo Std…) are not installed. */
+@font-face { font-family: "Calibri"; src: local("Calibri"), local("Carlito"), local("Segoe UI"), local("Arial"); }
+@font-face { font-family: "Bookman Old Style"; src: local("Bookman Old Style"), local("Bookman"), local("URW Bookman"), local("Georgia"); }
+@font-face { font-family: "Bodoni MT"; src: local("Bodoni MT"), local("Bodoni 72"), local("Didot"), local("Georgia"); }
+@font-face { font-family: "Britannic Bold"; src: local("Britannic Bold"), local("Arial Black"), local("Impact"), local("Arial"); }
+@font-face { font-family: "Century Gothic"; src: local("Century Gothic"), local("URW Gothic"), local("Avenir"), local("Futura"), local("Verdana"); }
+@font-face { font-family: "Engravers MT"; src: local("Engravers MT"), local("Copperplate Gothic Bold"), local("Copperplate"), local("Times New Roman"); }
+@font-face { font-family: "Hobo Std"; src: local("Hobo Std"), local("Comic Sans MS"), local("Trebuchet MS"), local("Arial"); }
+@font-face { font-family: "Berlin Sans FB Demi"; src: local("Berlin Sans FB Demi"), local("Trebuchet MS"), local("Arial"); }
+@font-face { font-family: "Arial Narrow"; src: local("Arial Narrow"), local("Liberation Sans Narrow"), local("Helvetica Neue Condensed"), local("Arial"); }
+@font-face { font-family: "Times New Roman"; src: local("Times New Roman"), local("Liberation Serif"), local("Tinos"), local("Times"); }
+
+/* ── workspace / paper ───────────────────────────────────────────────── */
+
+.doc-workspace {
+  background: #e5e7eb;
+  background-image: radial-gradient(circle at 1px 1px, rgba(100, 116, 139, 0.12) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+
+.doc-paper {
+  position: relative;
+  background: #fff;
+  box-sizing: border-box;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18), 0 8px 24px rgba(15, 23, 42, 0.14);
+  color: #000;
+  font-family: Calibri, Carlito, "Segoe UI", Arial, sans-serif;
+  font-size: 11pt;
+}
+
+/* Page guides: a hairline where each printed page would end. */
+.doc-paper--guides {
+  background-image: linear-gradient(to bottom, transparent calc(var(--page-h) - 1px), #cbd5e1 calc(var(--page-h) - 1px));
+  background-size: 100% var(--page-h);
+  background-repeat: repeat-y;
+}
+
+.doc-paper__layer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  user-select: none;
+}
+.doc-paper__layer--background { background-size: 100% 100%; background-position: center; }
+.doc-paper__layer--watermark { background-size: 58% auto; background-position: center 34%; }
+
+.doc-paper__content { position: relative; z-index: 1; }
+
+/* ── content ─────────────────────────────────────────────────────────── */
+
+.doc-prose {
+  outline: none;
+  position: relative; /* page-break layout measures offsetTop against this */
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  min-height: 1em;
+}
+
+.doc-prose p,
+.doc-prose h1, .doc-prose h2, .doc-prose h3, .doc-prose h4 { margin: 0; }
+.doc-prose p { min-height: 1.2em; }
+.doc-prose h1 { font-size: 24pt; font-weight: 700; margin: 12pt 0 6pt; }
+.doc-prose h2 { font-size: 18pt; font-weight: 700; margin: 10pt 0 5pt; }
+.doc-prose h3 { font-size: 14pt; font-weight: 700; margin: 8pt 0 4pt; }
+.doc-prose h4 { font-size: 12pt; font-weight: 700; margin: 6pt 0 3pt; }
+
+.doc-prose ul { list-style: disc; padding-left: 36pt; margin: 0; }
+.doc-prose ol { list-style: decimal; padding-left: 36pt; margin: 0; }
+.doc-prose li > p { margin: 0; }
+.doc-prose a { color: #1d4ed8; text-decoration: underline; cursor: text; }
+.doc-prose sub, .doc-prose sup { font-size: 0.75em; }
+.doc-prose mark { padding: 0; }
+
+.doc-prose img { display: inline-block; max-width: 100%; vertical-align: bottom; }
+.doc-prose img.ProseMirror-selectednode { outline: 2px solid #2563eb; }
+
+.doc-prose hr { border: 0; border-top: 1px solid #000; margin: 2pt 0 3pt; }
+.doc-prose hr.ProseMirror-selectednode { border-top-color: #2563eb; }
+
+/* tables */
+.doc-prose .tableWrapper { overflow-x: auto; margin: 0; }
+.doc-prose table { border-collapse: collapse; table-layout: fixed; width: 100%; margin: 0; }
+.doc-prose td, .doc-prose th {
+  border: 1px solid #999;
+  padding: 2px 7px;
+  vertical-align: top;
+  position: relative;
+  min-width: 1em;
+  box-sizing: border-box;
+}
+.doc-prose th { background: #f0f0f0; font-weight: 700; text-align: left; }
+.doc-prose table[data-borders="none"] td,
+.doc-prose table[data-borders="none"] th { border-color: transparent; }
+/* faint guides so borderless layout tables stay editable */
+.doc-editing .doc-prose table[data-borders="none"] td { border: 1px dashed #dbe2ea; }
+.doc-prose .selectedCell::after { content: ""; position: absolute; inset: 0; background: rgba(37, 99, 235, 0.14); pointer-events: none; z-index: 2; }
+.doc-prose .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: -2px; width: 4px; background: #2563eb; pointer-events: none; z-index: 3; }
+.doc-prose.resize-cursor { cursor: col-resize; }
+
+/* variable chip */
+.template-variable {
+  display: inline-block;
+  padding: 0 5px;
+  margin: 0 1px;
+  border-radius: 4px;
+  background: #e0f2fe;
+  color: #075985;
+  border: 1px solid #bae6fd;
+  font-family: Calibri, Carlito, "Segoe UI", Arial, sans-serif;
+  font-size: 0.85em;
+  font-weight: 600;
+  font-style: normal;
+  line-height: 1.35;
+  text-decoration: none;
+  text-transform: none;
+  text-indent: 0;
+  text-align: left;
+  white-space: nowrap;
+  vertical-align: baseline;
+  cursor: default;
+  user-select: all;
+}
+.template-variable--unknown { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+.template-variable.ProseMirror-selectednode { outline: 2px solid #2563eb; }
+
+/* explicit page break (editing canvas) */
+.page-break {
+  position: relative;
+  display: block;
+  height: 28px;
+  margin: 0 -1px;
+  border-top: 2px dashed #94a3b8;
+  user-select: none;
+  cursor: default;
+}
+.page-break__label {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  color: #64748b;
+  font: 600 10px/1 system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0 8px;
+}
+.page-break.ProseMirror-selectednode { border-top-color: #2563eb; }
+
+/* placeholder */
+.doc-prose p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+.doc-prose .ProseMirror-gapcursor::after { border-top-color: #000; }
+
+/* Preview sheets show variables as plain {{key}} text so what is printed is what is exported. */
+.template-variable--text {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  user-select: text;
+}
+.doc-preview .doc-prose a { color: inherit; }
+
+/* ── print: only the preview overlay ────────────────────────────────── */
+
+@media print {
+  body > *:not(.print-root) { display: none !important; }
+  .print-root { position: absolute !important; inset: 0 auto auto 0 !important; width: 100% !important; height: auto !important; overflow: visible !important; background: #fff !important; }
+  .print-root .print-scroll { position: static !important; height: auto !important; overflow: visible !important; padding: 0 !important; background: #fff !important; }
+  .print-sheet-wrap { transform: none !important; width: auto !important; height: auto !important; margin: 0 !important; break-after: page; page-break-after: always; }
+  .print-sheet-wrap:last-child { break-after: auto; page-break-after: auto; }
+  .print-sheet-wrap > div { transform: none !important; width: auto !important; }
+  .print-sheet { box-shadow: none !important; margin: 0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .print-hide { display: none !important; }
+  .doc-preview .doc-prose a { text-decoration: none; }
+}

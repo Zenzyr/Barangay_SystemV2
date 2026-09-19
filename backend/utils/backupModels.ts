@@ -5,6 +5,7 @@ import BarangaySettingsModel from '../model/barangaySettings.model';
 import BusinessModel from '../model/business.model';
 import CertificateTemplateModel from '../model/certificateTemplate.model';
 import ContractModel from '../model/contract.model';
+import DocTemplateModel from '../model/docTemplate.model';
 import DocumentRequestModel from '../model/documentRequest.model';
 import DocumentTemplateModel from '../model/documentTemplate.model';
 import NotificationModel from '../model/notification.model';
@@ -31,6 +32,7 @@ export const BACKUP_MODELS: BackupModelEntry[] = [
   { name: 'Business', model: BusinessModel },
   { name: 'CertificateTemplate', model: CertificateTemplateModel },
   { name: 'Contract', model: ContractModel },
+  { name: 'DocTemplate', model: DocTemplateModel },
   { name: 'Documents', model: DocumentRequestModel },
   { name: 'DocumentTemplate', model: DocumentTemplateModel },
   { name: 'Notification', model: NotificationModel },
