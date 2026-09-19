@@ -1181,6 +1181,8 @@ export class AccountController {
 
       const residentsInfo = await AccountService.getAccountsForAI();
 
+
+
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
       const model = genAI.getGenerativeModel({
