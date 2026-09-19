@@ -1183,10 +1183,18 @@ export class AccountController {
 
 
 
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+      const genAI = new GoogleGenerativeAI(
+        process.env.CHATBOT_API_KEY ||
+          process.env.GEMINI_API_KEY ||
+          process.env.GOOGLE_API_KEY ||
+          "",
+      );
 
       const model = genAI.getGenerativeModel({
-        model: process.env.GEMINI_MODEL as string,
+        model:
+          (process.env.CHATBOT_MODEL as string) ||
+          (process.env.GEMINI_MODEL as string) ||
+          "gemini-3.6-flash",
       });
 
       const prompt = `
@@ -1231,10 +1239,18 @@ export class AccountController {
     try {
       const residentsInfo = await AccountService.getAccountsForAI();
 
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+      const genAI = new GoogleGenerativeAI(
+        process.env.CHATBOT_API_KEY ||
+          process.env.GEMINI_API_KEY ||
+          process.env.GOOGLE_API_KEY ||
+          "",
+      );
 
       const model = genAI.getGenerativeModel({
-        model: process.env.GEMINI_MODEL as string,
+        model:
+          (process.env.CHATBOT_MODEL as string) ||
+          (process.env.GEMINI_MODEL as string) ||
+          "gemini-3.6-flash",
       });
 
       const prompt = `
