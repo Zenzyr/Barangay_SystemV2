@@ -1,13 +1,10 @@
 import type { JSONContent } from "@tiptap/react";
+import type { DocumentPageSettings, DocumentPageSize, TemplateVariable } from "./documentEditor.type";
 
-export type DocxPageSize = "A4" | "Letter" | "Legal";
+export type { TemplateVariable };
 
-export interface DocxPageSettings {
-  size: DocxPageSize;
-  margins: { top: number; right: number; bottom: number; left: number };
-  background?: string;
-  watermark?: { src?: string; opacity?: number };
-}
+export type DocxPageSize = DocumentPageSize;
+export type DocxPageSettings = DocumentPageSettings;
 
 export interface DocxTemplateAuthor {
   _id: string;
@@ -30,18 +27,6 @@ export interface DocxTemplateSummary {
 
 export interface DocxTemplate extends DocxTemplateSummary {
   editorContent: JSONContent;
-}
-
-export interface TemplateVariable {
-  key: string;
-  label: string;
-  group:
-    | "Resident"
-    | "Barangay"
-    | "Officials"
-    | "Document"
-    | "Document-specific";
-  note?: string;
 }
 
 export interface UpdateDocxTemplatePayload {

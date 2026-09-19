@@ -216,7 +216,9 @@ export default function Page() {
                         : `${dims.w}×${dims.h}`}
                       pt
                     </span>
-                    <span>{template.elements.length} element(s)</span>
+                    <span>
+                      {template.contentFormat === "tiptap" ? "Rich document" : `${template.elements.length} element(s)`}
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-2">

@@ -6,7 +6,7 @@ const PALETTE = [
 ];
 
 /** Swatch grid + custom colour input. `onPick(null)` clears the colour. */
-export function ColorMenu({
+export function ColorPicker({
   current,
   onPick,
   clearLabel,

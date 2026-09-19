@@ -47,6 +47,9 @@ export const TEMPLATE_VARIABLES: TemplateVariable[] = [
   { key: "gender", label: "Gender", group: "Resident", source: "resident.gender", note: "Only available for residents with an account" },
   { key: "contact_number", label: "Contact Number", group: "Resident", source: "resident.contactNumber" },
   { key: "spouse_name", label: "Spouse Name", group: "Resident", source: "resident.spouseName" },
+  { key: "nationality", label: "Nationality", group: "Resident", source: "resident.nationality" },
+  { key: "occupation", label: "Occupation", group: "Resident", source: "resident.occupation" },
+  { key: "years_of_residency", label: "Years of Residency", group: "Resident", source: "resident.yearsOfResidency" },
 
   // ── Barangay ────────────────────────────────────────────────────────
   { key: "barangay", label: "Barangay Name", group: "Barangay", source: "barangay.name" },
@@ -54,6 +57,7 @@ export const TEMPLATE_VARIABLES: TemplateVariable[] = [
   { key: "province", label: "Province", group: "Barangay", source: "barangay.province" },
   { key: "region", label: "Region", group: "Barangay", source: "barangay.region" },
   { key: "barangay_address", label: "Barangay Address", group: "Barangay", source: "barangay.address" },
+  { key: "barangay_contact_number", label: "Barangay Contact Number", group: "Barangay", source: "barangay.contactNumber" },
 
   // ── Officials (live from the Officials collection) ──────────────────
   { key: "punong_barangay", label: "Punong Barangay", group: "Officials", source: "barangay.punongBarangay" },
@@ -83,7 +87,32 @@ export const TEMPLATE_VARIABLES: TemplateVariable[] = [
   { key: "tree_count", label: "Number of Trees", group: "Document-specific", source: "resident.treeCount" },
   { key: "tree_type", label: "Tree Type", group: "Document-specific", source: "resident.treeType" },
   { key: "assistance_to", label: "Assistance To (beneficiary)", group: "Document-specific", source: "resident.assistanceTo" },
+  { key: "business_name", label: "Business Name", group: "Document-specific", source: "resident.businessName" },
+  { key: "business_address", label: "Business Address", group: "Document-specific", source: "resident.businessAddress" },
+  { key: "business_type", label: "Business Type", group: "Document-specific", source: "resident.businessType" },
+  { key: "business_nature", label: "Nature of Business", group: "Document-specific", source: "resident.businessNature" },
 ];
+
+/**
+ * Dotted keys the older visual template builder used ({{resident.fullName}}),
+ * mapped to the registry key that replaces them. Every registry source is a
+ * legacy key already; these are the extra spellings that also existed.
+ */
+export const LEGACY_KEY_ALIASES: Record<string, string> = {
+  "resident.dateOfBirth": "birth_date",
+  "barangay.captain": "punong_barangay",
+  "official.Barangay Treasurer": "barangay_treasurer",
+  "official.SK Chairperson": "sk_chairperson",
+  "official.Barangay Secretary": "barangay_secretary",
+  "official.Punong Barangay": "punong_barangay",
+};
+
+/** Registry key for a legacy dotted field like "resident.fullName", or null when there is none. */
+export function legacyKeyToVariable(legacy: string): string | null {
+  const direct = TEMPLATE_VARIABLES.find((v) => v.source === legacy);
+  if (direct) return direct.key;
+  return LEGACY_KEY_ALIASES[legacy] ?? null;
+}
 
 export const TEMPLATE_VARIABLE_KEYS = new Set(TEMPLATE_VARIABLES.map((v) => v.key));
 

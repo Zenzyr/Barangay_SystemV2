@@ -72,12 +72,14 @@ export interface BuildExtensionsOptions {
   isKnownVariable: (key: string) => boolean;
   getMetrics: () => { pageHeight: number; topMargin: number };
   readOnly?: boolean;
+  placeholder?: string;
 }
 
 export function buildExtensions({
   isKnownVariable,
   getMetrics,
   readOnly,
+  placeholder,
 }: BuildExtensionsOptions): Extensions {
   return [
     StarterKit.configure({
@@ -125,6 +127,7 @@ export function buildExtensions({
       : [
           Placeholder.configure({
             placeholder:
+              placeholder ??
               "Start writing your template… use Insert Variable for {{fields}}.",
           }),
         ]),

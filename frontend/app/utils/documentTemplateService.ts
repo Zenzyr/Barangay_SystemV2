@@ -1,62 +1,5 @@
 import axiosInstance from "@/app/utils/axios";
-
-// ─── Dynamic field catalog (used by the Insert Field picker) ───────
-export const DYNAMIC_FIELD_GROUPS: Record<string, Record<string, string>> = {
-  resident: {
-    fullName: "Full Name",
-    address: "Address",
-    dateOfBirth: "Date of Birth",
-    civilStatus: "Civil Status",
-    gender: "Gender",
-    nationality: "Nationality",
-    occupation: "Occupation",
-    yearsOfResidency: "Years of Residency",
-    purpose: "Purpose",
-    contactNumber: "Contact Number",
-    purok: "Purok",
-    age: "Age",
-    spouseName: "Spouse Name",
-    annualIncome: "Annual Income",
-    monthlyIncome: "Monthly Income",
-    householdExpenses: "Monthly Household Expenses",
-    workStatus: "Work Status",
-    workplace: "Workplace / Company",
-    expenseType: "Type of Unforeseen Expense",
-    businessName: "Business Name",
-    businessAddress: "Business Address",
-    businessType: "Business Type",
-    businessNature: "Nature of Business",
-    titleNo: "Title No.",
-    taxDeclarationNo: "Tax Declaration No.",
-    landArea: "Land Area (sqm)",
-    treeCount: "Number of Trees",
-    treeType: "Tree Type",
-    assistanceTo: "Assistance To",
-  },
-  certificate: {
-    number: "Certificate Number",
-    date: "Issue Date",
-  },
-  barangay: {
-    name: "Barangay Name",
-    address: "Barangay Address",
-    municipality: "Municipality",
-    province: "Province",
-    region: "Region",
-    captain: "Barangay Captain",
-    punongBarangay: "Punong Barangay",
-    secretary: "Barangay Secretary",
-    contactNumber: "Barangay Contact Number",
-  },
-};
-
-export const FIELD_LABEL = (key: string): string => {
-  const [group, field] = key.split(".");
-  if (group && field && DYNAMIC_FIELD_GROUPS[group]) {
-    return DYNAMIC_FIELD_GROUPS[group][field] || field;
-  }
-  return key;
-};
+import type { JSONContent } from "@tiptap/react";
 
 // ─── Types ────────────────────────────────────────────────────────
 export interface TemplateElement {
@@ -108,6 +51,8 @@ export interface DocumentTemplate {
     background?: string;
     watermark?: string;
   };
+  /** "elements" (legacy absolute layout, also when missing) or "tiptap" (flowing document in editorContent). */
+  contentFormat?: "elements" | "tiptap";
   elements: TemplateElement[];
   createdAt?: string;
   updatedAt?: string;
@@ -158,4 +103,26 @@ export const fetchTemplatePreviewPdf = async (id: string): Promise<string> => {
   const response = await axiosInstance.get(`/document-templates/${id}/preview`, { responseType: "blob" });
   const blob = new Blob([response.data], { type: "application/pdf" });
   return URL.createObjectURL(blob);
+};
+
+/** What the editor opens: the stored Tiptap document, or a converted draft of a legacy layout. */
+export interface TemplateEditorContent {
+  format: "tiptap" | "legacy-converted";
+  editorContent: JSONContent;
+  /** What could not be carried over when converting a legacy layout. */
+  notes: string[];
+}
+
+export const getTemplateEditorContent = async (id: string): Promise<TemplateEditorContent> => {
+  const { data } = await axiosInstance.get(`/document-templates/${id}/editor-content`);
+  return data;
+};
+
+/** PDF preview (sample data) of editor content that has not been saved yet. */
+export const previewTemplateContentPdf = async (
+  editorContent: JSONContent,
+  page: DocumentTemplate["page"]
+): Promise<string> => {
+  const response = await axiosInstance.post("/document-templates/preview", { editorContent, page }, { responseType: "blob" });
+  return URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
 };

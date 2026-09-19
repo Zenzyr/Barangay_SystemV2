@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import type { DocxPageSettings } from "@/app/types/docxTemplate.type";
+import type { DocumentPageSettings } from "@/app/types/documentEditor.type";
 import { pageMetricsPx } from "./lib/pageMetrics";
 import "./editor.css";
 
@@ -18,7 +18,7 @@ export function PaperSheet({
   contentRef,
   children,
 }: {
-  page: DocxPageSettings;
+  page: DocumentPageSettings;
   pages?: number;
   /** Draw a hairline where each printed page ends (continuous editing canvas). */
   guides?: boolean;
@@ -60,12 +60,27 @@ export function PaperSheet({
             />
           ))
         : null}
+      {page.watermarkText
+        ? layers.map((i) => (
+            <div
+              key={`wt-${i}`}
+              aria-hidden
+              className="doc-paper__layer doc-paper__watermark-text"
+              style={{ top: i * m.height, height: m.height }}
+            >
+              <span>{page.watermarkText}</span>
+            </div>
+          ))
+        : null}
       <div ref={contentRef} className="doc-paper__content">
         {children}
       </div>
     </div>
   );
 }
+
+// Below this the text becomes unreadable: the workspace scrolls sideways instead of shrinking further.
+const MIN_FIT_SCALE = 0.6;
 
 export const ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5] as const;
 export type Zoom = "fit" | (typeof ZOOM_LEVELS)[number];
@@ -92,7 +107,7 @@ export function ScaledStage({
   useLayoutEffect(() => {
     const outer = outerRef.current;
     if (!outer) return;
-    const update = () => setFit(Math.min(1, Math.max(0.2, (outer.clientWidth - 24) / paperWidth)));
+    const update = () => setFit(Math.min(1, Math.max(MIN_FIT_SCALE, (outer.clientWidth - 24) / paperWidth)));
     update();
     const observer = new ResizeObserver(update);
     observer.observe(outer);
@@ -111,8 +126,8 @@ export function ScaledStage({
 
   const scale = zoom === "fit" ? fit : zoom;
   return (
-    <div ref={outerRef} className={`flex w-full justify-center ${className}`}>
-      <div className={`print-sheet-wrap ${wrapClassName}`} style={{ width: paperWidth * scale, height: innerHeight * scale }}>
+    <div ref={outerRef} className={`flex w-full ${className}`}>
+      <div className={`print-sheet-wrap mx-auto shrink-0 ${wrapClassName}`} style={{ width: paperWidth * scale, height: innerHeight * scale }}>
         <div ref={innerRef} style={{ width: paperWidth, transform: `scale(${scale})`, transformOrigin: "top left" }}>
           {children}
         </div>

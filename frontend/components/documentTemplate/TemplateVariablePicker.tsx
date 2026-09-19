@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
-import type { TemplateVariable } from "@/app/types/docxTemplate.type";
+import type { TemplateVariable } from "@/app/types/documentEditor.type";
 
 const GROUP_ORDER: TemplateVariable["group"][] = [
   "Resident",
@@ -12,7 +12,7 @@ const GROUP_ORDER: TemplateVariable["group"][] = [
   "Document-specific",
 ];
 
-export function VariableMenu({
+export function TemplateVariablePicker({
   variables,
   onInsert,
   usedKeys,

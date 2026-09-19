@@ -1,10 +1,10 @@
 import type {
-  DocxPageSettings,
-  DocxPageSize,
-} from "@/app/types/docxTemplate.type";
+  DocumentPageSettings,
+  DocumentPageSize,
+} from "@/app/types/documentEditor.type";
 
 export const PAGE_PT: Record<
-  DocxPageSize,
+  DocumentPageSize,
   { w: number; h: number; label: string }
 > = {
   A4: { w: 595.28, h: 841.89, label: "A4 (210 × 297 mm)" },
@@ -20,8 +20,19 @@ export interface PageMetricsPx {
   margins: { top: number; right: number; bottom: number; left: number };
 }
 
-export function pageMetricsPx(page: DocxPageSettings): PageMetricsPx {
+export function pageSizePt(
+  page: Pick<DocumentPageSettings, "size"> & {
+    orientation?: DocumentPageSettings["orientation"];
+  },
+) {
   const size = PAGE_PT[page.size] ?? PAGE_PT.Letter;
+  return page.orientation === "landscape"
+    ? { w: size.h, h: size.w }
+    : { w: size.w, h: size.h };
+}
+
+export function pageMetricsPx(page: DocumentPageSettings): PageMetricsPx {
+  const size = pageSizePt(page);
   const m = page.margins;
   return {
     width: ptToPx(size.w),

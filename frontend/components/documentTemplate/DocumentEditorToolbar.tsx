@@ -8,10 +8,10 @@ import {
   Scissors, Strikethrough, Subscript, Superscript, Table as TableIcon, Underline, Undo2, Variable,
 } from "lucide-react";
 import { errorAlert } from "@/app/utils/alert";
-import type { DocxPageSettings, DocxPageSize, TemplateVariable } from "@/app/types/docxTemplate.type";
-import { Dropdown, RibbonButton, RibbonGroup } from "./ribbonPrimitives";
-import { VariableMenu } from "./variableMenu";
-import { ColorMenu } from "./colorMenu";
+import type { DocumentPageSettings, DocumentPageSize, TemplateVariable } from "@/app/types/documentEditor.type";
+import { Dropdown, ToolbarButton, ToolbarGroup } from "./ToolbarPrimitives";
+import { TemplateVariablePicker } from "./TemplateVariablePicker";
+import { ColorPicker } from "./ColorPicker";
 import { PAGE_PT } from "./lib/pageMetrics";
 import { INDENT_STEP_PT } from "./extensions/paragraphLayout";
 import { SAFE_LINK } from "./extensions";
@@ -62,21 +62,27 @@ async function imageToDataUrl(file: File): Promise<string> {
   return out;
 }
 
-export function Ribbon({
+export function DocumentEditorToolbar({
   editor,
   variables,
   page,
   onPageChange,
   linkSignal,
   usedKeys,
+  pageSizes = ["A4", "Letter", "Legal"],
+  allowOrientation = false,
 }: {
   editor: Editor;
   variables: TemplateVariable[];
-  page: DocxPageSettings;
-  onPageChange: (page: DocxPageSettings) => void;
+  page: DocumentPageSettings;
+  onPageChange: (page: DocumentPageSettings) => void;
   /** Bumped by the Ctrl/Cmd+K shortcut. */
   linkSignal: number;
   usedKeys: Set<string>;
+  /** Page sizes the host can store (the PDF templates support A4 and Letter only). */
+  pageSizes?: DocumentPageSize[];
+  /** Show the portrait/landscape choice (only hosts whose backend stores it). */
+  allowOrientation?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>("home");
   // Ctrl/Cmd+K raises linkSignal; the Link panel (on Home) consumes it when it opens.
@@ -169,7 +175,7 @@ export function Ribbon({
     [s.inTable]
   );
 
-  const setMargin = (side: keyof DocxPageSettings["margins"], inches: number) => {
+  const setMargin = (side: keyof DocumentPageSettings["margins"], inches: number) => {
     const pt = Math.round(Math.min(3, Math.max(0, inches)) * 72);
     onPageChange({ ...page, margins: { ...page.margins, [side]: pt } });
   };
@@ -196,12 +202,12 @@ export function Ribbon({
       <div role="toolbar" aria-label="Formatting" className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-slate-100 bg-slate-50/70 px-2 py-1.5">
         {activeTab === "home" && (
           <>
-            <RibbonGroup label="History">
-              <RibbonButton icon={Undo2} label="Undo" shortcut="Ctrl+Z" onClick={() => chain().undo().run()} disabled={!s.canUndo} />
-              <RibbonButton icon={Redo2} label="Redo" shortcut="Ctrl+Shift+Z" onClick={() => chain().redo().run()} disabled={!s.canRedo} />
-            </RibbonGroup>
+            <ToolbarGroup label="History">
+              <ToolbarButton icon={Undo2} label="Undo" shortcut="Ctrl+Z" onClick={() => chain().undo().run()} disabled={!s.canUndo} />
+              <ToolbarButton icon={Redo2} label="Redo" shortcut="Ctrl+Shift+Z" onClick={() => chain().redo().run()} disabled={!s.canRedo} />
+            </ToolbarGroup>
 
-            <RibbonGroup label="Font">
+            <ToolbarGroup label="Font">
               <select
                 aria-label="Paragraph style"
                 value={s.heading}
@@ -228,7 +234,7 @@ export function Ribbon({
                   <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>
                 ))}
               </select>
-              <RibbonButton icon={Minus} label="Decrease font size" onClick={() => stepSize(-1)} />
+              <ToolbarButton icon={Minus} label="Decrease font size" onClick={() => stepSize(-1)} />
               <select
                 aria-label="Font size"
                 value={size}
@@ -240,17 +246,17 @@ export function Ribbon({
                   <option key={n} value={n}>{n}</option>
                 ))}
               </select>
-              <RibbonButton icon={Plus} label="Increase font size" onClick={() => stepSize(1)} />
-            </RibbonGroup>
+              <ToolbarButton icon={Plus} label="Increase font size" onClick={() => stepSize(1)} />
+            </ToolbarGroup>
 
-            <RibbonGroup label="Text style">
-              <RibbonButton icon={Bold} label="Bold" shortcut="Ctrl+B" active={s.bold} onClick={() => chain().toggleBold().run()} />
-              <RibbonButton icon={Italic} label="Italic" shortcut="Ctrl+I" active={s.italic} onClick={() => chain().toggleItalic().run()} />
-              <RibbonButton icon={Underline} label="Underline" shortcut="Ctrl+U" active={s.underline} onClick={() => chain().toggleUnderline().run()} />
-              <RibbonButton icon={Strikethrough} label="Strikethrough" shortcut="Ctrl+Shift+S" active={s.strike} onClick={() => chain().toggleStrike().run()} />
-              <RibbonButton icon={Subscript} label="Subscript" shortcut="Ctrl+," active={s.subscript} onClick={() => chain().toggleSubscript().run()} />
-              <RibbonButton icon={Superscript} label="Superscript" shortcut="Ctrl+." active={s.superscript} onClick={() => chain().toggleSuperscript().run()} />
-              <RibbonButton
+            <ToolbarGroup label="Text style">
+              <ToolbarButton icon={Bold} label="Bold" shortcut="Ctrl+B" active={s.bold} onClick={() => chain().toggleBold().run()} />
+              <ToolbarButton icon={Italic} label="Italic" shortcut="Ctrl+I" active={s.italic} onClick={() => chain().toggleItalic().run()} />
+              <ToolbarButton icon={Underline} label="Underline" shortcut="Ctrl+U" active={s.underline} onClick={() => chain().toggleUnderline().run()} />
+              <ToolbarButton icon={Strikethrough} label="Strikethrough" shortcut="Ctrl+Shift+S" active={s.strike} onClick={() => chain().toggleStrike().run()} />
+              <ToolbarButton icon={Subscript} label="Subscript" shortcut="Ctrl+," active={s.subscript} onClick={() => chain().toggleSubscript().run()} />
+              <ToolbarButton icon={Superscript} label="Superscript" shortcut="Ctrl+." active={s.superscript} onClick={() => chain().toggleSuperscript().run()} />
+              <ToolbarButton
                 icon={CaseUpper}
                 label="All capitals"
                 active={s.caps}
@@ -267,7 +273,7 @@ export function Ribbon({
                 }
               >
                 {(close) => (
-                  <ColorMenu
+                  <ColorPicker
                     label="Text colour"
                     current={s.color}
                     clearLabel="Automatic"
@@ -290,7 +296,7 @@ export function Ribbon({
                 }
               >
                 {(close) => (
-                  <ColorMenu
+                  <ColorPicker
                     label="Highlight colour"
                     current={s.highlight}
                     clearLabel="No highlight"
@@ -302,14 +308,14 @@ export function Ribbon({
                   />
                 )}
               </Dropdown>
-              <RibbonButton icon={Eraser} label="Clear text formatting" onClick={() => chain().unsetAllMarks().run()} />
-            </RibbonGroup>
+              <ToolbarButton icon={Eraser} label="Clear text formatting" onClick={() => chain().unsetAllMarks().run()} />
+            </ToolbarGroup>
 
-            <RibbonGroup label="Paragraph">
-              <RibbonButton icon={AlignLeft} label="Align left" shortcut="Ctrl+Shift+L" active={s.align === "left"} onClick={() => chain().setTextAlign("left").run()} />
-              <RibbonButton icon={AlignCenter} label="Center" shortcut="Ctrl+Shift+E" active={s.align === "center"} onClick={() => chain().setTextAlign("center").run()} />
-              <RibbonButton icon={AlignRight} label="Align right" shortcut="Ctrl+Shift+R" active={s.align === "right"} onClick={() => chain().setTextAlign("right").run()} />
-              <RibbonButton icon={AlignJustify} label="Justify" shortcut="Ctrl+Shift+J" active={s.align === "justify"} onClick={() => chain().setTextAlign("justify").run()} />
+            <ToolbarGroup label="Paragraph">
+              <ToolbarButton icon={AlignLeft} label="Align left" shortcut="Ctrl+Shift+L" active={s.align === "left"} onClick={() => chain().setTextAlign("left").run()} />
+              <ToolbarButton icon={AlignCenter} label="Center" shortcut="Ctrl+Shift+E" active={s.align === "center"} onClick={() => chain().setTextAlign("center").run()} />
+              <ToolbarButton icon={AlignRight} label="Align right" shortcut="Ctrl+Shift+R" active={s.align === "right"} onClick={() => chain().setTextAlign("right").run()} />
+              <ToolbarButton icon={AlignJustify} label="Justify" shortcut="Ctrl+Shift+J" active={s.align === "justify"} onClick={() => chain().setTextAlign("justify").run()} />
               <Dropdown
                 label="Line and paragraph spacing"
                 width={220}
@@ -353,16 +359,16 @@ export function Ribbon({
                   </div>
                 )}
               </Dropdown>
-              <RibbonButton icon={List} label="Bulleted list" shortcut="Ctrl+Shift+8" active={s.bulletList} onClick={() => chain().toggleBulletList().run()} />
-              <RibbonButton icon={ListOrdered} label="Numbered list" shortcut="Ctrl+Shift+7" active={s.orderedList} onClick={() => chain().toggleOrderedList().run()} />
-              <RibbonButton icon={IndentDecrease} label="Decrease indent" shortcut="Ctrl+[" onClick={() => indent(-1)} />
-              <RibbonButton icon={IndentIncrease} label="Increase indent" shortcut="Ctrl+]" onClick={() => indent(1)} />
-            </RibbonGroup>
+              <ToolbarButton icon={List} label="Bulleted list" shortcut="Ctrl+Shift+8" active={s.bulletList} onClick={() => chain().toggleBulletList().run()} />
+              <ToolbarButton icon={ListOrdered} label="Numbered list" shortcut="Ctrl+Shift+7" active={s.orderedList} onClick={() => chain().toggleOrderedList().run()} />
+              <ToolbarButton icon={IndentDecrease} label="Decrease indent" shortcut="Ctrl+[" onClick={() => indent(-1)} />
+              <ToolbarButton icon={IndentIncrease} label="Increase indent" shortcut="Ctrl+]" onClick={() => indent(1)} />
+            </ToolbarGroup>
 
-            <RibbonGroup label="Insert">
+            <ToolbarGroup label="Insert">
               <Dropdown label="Insert variable" width={340} trigger={<><Variable className="size-4" /><span className="hidden text-xs font-medium sm:inline">Variable</span></>}>
                 {(close) => (
-                  <VariableMenu
+                  <TemplateVariablePicker
                     variables={variables}
                     usedKeys={usedKeys}
                     onInsert={(key) => {
@@ -381,16 +387,16 @@ export function Ribbon({
                   setTab("home");
                 }}
               />
-            </RibbonGroup>
+            </ToolbarGroup>
           </>
         )}
 
         {activeTab === "insert" && (
           <>
-            <RibbonGroup label="Variables">
+            <ToolbarGroup label="Variables">
               <Dropdown label="Insert variable" width={340} trigger={<><Variable className="size-4" /><span className="text-xs font-medium">Insert Variable</span></>}>
                 {(close) => (
-                  <VariableMenu
+                  <TemplateVariablePicker
                     variables={variables}
                     usedKeys={usedKeys}
                     onInsert={(key) => {
@@ -400,44 +406,58 @@ export function Ribbon({
                   />
                 )}
               </Dropdown>
-            </RibbonGroup>
-            <RibbonGroup label="Objects">
+            </ToolbarGroup>
+            <ToolbarGroup label="Objects">
               <Dropdown label="Insert table" width={230} trigger={<><TableIcon className="size-4" /><span className="text-xs font-medium">Table</span></>}>
                 {(close) => <TablePicker onPick={(rows, cols) => (chain().insertTable({ rows, cols, withHeaderRow: false }).run(), close())} />}
               </Dropdown>
-              <RibbonButton icon={ImageIcon} label="Insert image" onClick={() => fileInput.current?.click()}>
+              <ToolbarButton icon={ImageIcon} label="Insert image" onClick={() => fileInput.current?.click()}>
                 <span className="text-xs font-medium">Image</span>
-              </RibbonButton>
+              </ToolbarButton>
               <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/gif" hidden onChange={(e) => insertImage(e.target.files?.[0])} />
               <LinkMenu editor={editor} current={s.link} openSignal={0} showLabel />
-              <RibbonButton icon={Minus} label="Horizontal line" onClick={() => chain().setHorizontalRule().run()}>
+              <ToolbarButton icon={Minus} label="Horizontal line" onClick={() => chain().setHorizontalRule().run()}>
                 <span className="text-xs font-medium">Line</span>
-              </RibbonButton>
-              <RibbonButton icon={Scissors} label="Page break" shortcut="Ctrl+Enter" onClick={() => chain().insertPageBreak().run()}>
+              </ToolbarButton>
+              <ToolbarButton icon={Scissors} label="Page break" shortcut="Ctrl+Enter" onClick={() => chain().insertPageBreak().run()}>
                 <span className="text-xs font-medium">Page break</span>
-              </RibbonButton>
-            </RibbonGroup>
+              </ToolbarButton>
+            </ToolbarGroup>
           </>
         )}
 
         {activeTab === "layout" && (
           <>
-            <RibbonGroup label="Page size">
+            <ToolbarGroup label="Page setup">
               <label className="flex items-center gap-1.5 text-xs text-slate-600">
                 Size
                 <select
                   aria-label="Page size"
                   value={page.size}
-                  onChange={(e) => onPageChange({ ...page, size: e.target.value as DocxPageSize })}
+                  onChange={(e) => onPageChange({ ...page, size: e.target.value as DocumentPageSize })}
                   className="h-8 rounded-md border border-slate-200 bg-white px-1 text-sm text-slate-900"
                 >
-                  {(Object.keys(PAGE_PT) as DocxPageSize[]).map((k) => (
+                  {pageSizes.map((k) => (
                     <option key={k} value={k}>{PAGE_PT[k].label}</option>
                   ))}
                 </select>
               </label>
-            </RibbonGroup>
-            <RibbonGroup label="Margins (inches)">
+              {allowOrientation ? (
+                <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                  Orientation
+                  <select
+                    aria-label="Page orientation"
+                    value={page.orientation ?? "portrait"}
+                    onChange={(e) => onPageChange({ ...page, orientation: e.target.value as "portrait" | "landscape" })}
+                    className="h-8 rounded-md border border-slate-200 bg-white px-1 text-sm text-slate-900"
+                  >
+                    <option value="portrait">Portrait</option>
+                    <option value="landscape">Landscape</option>
+                  </select>
+                </label>
+              ) : null}
+            </ToolbarGroup>
+            <ToolbarGroup label="Margins (inches)">
               {(["top", "bottom", "left", "right"] as const).map((side) => (
                 <label key={side} className="flex items-center gap-1 text-xs capitalize text-slate-600">
                   {side}
@@ -467,12 +487,12 @@ export function Ribbon({
                 <option value="0.5">Narrow (0.5&quot;)</option>
                 <option value="1.25">Wide (1.25&quot;)</option>
               </select>
-            </RibbonGroup>
-            <RibbonGroup label="Breaks">
-              <RibbonButton icon={Scissors} label="Page break" shortcut="Ctrl+Enter" onClick={() => chain().insertPageBreak().run()}>
+            </ToolbarGroup>
+            <ToolbarGroup label="Breaks">
+              <ToolbarButton icon={Scissors} label="Page break" shortcut="Ctrl+Enter" onClick={() => chain().insertPageBreak().run()}>
                 <span className="text-xs font-medium">Page break</span>
-              </RibbonButton>
-            </RibbonGroup>
+              </ToolbarButton>
+            </ToolbarGroup>
             <p className="basis-full px-1 text-[11px] text-slate-500">
               Page guides in the editor are approximate; explicit page breaks are exact in preview, print and the .docx export.
             </p>
@@ -481,33 +501,33 @@ export function Ribbon({
 
         {activeTab === "table" && (
           <>
-            <RibbonGroup label="Rows">
-              <RibbonButton label="Insert row above" onClick={() => chain().addRowBefore().run()}><span className="text-xs">+ Row above</span></RibbonButton>
-              <RibbonButton label="Insert row below" onClick={() => chain().addRowAfter().run()}><span className="text-xs">+ Row below</span></RibbonButton>
-              <RibbonButton label="Delete row" onClick={() => chain().deleteRow().run()}><span className="text-xs">− Row</span></RibbonButton>
-            </RibbonGroup>
-            <RibbonGroup label="Columns">
-              <RibbonButton label="Insert column left" onClick={() => chain().addColumnBefore().run()}><span className="text-xs">+ Col left</span></RibbonButton>
-              <RibbonButton label="Insert column right" onClick={() => chain().addColumnAfter().run()}><span className="text-xs">+ Col right</span></RibbonButton>
-              <RibbonButton label="Delete column" onClick={() => chain().deleteColumn().run()}><span className="text-xs">− Col</span></RibbonButton>
-            </RibbonGroup>
-            <RibbonGroup label="Cells">
-              <RibbonButton label="Merge cells" disabled={!s.canMerge} onClick={() => chain().mergeCells().run()}><span className="text-xs">Merge</span></RibbonButton>
-              <RibbonButton label="Split cell" disabled={!s.canSplit} onClick={() => chain().splitCell().run()}><span className="text-xs">Split</span></RibbonButton>
-              <RibbonButton label="Toggle header row" onClick={() => chain().toggleHeaderRow().run()}><span className="text-xs">Header row</span></RibbonButton>
-              <RibbonButton
+            <ToolbarGroup label="Rows">
+              <ToolbarButton label="Insert row above" onClick={() => chain().addRowBefore().run()}><span className="text-xs">+ Row above</span></ToolbarButton>
+              <ToolbarButton label="Insert row below" onClick={() => chain().addRowAfter().run()}><span className="text-xs">+ Row below</span></ToolbarButton>
+              <ToolbarButton label="Delete row" onClick={() => chain().deleteRow().run()}><span className="text-xs">− Row</span></ToolbarButton>
+            </ToolbarGroup>
+            <ToolbarGroup label="Columns">
+              <ToolbarButton label="Insert column left" onClick={() => chain().addColumnBefore().run()}><span className="text-xs">+ Col left</span></ToolbarButton>
+              <ToolbarButton label="Insert column right" onClick={() => chain().addColumnAfter().run()}><span className="text-xs">+ Col right</span></ToolbarButton>
+              <ToolbarButton label="Delete column" onClick={() => chain().deleteColumn().run()}><span className="text-xs">− Col</span></ToolbarButton>
+            </ToolbarGroup>
+            <ToolbarGroup label="Cells">
+              <ToolbarButton label="Merge cells" disabled={!s.canMerge} onClick={() => chain().mergeCells().run()}><span className="text-xs">Merge</span></ToolbarButton>
+              <ToolbarButton label="Split cell" disabled={!s.canSplit} onClick={() => chain().splitCell().run()}><span className="text-xs">Split</span></ToolbarButton>
+              <ToolbarButton label="Toggle header row" onClick={() => chain().toggleHeaderRow().run()}><span className="text-xs">Header row</span></ToolbarButton>
+              <ToolbarButton
                 label={s.borderless ? "Show borders" : "Hide borders"}
                 active={s.borderless}
                 onClick={() => chain().updateAttributes("table", { borders: s.borderless ? "all" : "none" }).run()}
               >
                 <span className="text-xs">No borders</span>
-              </RibbonButton>
-            </RibbonGroup>
-            <RibbonGroup label="Table">
-              <RibbonButton label="Delete table" onClick={() => chain().deleteTable().run()} className="text-red-600 hover:bg-red-50">
+              </ToolbarButton>
+            </ToolbarGroup>
+            <ToolbarGroup label="Table">
+              <ToolbarButton label="Delete table" onClick={() => chain().deleteTable().run()} className="text-red-600 hover:bg-red-50">
                 <span className="text-xs">Delete table</span>
-              </RibbonButton>
-            </RibbonGroup>
+              </ToolbarButton>
+            </ToolbarGroup>
           </>
         )}
       </div>

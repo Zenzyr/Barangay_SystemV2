@@ -32,7 +32,8 @@ import { applyVariables, TiptapNode } from "../utils/tiptapDoc";
 // (structured Word elements — not HTML-to-DOCX). See the limitations listed at
 // the bottom of this file and in the feature documentation.
 
-export const DOCX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export const DOCX_MIME_TYPE =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 const PAGE_TWIPS = {
   A4: { width: 11906, height: 16838 },
@@ -69,11 +70,16 @@ const toPt = (raw: unknown): number | null => {
   if (!m) return null;
   const n = parseFloat(m[1]);
   switch ((m[2] || "pt").toLowerCase()) {
-    case "px": return n * 0.75;
-    case "in": return n * 72;
-    case "cm": return (n / 2.54) * 72;
-    case "mm": return (n / 25.4) * 72;
-    default: return n;
+    case "px":
+      return n * 0.75;
+    case "in":
+      return n * 72;
+    case "cm":
+      return (n / 2.54) * 72;
+    case "mm":
+      return (n / 25.4) * 72;
+    default:
+      return n;
   }
 };
 
@@ -85,9 +91,14 @@ const toHex = (raw: unknown): string | undefined => {
   const hex = /^#([0-9a-f]{6})$/i.exec(s);
   if (hex) return hex[1].toUpperCase();
   const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(s);
-  if (short) return `${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`.toUpperCase();
+  if (short)
+    return `${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`.toUpperCase();
   const rgb = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(s);
-  if (rgb) return [rgb[1], rgb[2], rgb[3]].map((n) => Math.min(255, Number(n)).toString(16).padStart(2, "0")).join("").toUpperCase();
+  if (rgb)
+    return [rgb[1], rgb[2], rgb[3]]
+      .map((n) => Math.min(255, Number(n)).toString(16).padStart(2, "0"))
+      .join("")
+      .toUpperCase();
   return undefined;
 };
 
@@ -98,12 +109,15 @@ const firstFont = (raw: unknown): string | undefined => {
 
 // ── images ───────────────────────────────────────────────────────────────
 
-type ImageType = "png" | "jpg" | "gif";
+export type ImageType = "png" | "jpg" | "gif";
 
 const assetsRoot = () =>
-  process.env.TEMPLATE_ASSETS_DIR || path.resolve(process.cwd(), "..", "frontend", "public");
+  process.env.TEMPLATE_ASSETS_DIR ||
+  path.resolve(process.cwd(), "..", "frontend", "public");
 
-function loadImage(src: string): { data: Buffer; type: ImageType } | null {
+export function loadTemplateImage(
+  src: string,
+): { data: Buffer; type: ImageType } | null {
   let data: Buffer | null = null;
   const dataUri = /^data:image\/(png|jpe?g|gif|webp);base64,(.+)$/i.exec(src);
   if (dataUri) {
@@ -119,24 +133,42 @@ function loadImage(src: string): { data: Buffer; type: ImageType } | null {
   } else {
     return null; // remote URLs are never fetched by the exporter
   }
-  if (data.length > 8 && data[0] === 0x89 && data[1] === 0x50) return { data, type: "png" };
-  if (data.length > 3 && data[0] === 0xff && data[1] === 0xd8) return { data, type: "jpg" };
-  if (data.length > 3 && data.toString("ascii", 0, 3) === "GIF") return { data, type: "gif" };
+  if (data.length > 8 && data[0] === 0x89 && data[1] === 0x50)
+    return { data, type: "png" };
+  if (data.length > 3 && data[0] === 0xff && data[1] === 0xd8)
+    return { data, type: "jpg" };
+  if (data.length > 3 && data.toString("ascii", 0, 3) === "GIF")
+    return { data, type: "gif" };
   return null;
 }
 
 /** Natural pixel size, read from the image header (used when the node has no explicit size). */
-function imageSize(data: Buffer, type: ImageType): { width: number; height: number } {
+function imageSize(
+  data: Buffer,
+  type: ImageType,
+): { width: number; height: number } {
   try {
-    if (type === "png") return { width: data.readUInt32BE(16), height: data.readUInt32BE(20) };
-    if (type === "gif") return { width: data.readUInt16LE(6), height: data.readUInt16LE(8) };
+    if (type === "png")
+      return { width: data.readUInt32BE(16), height: data.readUInt32BE(20) };
+    if (type === "gif")
+      return { width: data.readUInt16LE(6), height: data.readUInt16LE(8) };
     let i = 2;
     while (i < data.length) {
-      if (data[i] !== 0xff) { i++; continue; }
+      if (data[i] !== 0xff) {
+        i++;
+        continue;
+      }
       const marker = data[i + 1];
       const len = data.readUInt16BE(i + 2);
-      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
-        return { height: data.readUInt16BE(i + 5), width: data.readUInt16BE(i + 7) };
+      if (
+        marker >= 0xc0 &&
+        marker <= 0xcf &&
+        ![0xc4, 0xc8, 0xcc].includes(marker)
+      ) {
+        return {
+          height: data.readUInt16BE(i + 5),
+          width: data.readUInt16BE(i + 7),
+        };
       }
       i += 2 + len;
     }
@@ -165,12 +197,24 @@ class Converter {
     const o: Record<string, any> = {};
     for (const mark of marks) {
       switch (mark.type) {
-        case "bold": o.bold = true; break;
-        case "italic": o.italics = true; break;
-        case "underline": o.underline = {}; break;
-        case "strike": o.strike = true; break;
-        case "subscript": o.subScript = true; break;
-        case "superscript": o.superScript = true; break;
+        case "bold":
+          o.bold = true;
+          break;
+        case "italic":
+          o.italics = true;
+          break;
+        case "underline":
+          o.underline = {};
+          break;
+        case "strike":
+          o.strike = true;
+          break;
+        case "subscript":
+          o.subScript = true;
+          break;
+        case "superscript":
+          o.superScript = true;
+          break;
         case "highlight": {
           const fill = toHex(mark.attrs?.color) || "FFFF00";
           o.shading = { type: ShadingType.CLEAR, fill, color: "auto" };
@@ -204,7 +248,9 @@ class Converter {
     return [new TextRun({ ...opts, children })];
   }
 
-  private inline(nodes: TiptapNode[] = []): (TextRun | ImageRun | ExternalHyperlink)[] {
+  private inline(
+    nodes: TiptapNode[] = [],
+  ): (TextRun | ImageRun | ExternalHyperlink)[] {
     const out: (TextRun | ImageRun | ExternalHyperlink)[] = [];
     for (const node of nodes) {
       if (node.type === "text" && node.text) {
@@ -212,12 +258,22 @@ class Converter {
         const runs = this.textRuns(node.text, opts);
         const link = node.marks?.find((m) => m.type === "link");
         if (link?.attrs?.href) {
-          out.push(new ExternalHyperlink({ link: link.attrs.href, children: runs.map((r) => r) }));
+          out.push(
+            new ExternalHyperlink({
+              link: link.attrs.href,
+              children: runs.map((r) => r),
+            }),
+          );
         } else {
           out.push(...runs);
         }
       } else if (node.type === "templateVariable") {
-        out.push(...this.textRuns(`{{${node.attrs?.key}}}`, this.runOptions(node.marks)));
+        out.push(
+          ...this.textRuns(
+            `{{${node.attrs?.key}}}`,
+            this.runOptions(node.marks),
+          ),
+        );
       } else if (node.type === "hardBreak") {
         out.push(new TextRun({ break: 1 }));
       } else if (node.type === "image") {
@@ -230,32 +286,56 @@ class Converter {
 
   private image(node: TiptapNode): ImageRun | null {
     const src = String(node.attrs?.src || "");
-    const loaded = loadImage(src);
+    const loaded = loadTemplateImage(src);
     if (!loaded) {
       if (!this.missingImages.has(src)) {
         this.missingImages.add(src);
-        this.warn(`Image could not be embedded and was left out: ${src.startsWith("data:") ? "inline image" : src}`);
+        this.warn(
+          `Image could not be embedded and was left out: ${src.startsWith("data:") ? "inline image" : src}`,
+        );
       }
       return null;
     }
     const natural = imageSize(loaded.data, loaded.type);
     const width = Number(node.attrs?.width) || natural.width;
-    const height = Number(node.attrs?.height) || Math.round((width * natural.height) / natural.width);
+    const height =
+      Number(node.attrs?.height) ||
+      Math.round((width * natural.height) / natural.width);
     return new ImageRun({
       type: loaded.type,
       data: loaded.data,
-      transformation: { width: Math.max(1, Math.round(width)), height: Math.max(1, Math.round(height)) },
-      altText: { name: "image", title: String(node.attrs?.alt || ""), description: String(node.attrs?.alt || "") },
+      transformation: {
+        width: Math.max(1, Math.round(width)),
+        height: Math.max(1, Math.round(height)),
+      },
+      altText: {
+        name: "image",
+        title: String(node.attrs?.alt || ""),
+        description: String(node.attrs?.alt || ""),
+      },
     });
   }
 
   // ---- blocks ----
 
-  private paragraph(node: TiptapNode, extra: Record<string, any> = {}): Paragraph {
+  private paragraph(
+    node: TiptapNode,
+    extra: Record<string, any> = {},
+  ): Paragraph {
     const a = node.attrs || {};
-    const opts: Record<string, any> = { children: this.inline(node.content), ...extra };
+    const opts: Record<string, any> = {
+      children: this.inline(node.content),
+      ...extra,
+    };
 
-    const alignment = ({ left: AlignmentType.LEFT, center: AlignmentType.CENTER, right: AlignmentType.RIGHT, justify: AlignmentType.JUSTIFIED } as any)[a.textAlign];
+    const alignment = (
+      {
+        left: AlignmentType.LEFT,
+        center: AlignmentType.CENTER,
+        right: AlignmentType.RIGHT,
+        justify: AlignmentType.JUSTIFIED,
+      } as any
+    )[a.textAlign];
     if (alignment) opts.alignment = alignment;
 
     const spacing: Record<string, any> = {};
@@ -284,11 +364,20 @@ class Converter {
 
   private heading(node: TiptapNode): Paragraph {
     const level = Math.min(Math.max(Number(node.attrs?.level) || 1, 1), 4);
-    const map = [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3, HeadingLevel.HEADING_4];
+    const map = [
+      HeadingLevel.HEADING_1,
+      HeadingLevel.HEADING_2,
+      HeadingLevel.HEADING_3,
+      HeadingLevel.HEADING_4,
+    ];
     return this.paragraph(node, { heading: map[level - 1] });
   }
 
-  private list(node: TiptapNode, level: number, instance?: number): Paragraph[] {
+  private list(
+    node: TiptapNode,
+    level: number,
+    instance?: number,
+  ): Paragraph[] {
     const ordered = node.type === "orderedList";
     const inst = ordered ? (instance ?? ++this.listInstance) : undefined;
     const reference = ordered ? "numbers" : "bullets";
@@ -299,13 +388,26 @@ class Converter {
         if (child.type === "paragraph") {
           const extra: Record<string, any> = numbered
             ? { indent: { left: 720 * (level + 1) } }
-            : { numbering: { reference, level: Math.min(level, 3), ...(inst ? { instance: inst } : {}) } };
+            : {
+                numbering: {
+                  reference,
+                  level: Math.min(level, 3),
+                  ...(inst ? { instance: inst } : {}),
+                },
+              };
           numbered = true;
           out.push(this.paragraph(child, extra));
-        } else if (child.type === "bulletList" || child.type === "orderedList") {
+        } else if (
+          child.type === "bulletList" ||
+          child.type === "orderedList"
+        ) {
           out.push(...this.list(child, level + 1));
         } else {
-          out.push(...(this.block(child) as Paragraph[]).filter((b) => b instanceof Paragraph));
+          out.push(
+            ...(this.block(child) as Paragraph[]).filter(
+              (b) => b instanceof Paragraph,
+            ),
+          );
         }
       }
     }
@@ -320,10 +422,14 @@ class Converter {
     const columnWidths: number[] = [];
     for (const cell of first) {
       const span = cell.attrs?.colspan || 1;
-      const widths: (number | null)[] = Array.isArray(cell.attrs?.colwidth) ? cell.attrs!.colwidth : [];
+      const widths: (number | null)[] = Array.isArray(cell.attrs?.colwidth)
+        ? cell.attrs!.colwidth
+        : [];
       for (let i = 0; i < span; i++) {
         const px = widths[i];
-        columnWidths.push(px ? Math.round(px * 15) : Math.round(this.textWidthTwips / spans));
+        columnWidths.push(
+          px ? Math.round(px * 15) : Math.round(this.textWidthTwips / spans),
+        );
       }
     }
     // Never exceed the text area (Word would spill into the margins).
@@ -339,24 +445,49 @@ class Converter {
 
     return new Table({
       layout: TableLayoutType.FIXED,
-      width: { size: columnWidths.reduce((s, w) => s + w, 0), type: WidthType.DXA },
+      width: {
+        size: columnWidths.reduce((s, w) => s + w, 0),
+        type: WidthType.DXA,
+      },
       columnWidths,
-      borders: { top: border, bottom: border, left: border, right: border, insideHorizontal: border, insideVertical: border },
+      borders: {
+        top: border,
+        bottom: border,
+        left: border,
+        right: border,
+        insideHorizontal: border,
+        insideVertical: border,
+      },
       rows: rows.map((row) => {
         let col = 0;
         return new TableRow({
           children: (row.content || []).map((cell) => {
             const span = cell.attrs?.colspan || 1;
-            const width = columnWidths.slice(col, col + span).reduce((s, w) => s + w, 0);
+            const width = columnWidths
+              .slice(col, col + span)
+              .reduce((s, w) => s + w, 0);
             col += span;
             const children = (cell.content || []).flatMap((b) => this.block(b));
             return new TableCell({
               width: { size: width, type: WidthType.DXA },
               columnSpan: span > 1 ? span : undefined,
-              rowSpan: (cell.attrs?.rowspan ?? 1) > 1 ? cell.attrs?.rowspan : undefined,
-              borders: { top: border, bottom: border, left: border, right: border },
-              shading: cell.type === "tableHeader" && !borderless ? { type: ShadingType.CLEAR, fill: "F0F0F0", color: "auto" } : undefined,
-              children: children.length ? (children as any) : [new Paragraph({})],
+              rowSpan:
+                (cell.attrs?.rowspan ?? 1) > 1
+                  ? cell.attrs?.rowspan
+                  : undefined,
+              borders: {
+                top: border,
+                bottom: border,
+                left: border,
+                right: border,
+              },
+              shading:
+                cell.type === "tableHeader" && !borderless
+                  ? { type: ShadingType.CLEAR, fill: "F0F0F0", color: "auto" }
+                  : undefined,
+              children: children.length
+                ? (children as any)
+                : [new Paragraph({})],
             });
           }),
         });
@@ -366,17 +497,43 @@ class Converter {
 
   block(node: TiptapNode): (Paragraph | Table)[] {
     switch (node.type) {
-      case "paragraph": return [this.paragraph(node)];
-      case "heading": return [this.heading(node)];
+      case "paragraph":
+        return [this.paragraph(node)];
+      case "heading":
+        return [this.heading(node)];
       case "bulletList":
-      case "orderedList": return this.list(node, 0);
-      case "table": return [this.table(node)];
+      case "orderedList":
+        return this.list(node, 0);
+      case "table":
+        return [this.table(node)];
       case "horizontalRule":
-        return [new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000", space: 1 } }, spacing: { after: 60 } })];
+        return [
+          new Paragraph({
+            border: {
+              bottom: {
+                style: BorderStyle.SINGLE,
+                size: 6,
+                color: "000000",
+                space: 1,
+              },
+            },
+            spacing: { after: 60 },
+          }),
+        ];
       case "pageBreak":
         // A near-zero-height paragraph holding the break, so the next page
         // does not start with a blank line.
-        return [new Paragraph({ children: [new PageBreak()], spacing: { before: 0, after: 0, line: 20, lineRule: LineRuleType.EXACT } })];
+        return [
+          new Paragraph({
+            children: [new PageBreak()],
+            spacing: {
+              before: 0,
+              after: 0,
+              line: 20,
+              lineRule: LineRuleType.EXACT,
+            },
+          }),
+        ];
       case "image": {
         const image = this.image(node);
         return image ? [new Paragraph({ children: [image] })] : [];
@@ -396,7 +553,12 @@ const bulletLevels = ["•", "o", "▪", "•"].map((text, level) => ({
   style: { paragraph: { indent: { left: 720 * (level + 1), hanging: 360 } } },
 }));
 
-const numberLevels = [LevelFormat.DECIMAL, LevelFormat.LOWER_LETTER, LevelFormat.LOWER_ROMAN, LevelFormat.DECIMAL].map((format, level) => ({
+const numberLevels = [
+  LevelFormat.DECIMAL,
+  LevelFormat.LOWER_LETTER,
+  LevelFormat.LOWER_ROMAN,
+  LevelFormat.DECIMAL,
+].map((format, level) => ({
   level,
   format,
   text: `%${level + 1}.`,
@@ -405,19 +567,35 @@ const numberLevels = [LevelFormat.DECIMAL, LevelFormat.LOWER_LETTER, LevelFormat
 }));
 
 /** Floating, behind-text image anchored to the page (used for page backgrounds). */
-function pageImage(src: string, widthPx: number, heightPx: number, converter: Converter): ImageRun | null {
-  const loaded = loadImage(src);
+function pageImage(
+  src: string,
+  widthPx: number,
+  heightPx: number,
+  converter: Converter,
+): ImageRun | null {
+  const loaded = loadTemplateImage(src);
   if (!loaded) {
-    converter.warnings.push(`Page background image could not be embedded: ${src}`);
+    converter.warnings.push(
+      `Page background image could not be embedded: ${src}`,
+    );
     return null;
   }
   return new ImageRun({
     type: loaded.type,
     data: loaded.data,
-    transformation: { width: Math.round(widthPx), height: Math.round(heightPx) },
+    transformation: {
+      width: Math.round(widthPx),
+      height: Math.round(heightPx),
+    },
     floating: {
-      horizontalPosition: { relative: HorizontalPositionRelativeFrom.PAGE, offset: 0 },
-      verticalPosition: { relative: VerticalPositionRelativeFrom.PAGE, offset: 0 },
+      horizontalPosition: {
+        relative: HorizontalPositionRelativeFrom.PAGE,
+        offset: 0,
+      },
+      verticalPosition: {
+        relative: VerticalPositionRelativeFrom.PAGE,
+        offset: 0,
+      },
       behindDocument: true,
       allowOverlap: true,
       wrap: { type: TextWrappingType.NONE },
@@ -428,7 +606,7 @@ function pageImage(src: string, widthPx: number, heightPx: number, converter: Co
 
 export async function exportTemplateToDocx(
   template: ExportInput,
-  values?: Record<string, string>
+  values?: Record<string, string>,
 ): Promise<ExportResult> {
   const size = PAGE_TWIPS[template.page?.size || "Letter"] || PAGE_TWIPS.Letter;
   const m = template.page?.margins || {};
@@ -440,19 +618,43 @@ export async function exportTemplateToDocx(
   };
   const textWidth = size.width - margin.left - margin.right;
 
-  const content = values && Object.keys(values).length ? applyVariables(template.editorContent, values) : template.editorContent;
+  const content =
+    values && Object.keys(values).length
+      ? applyVariables(template.editorContent, values)
+      : template.editorContent;
   const converter = new Converter(textWidth);
-  const children = (content.content || []).flatMap((node) => converter.block(node));
+  const children = (content.content || []).flatMap((node) =>
+    converter.block(node),
+  );
   // Word needs the body to end with a paragraph (a trailing table is invalid).
-  if (!children.length || children[children.length - 1] instanceof Table) children.push(new Paragraph({}));
+  if (!children.length || children[children.length - 1] instanceof Table)
+    children.push(new Paragraph({}));
 
   const headerChildren: Paragraph[] = [];
   if (template.page?.background) {
-    const image = pageImage(template.page.background, size.width / 15, size.height / 15, converter);
-    if (image) headerChildren.push(new Paragraph({ children: [image], spacing: { before: 0, after: 0, line: 20, lineRule: LineRuleType.EXACT } }));
+    const image = pageImage(
+      template.page.background,
+      size.width / 15,
+      size.height / 15,
+      converter,
+    );
+    if (image)
+      headerChildren.push(
+        new Paragraph({
+          children: [image],
+          spacing: {
+            before: 0,
+            after: 0,
+            line: 20,
+            lineRule: LineRuleType.EXACT,
+          },
+        }),
+      );
   }
   if (template.page?.watermark?.src) {
-    converter.warnings.push("The page watermark is shown in the editor, preview and print, but is not included in the .docx");
+    converter.warnings.push(
+      "The page watermark is shown in the editor, preview and print, but is not included in the .docx",
+    );
   }
 
   const document = new Document({
@@ -462,14 +664,48 @@ export async function exportTemplateToDocx(
       default: {
         document: {
           run: { font: DEFAULT_FONT, size: 22 },
-          paragraph: { spacing: { after: 0, line: 240, lineRule: LineRuleType.AUTO } },
+          paragraph: {
+            spacing: { after: 0, line: 240, lineRule: LineRuleType.AUTO },
+          },
         },
       },
       paragraphStyles: [
-        { id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 48, bold: true, color: "000000" }, paragraph: { spacing: { before: 240, after: 120 } } },
-        { id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 36, bold: true, color: "000000" }, paragraph: { spacing: { before: 200, after: 100 } } },
-        { id: "Heading3", name: "Heading 3", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 28, bold: true, color: "000000" }, paragraph: { spacing: { before: 160, after: 80 } } },
-        { id: "Heading4", name: "Heading 4", basedOn: "Normal", next: "Normal", quickFormat: true, run: { size: 24, bold: true, color: "000000" }, paragraph: { spacing: { before: 120, after: 60 } } },
+        {
+          id: "Heading1",
+          name: "Heading 1",
+          basedOn: "Normal",
+          next: "Normal",
+          quickFormat: true,
+          run: { size: 48, bold: true, color: "000000" },
+          paragraph: { spacing: { before: 240, after: 120 } },
+        },
+        {
+          id: "Heading2",
+          name: "Heading 2",
+          basedOn: "Normal",
+          next: "Normal",
+          quickFormat: true,
+          run: { size: 36, bold: true, color: "000000" },
+          paragraph: { spacing: { before: 200, after: 100 } },
+        },
+        {
+          id: "Heading3",
+          name: "Heading 3",
+          basedOn: "Normal",
+          next: "Normal",
+          quickFormat: true,
+          run: { size: 28, bold: true, color: "000000" },
+          paragraph: { spacing: { before: 160, after: 80 } },
+        },
+        {
+          id: "Heading4",
+          name: "Heading 4",
+          basedOn: "Normal",
+          next: "Normal",
+          quickFormat: true,
+          run: { size: 24, bold: true, color: "000000" },
+          paragraph: { spacing: { before: 120, after: 60 } },
+        },
       ],
     },
     numbering: {
@@ -486,14 +722,21 @@ export async function exportTemplateToDocx(
             margin: { ...margin, header: 0, footer: 0 },
           },
         },
-        headers: headerChildren.length ? { default: new Header({ children: headerChildren }) } : undefined,
-        footers: headerChildren.length ? { default: new Footer({ children: [new Paragraph({})] }) } : undefined,
+        headers: headerChildren.length
+          ? { default: new Header({ children: headerChildren }) }
+          : undefined,
+        footers: headerChildren.length
+          ? { default: new Footer({ children: [new Paragraph({})] }) }
+          : undefined,
         children: children as any,
       },
     ],
   });
 
-  return { buffer: await Packer.toBuffer(document), warnings: converter.warnings };
+  return {
+    buffer: await Packer.toBuffer(document),
+    warnings: converter.warnings,
+  };
 }
 
 /*

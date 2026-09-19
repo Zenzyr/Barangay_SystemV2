@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft, Download, Eye, FileText, Loader2, Printer, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dropdown } from "./ribbonPrimitives";
+import { Dropdown } from "@/components/documentTemplate/ToolbarPrimitives";
 
 export type SaveState = "saved" | "saving" | "dirty" | "conflict";
 

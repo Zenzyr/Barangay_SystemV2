@@ -4,10 +4,9 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Compone
 import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 
-// Small building blocks for the ribbon. Every control keeps the editor's
-// selection: buttons cancel mousedown so focus never leaves the document.
 
-export function RibbonButton({
+
+export function ToolbarButton({
   icon: Icon,
   label,
   shortcut,
@@ -45,7 +44,7 @@ export function RibbonButton({
   );
 }
 
-export function RibbonGroup({ label, children }: { label: string; children: ReactNode }) {
+export function ToolbarGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div role="group" aria-label={label} className="flex max-w-full flex-wrap items-center gap-0.5 border-r border-slate-200 pr-2 last:border-r-0">
       {children}

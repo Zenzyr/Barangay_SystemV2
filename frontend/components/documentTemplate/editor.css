@@ -50,6 +50,15 @@
 .doc-paper__layer--background { background-size: 100% 100%; background-position: center; }
 .doc-paper__layer--watermark { background-size: 58% auto; background-position: center 34%; }
 
+.doc-paper__watermark-text { display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.doc-paper__watermark-text span {
+  transform: rotate(-30deg);
+  font: 700 56px/1 Arial, sans-serif;
+  color: rgba(100, 116, 139, 0.16);
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
 .doc-paper__content { position: relative; z-index: 1; }
 
 /* ── content ─────────────────────────────────────────────────────────── */

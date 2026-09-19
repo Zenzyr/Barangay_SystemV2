@@ -5,10 +5,10 @@ import { createPortal } from "react-dom";
 import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
 import { ArrowLeft, Download, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { DocxPageSettings } from "@/app/types/docxTemplate.type";
+import type { DocumentPageSettings } from "@/app/types/documentEditor.type";
 import { buildExtensions } from "./extensions";
-import { PaperSheet, ScaledStage } from "./paper";
-import { PAGE_PT, pageMetricsPx } from "./lib/pageMetrics";
+import { PaperSheet, ScaledStage } from "./DocumentPaper";
+import { pageMetricsPx, pageSizePt } from "./lib/pageMetrics";
 import "./editor.css";
 
 /** Splits a document into sheets at explicit page breaks. */
@@ -18,13 +18,30 @@ export function splitIntoSheets(doc: JSONContent): JSONContent[] {
     if (node.type === "pageBreak") sheets.push([]);
     else sheets[sheets.length - 1].push(node);
   }
-  return sheets.map((content) => ({ type: "doc", content: content.length ? content : [{ type: "paragraph" }] }));
+  return sheets.map((content) => ({
+    type: "doc",
+    content: content.length ? content : [{ type: "paragraph" }],
+  }));
 }
 
 const noopMetrics = () => ({ pageHeight: 0, topMargin: 0 });
 
-function Sheet({ doc, page }: { doc: JSONContent; page: DocxPageSettings }) {
-  const extensions = useMemo(() => buildExtensions({ isKnownVariable: () => true, getMetrics: noopMetrics, readOnly: true }), []);
+function Sheet({
+  doc,
+  page,
+}: {
+  doc: JSONContent;
+  page: DocumentPageSettings;
+}) {
+  const extensions = useMemo(
+    () =>
+      buildExtensions({
+        isKnownVariable: () => true,
+        getMetrics: noopMetrics,
+        readOnly: true,
+      }),
+    [],
+  );
   const editor = useEditor({
     extensions,
     content: doc,
@@ -52,19 +69,22 @@ function Sheet({ doc, page }: { doc: JSONContent; page: DocxPageSettings }) {
  * background/watermark, explicit page breaks). Print uses the browser's print
  * dialog, which also offers "Save as PDF".
  */
-export function PreviewOverlay({
+export function DocumentPreviewOverlay({
   doc,
   page,
   title,
   onClose,
   onDownload,
+  downloadLabel = "Download .docx",
   downloading,
 }: {
   doc: JSONContent;
-  page: DocxPageSettings;
+  page: DocumentPageSettings;
   title: string;
   onClose: () => void;
+  /** Primary action shown next to Print (the host decides what it produces). */
   onDownload: () => void;
+  downloadLabel?: string;
   downloading: boolean;
 }) {
   useEffect(() => {
@@ -74,11 +94,15 @@ export function PreviewOverlay({
   }, [onClose]);
 
   const sheets = useMemo(() => splitIntoSheets(doc), [doc]);
-  const size = PAGE_PT[page.size] ?? PAGE_PT.Letter;
+  const size = pageSizePt(page);
 
   if (typeof document === "undefined") return null;
   return createPortal(
-    <div className="print-root fixed inset-0 z-[90] flex flex-col bg-slate-100" role="dialog" aria-label={`Preview of ${title}`}>
+    <div
+      className="print-root fixed inset-0 z-[90] flex flex-col bg-slate-100"
+      role="dialog"
+      aria-label={`Preview of ${title}`}
+    >
       {/* Sets the printed page size to match the template. */}
       <style>{`@media print { @page { size: ${size.w}pt ${size.h}pt; margin: 0; } }`}</style>
       <div className="print-hide flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2">
@@ -86,9 +110,12 @@ export function PreviewOverlay({
           <Button variant="outline" size="sm" onClick={onClose}>
             <ArrowLeft className="mr-1 size-4" /> Back to editing
           </Button>
-          <span className="truncate text-sm font-medium text-slate-800">Preview — {title}</span>
+          <span className="truncate text-sm font-medium text-slate-800">
+            Preview — {title}
+          </span>
           <span className="hidden text-xs text-slate-500 sm:inline">
-            {sheets.length} {sheets.length === 1 ? "page" : "pages"} · {page.size}
+            {sheets.length} {sheets.length === 1 ? "page" : "pages"} ·{" "}
+            {page.size}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -96,7 +123,8 @@ export function PreviewOverlay({
             <Printer className="mr-1 size-4" /> Print
           </Button>
           <Button size="sm" onClick={onDownload} disabled={downloading}>
-            <Download className="mr-1 size-4" /> {downloading ? "Exporting…" : "Download .docx"}
+            <Download className="mr-1 size-4" />{" "}
+            {downloading ? "Working…" : downloadLabel}
           </Button>
         </div>
       </div>
@@ -105,10 +133,11 @@ export function PreviewOverlay({
           <Sheet key={index} doc={sheet} page={page} />
         ))}
         <p className="print-hide pb-6 text-center text-xs text-slate-500">
-          Variables such as {"{{resident_name}}"} are filled in when a document is generated from a request.
+          Variables such as {"{{resident_name}}"} are filled in when a document
+          is generated from a request.
         </p>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
