@@ -1,5 +1,6 @@
 import AccountModel from "../model/account.model"
 import { accountInterface, accountInterfaceInput } from "../types/accounts.type";
+import { ROLES } from "../utils/roles";
 
 
 export class AccountService {
@@ -86,6 +87,9 @@ export class AccountService {
 
   static async getResidentsWithSkills(filter: { skill?: string; serviceType?: string; availability?: string; location?: string; search?: string } = {}) {
     const query: Record<string, any> = { status: 'approved' };
+
+    // Barangay staff accounts are not service marketplace providers.
+    query.role = { $nin: [ROLES.SECRETARY, ROLES.SUPER_ADMIN] };
 
     if (filter.availability) query.availability = filter.availability;
     if (filter.location) query.providerLocation = { $regex: filter.location, $options: "i" };

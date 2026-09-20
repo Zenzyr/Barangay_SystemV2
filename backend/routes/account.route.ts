@@ -15,6 +15,11 @@ const superAdminOnly = [authenticateJWT, requireRoles(ROLES.SUPER_ADMIN)];
 route.post("/book", authenticateJWT, handler(AccountController.bookWork))
 route.post("/ai", handler(AccountController.aiChatBot))
 route.post("/ai-suggestion", handler(AccountController.aiSuggestions))
+// Pre-registration email-ownership flow. Public: the applicant has no
+// account yet. OTPs are hashed, expiring, attempt-limited and rate-limited.
+route.post("/send-email-otp", handler(AccountController.sendEmailOtp))
+route.post("/resend-email-otp", handler(AccountController.resendEmailOtp))
+route.post("/verify-email-otp", handler(AccountController.verifyEmailOtp))
 // AI context is system configuration: staff may read it (decision support);
 // only super admin may edit it.
 route.get("/ai-context", ...staffOnly, handler(AccountController.getAiContext))

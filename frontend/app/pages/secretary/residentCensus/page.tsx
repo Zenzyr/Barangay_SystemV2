@@ -51,6 +51,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Eye,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -72,6 +73,7 @@ interface ResidentCensusRecord {
   pensioner: string;
   isPWD: string;
   cellphone: string;
+  accountId?: string;
 }
 
 interface ImportResult {
@@ -202,6 +204,180 @@ function Badge({ children, tone }: { children: React.ReactNode; tone: "amber" | 
   );
 }
 
+// ─── Linked account profile (fetched when a census record has an account) ──
+interface CensusAccountProfile {
+  _id: string;
+  name: string;
+  email: string;
+  contact?: string;
+  gender?: string;
+  dateOfBirth?: string;
+  age?: string;
+  civilStatus?: string;
+  voterStatus?: string;
+  purok?: string;
+  houseHoldNumber?: string;
+  address?: string;
+  profile?: string;
+  idType?: string;
+  status?: string;
+  role?: string;
+  skills?: { skill: string; experience: number; proficiency: string }[];
+}
+
+function ViewProfileModal({
+  record,
+  onClose,
+}: {
+  record: ResidentCensusRecord | null;
+  onClose: () => void;
+}) {
+  const { data: account, isLoading: loadingAccount } = useQuery<CensusAccountProfile>({
+    queryKey: ["account-profile", record?.accountId],
+    queryFn: async () => {
+      const res = await axiosInstance.get(`/account/${record!.accountId}`);
+      return res.data;
+    },
+    enabled: !!record?.accountId,
+  });
+
+  const profileRows: [label: string, value: string][] = record
+    ? [
+        ["Name", record.name],
+        ["Sex", record.sex],
+        ["Age", String(record.age)],
+        ["Birthday", record.birthday],
+        ["Occupation", record.occupation],
+        ["Education", record.education],
+        ["Purok", record.purok],
+        ["Household Number", record.householdNumber],
+        ["Cellphone", record.cellphone],
+        ["Family Planning", record.familyPlanning],
+        ["Pensioner", record.pensioner],
+      ]
+    : [];
+
+  const flagRows: [label: string, value: string][] = record
+    ? [
+        ["4Ps Beneficiary", record.is4Ps],
+        ["Solo Parent", record.soloParent],
+        ["Senior Citizen", record.isSenior],
+        ["HPN Maintenance", record.hpnMaintenance],
+        ["PWD", record.isPWD],
+      ]
+    : [];
+
+  return (
+    <Dialog open={!!record} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        {record && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-3">
+                <div className="size-9 rounded-xl bg-gradient-to-br from-sky-100 to-emerald-100 text-sky-600 flex items-center justify-center">
+                  {account?.profile ? (
+                    <img src={account.profile} alt="" className="size-9 rounded-xl object-cover" />
+                  ) : (
+                    <UserRound className="size-4" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate">{record.name}</p>
+                  <p className="text-[11px] font-normal text-gray-400">
+                    Resident Census Profile
+                  </p>
+                </div>
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-5 py-2">
+              {record.accountId && (
+                <div className="rounded-xl border border-sky-100 bg-sky-50/50 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="text-xs font-semibold text-sky-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <UserRound className="size-3.5" /> Linked Online Account
+                    </p>
+                    {account?.status && (
+                      <Badge tone={account.status === "approved" ? "emerald" : "amber"}>
+                        {account.status}
+                      </Badge>
+                    )}
+                  </div>
+                  {loadingAccount ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-1/2" />
+                      <Skeleton className="h-4 w-1/3" />
+                    </div>
+                  ) : account ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                      <div><p className="text-xs text-gray-400">Email</p><p className="text-gray-700 truncate">{account.email}</p></div>
+                      <div><p className="text-xs text-gray-400">Contact</p><p className="text-gray-700">{account.contact || "—"}</p></div>
+                      <div><p className="text-xs text-gray-400">Civil Status</p><p className="text-gray-700">{account.civilStatus || "—"}</p></div>
+                      <div><p className="text-xs text-gray-400">Voter Status</p><p className="text-gray-700">{account.voterStatus || "—"}</p></div>
+                      {account.address && (
+                        <div className="sm:col-span-2"><p className="text-xs text-gray-400">Address</p><p className="text-gray-700">{account.address}</p></div>
+                      )}
+                      {account.idType && (
+                        <div><p className="text-xs text-gray-400">ID Type</p><p className="text-gray-700">{account.idType.replace("_", " ")}</p></div>
+                      )}
+                      {account.skills && account.skills.length > 0 && (
+                        <div className="sm:col-span-2">
+                          <p className="text-xs text-gray-400 mb-1">Service Skills</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {account.skills.map((s, i) => (
+                              <span key={i} className="text-[11px] rounded-full bg-sky-100 text-sky-700 px-2 py-0.5 font-medium">
+                                {s.skill}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">Linked account not found.</p>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Census Details</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                  {profileRows.map(([label, value]) => (
+                    <div key={label}>
+                      <p className="text-xs text-gray-400">{label}</p>
+                      <p className="text-gray-700">{value || "—"}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Flags</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                  {flagRows.map(([label, value]) => (
+                    <div key={label} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2">
+                      <p className="text-xs text-gray-500">{label}</p>
+                      {value === "YES" ? (
+                        <Badge tone="emerald">YES</Badge>
+                      ) : (
+                        <span className="text-xs text-gray-300">{value || "—"}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose}>Close</Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function ResidentCensusPage() {
   const queryClient = useQueryClient();
 
@@ -217,6 +393,7 @@ export default function ResidentCensusPage() {
   const [importText, setImportText] = useState("");
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [viewing, setViewing] = useState<ResidentCensusRecord | null>(null);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const importRows = useMemo(() => {
@@ -506,6 +683,13 @@ export default function ResidentCensusPage() {
                     <TableCell className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <button
+                          onClick={() => setViewing(r)}
+                          className="size-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                          title="View Profile"
+                        >
+                          <Eye className="size-3.5" />
+                        </button>
+                        <button
                           onClick={() => openEditModal(r)}
                           className="size-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-sky-600 hover:bg-sky-50 transition-colors"
                         >
@@ -739,6 +923,9 @@ export default function ResidentCensusPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── View Profile Modal ── */}
+      <ViewProfileModal record={viewing} onClose={() => setViewing(null)} />
     </div>
   );
 }

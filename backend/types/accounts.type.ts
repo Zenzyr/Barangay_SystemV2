@@ -17,6 +17,8 @@ export interface accountInterfaceInput {
     password: string,
     status :  string,
     role?: "resident" | "secretary" | "super_admin",
+    emailVerified?: boolean,
+    emailVerifiedAt?: Date,
     identityHash?: string,
     possibleDuplicate?: {
         status?: string,

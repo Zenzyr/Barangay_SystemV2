@@ -1,0 +1,73 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: brgy-rabon-mongodb
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - brgy-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    container_name: brgy-rabon-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/barangay-document-skills
+    volumes:
+      - uploads:/app/uploads
+      - backups:/app/backups
+    ports:
+      - "5000:5000"
+    networks:
+      - brgy-net
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_BACKEND_URL_LIVE: /bims
+        NEXT_PUBLIC_BASE_URL_LIVE: ""
+    container_name: brgy-rabon-frontend
+    restart: unless-stopped
+    env_file:
+      - ./frontend/.env.local
+    environment:
+      BACKEND_INTERNAL_URL: http://backend:5000
+      NEXT_PUBLIC_BASE_URL_LIVE: ""
+    ports:
+      - "3000:3000"
+    networks:
+      - brgy-net
+    depends_on:
+      - backend
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: brgy-rabon-cloudflared
+    restart: unless-stopped
+    command: tunnel --url http://frontend:3000
+    networks:
+      - brgy-net
+    depends_on:
+      - frontend
+
+networks:
+  brgy-net:
+    driver: bridge
+
+volumes:
+  mongo-data:
+  uploads:
+  backups:

@@ -27,6 +27,11 @@ const AccountSchema = new Schema({
     password: { type: String, required: true },
     status :  { type: String, required: true },
     role: { type: String, enum: ["resident", "secretary", "super_admin"], default: "resident" },
+    // Email-ownership verification. register() only sets this true after the
+    // applicant proved control of the inbox with a valid, non-expired OTP;
+    // login refuses accounts explicitly marked false.
+    emailVerified: { type: Boolean, required: false, default: false },
+    emailVerifiedAt: { type: Date, required: false },
     resetCodeHash: { type: String, required: false },
     resetCodeExpires: { type: Date, required: false },
 
