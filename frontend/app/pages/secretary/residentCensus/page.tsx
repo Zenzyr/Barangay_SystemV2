@@ -49,6 +49,8 @@ import {
   Upload,
   FileSpreadsheet,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -171,6 +173,21 @@ const EMPTY_FORM: Omit<ResidentCensusRecord, "_id"> = {
   cellphone: "N/A",
 };
 
+function getPageItems(total: number, current: number): (number | "...")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const raw = Array.from(new Set([1, total, current - 1, current, current + 1]))
+    .filter((p) => p >= 1 && p <= total)
+    .sort((a, b) => a - b);
+  const out: (number | "...")[] = [];
+  let prev = 0;
+  for (const p of raw) {
+    if (p - prev > 1) out.push("...");
+    out.push(p);
+    prev = p;
+  }
+  return out;
+}
+
 function Badge({ children, tone }: { children: React.ReactNode; tone: "amber" | "violet" | "emerald" | "sky" }) {
   const tones = {
     amber: "bg-amber-50 text-amber-700 border-amber-200",
@@ -190,6 +207,8 @@ export default function ResidentCensusPage() {
 
   const [search, setSearch] = useState("");
   const [purokFilter, setPurokFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -261,6 +280,12 @@ export default function ResidentCensusPage() {
       return true;
     });
   }, [all, purokFilter, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pagedRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const startOffset = filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endOffset = Math.min(currentPage * pageSize, filtered.length);
 
   const stats = useMemo(() => {
     const households = new Set(all.map((r) => r.householdNumber));
@@ -398,11 +423,11 @@ export default function ResidentCensusPage() {
           <Input
             placeholder="Search by name or household number..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="pl-10 h-10 bg-white"
           />
         </div>
-        <Select value={purokFilter} onValueChange={setPurokFilter}>
+        <Select value={purokFilter} onValueChange={(v) => { setPurokFilter(v); setPage(1); }}>
           <SelectTrigger className="w-full sm:w-48 h-10 bg-white">
             <SelectValue placeholder="Filter by purok" />
           </SelectTrigger>
@@ -453,7 +478,7 @@ export default function ResidentCensusPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((r) => (
+                pagedRows.map((r) => (
                   <TableRow key={r._id} className="hover:bg-slate-50/60 transition-colors">
                     <TableCell className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{r.name}</TableCell>
                     <TableCell className="px-4 py-3 text-gray-600">{r.sex}</TableCell>
@@ -501,8 +526,43 @@ export default function ResidentCensusPage() {
           </Table>
         </div>
         {!isLoading && filtered.length > 0 && (
-          <div className="px-4 py-2.5 border-t border-slate-100 text-xs text-gray-400">
-            Showing {filtered.length} of {all.length} records
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-100">
+            <p className="text-xs text-gray-400">
+              Showing <span className="font-medium text-gray-600">{startOffset}–{endOffset}</span> of <span className="font-medium text-gray-600">{filtered.length}</span> records
+            </p>
+            <div className="flex items-center gap-2">
+              <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
+                <SelectTrigger className="h-8 w-[92px] text-xs bg-white">
+                  <SelectValue placeholder="Per page" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[10, 25, 50, 100].map((n) => (
+                    <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" className="h-8 px-2" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>
+                <ChevronLeft className="size-4" />
+              </Button>
+              {getPageItems(totalPages, currentPage).map((p, i) =>
+                p === "..." ? (
+                  <span key={`gap-${i}`} className="px-0.5 text-xs text-gray-400">…</span>
+                ) : (
+                  <Button
+                    key={p}
+                    variant={p === currentPage ? "default" : "outline"}
+                    size="sm"
+                    className={`h-8 min-w-8 px-2 text-xs ${p === currentPage ? "bg-sky-600 hover:bg-sky-700 text-white" : ""}`}
+                    onClick={() => setPage(p)}
+                  >
+                    {p}
+                  </Button>
+                )
+              )}
+              <Button variant="outline" size="sm" className="h-8 px-2" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}>
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
           </div>
         )}
       </div>
