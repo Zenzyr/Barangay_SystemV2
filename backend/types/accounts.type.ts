@@ -7,6 +7,7 @@ export interface accountInterfaceInput {
 
     gender?: string,
     dateOfBirth?: string,
+    age?: string,
     civilStatus?: string,
     purok?: string,
     voterStatus?: string,

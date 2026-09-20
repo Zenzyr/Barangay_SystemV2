@@ -71,6 +71,19 @@ const BLOCKED_EMAIL_DOMAINS = new Set([
   "dummy.com",
 ]);
 
+// Computes full calendar years between a birth date and today.
+function calculateAge(dob: string): number | null {
+  const birth = new Date(dob);
+  if (isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age -= 1;
+  }
+  return age;
+}
+
 const validators: {
   [K in keyof FormValues]: (value: string, values: FormValues) => string;
 } = {
@@ -1041,6 +1054,11 @@ export default function SignUpPage() {
                     />
                   </div>
                   <FieldError message={touched.dateOfBirth ? errors.dateOfBirth : undefined} />
+                  {dateOfBirth && !errors.dateOfBirth && calculateAge(dateOfBirth) !== null && (
+                    <p className="text-xs font-medium text-emerald-600">
+                      Age: {calculateAge(dateOfBirth)} years
+                    </p>
+                  )}
                 </div>
 
                 {/* Civil Status */}

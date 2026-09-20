@@ -2,6 +2,7 @@ import ResidentCensusModel from "../model/residentCensus.model";
 import AccountModel from "../model/account.model";
 import { residentCensusInterfaceInput } from "../types/residentCensus.type";
 import { matchPerson } from "../utils/duplicateCheck";
+import { calculateAge } from "../utils/age";
 
 // Values used to signal "not applicable / unknown" on legacy census records.
 const NVA = ["", "n/a", "na", "none", "null", "-", "undeclared", "not applicable"];
@@ -74,6 +75,7 @@ export class ResidentCensusService {
     if (match) {
       census = await ResidentCensusModel.findByIdAndUpdate(match._id, {
         accountId: _id || undefined,
+        ...(dateOfBirth ? { age: calculateAge(dateOfBirth) } : {}),
       }, { new: true }).lean();
       census = census || match;
     } else {
@@ -81,7 +83,7 @@ export class ResidentCensusService {
         name: name || "N/A",
         sex: gender || "N/A",
         birthday: dateOfBirth || "N/A",
-        age: "N/A",
+        age: dateOfBirth ? calculateAge(dateOfBirth) : "N/A",
         occupation: "N/A",
         education: "N/A",
         purok: purok || "N/A",
@@ -134,6 +136,7 @@ export class ResidentCensusService {
     }
     if (census.sex && census.sex !== "N/A") updates.gender = census.sex;
     if (census.birthday && census.birthday !== "N/A") updates.dateOfBirth = census.birthday;
+    if (census.age && census.age !== "N/A") updates.age = census.age;
     if (census.purok && census.purok !== "N/A") updates.purok = census.purok;
     if (census.householdNumber && census.householdNumber !== "N/A") updates.houseHoldNumber = census.householdNumber;
     if (census.cellphone && census.cellphone !== "N/A") updates.contact = census.cellphone;
@@ -152,7 +155,10 @@ export class ResidentCensusService {
     const updates: Record<string, any> = {};
     if (account.name) updates.name = account.name;
     if (account.gender) updates.sex = account.gender;
-    if (account.dateOfBirth) updates.birthday = account.dateOfBirth;
+    if (account.dateOfBirth) {
+      updates.birthday = account.dateOfBirth;
+      updates.age = calculateAge(account.dateOfBirth);
+    }
     if (account.purok) updates.purok = account.purok;
     if (account.houseHoldNumber) updates.houseHoldNumber = account.houseHoldNumber;
     if (account.contact) updates.cellphone = account.contact;

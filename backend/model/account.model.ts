@@ -17,6 +17,7 @@ const AccountSchema = new Schema({
 
     gender: { type: String, required: false, default: "" },
     dateOfBirth: { type: String, required: false, default: "" },
+    age: { type: String, required: false, default: "" },
     civilStatus: { type: String, required: false, default: "" },
     purok: { type: String, required: false, default: "" },
     voterStatus: { type: String, required: false, default: "" },

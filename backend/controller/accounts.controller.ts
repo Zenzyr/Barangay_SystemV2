@@ -13,6 +13,7 @@ import { formattedDate } from "../utils/customFunc";
 import { sendNotification, sendSms } from "../utils/sms";
 import { smsTemplates } from "../utils/smsTemplates";
 import { sendEmail } from "../utils/email";
+import { calculateAge } from "../utils/age";
 import {
   generateResetCode,
   hashResetCode,
@@ -229,6 +230,8 @@ export class AccountController {
         request.body as accountInterfaceInput;
       const hashedPassword = await bcrypt.hash(password, 10);
 
+      const age = calculateAge(dateOfBirth);
+
       // Public registration can ONLY ever create a resident account.
       // secretary / super_admin are assigned exclusively through the
       // Super Admin role-management process, never from this form.
@@ -249,6 +252,7 @@ export class AccountController {
         email,
         gender,
         dateOfBirth,
+        age,
         civilStatus,
         purok,
         voterStatus,
