@@ -868,8 +868,6 @@ const DOCUMENT_NAMES: Record<string, string> = {
   barangayClearance: "Barangay Certificate",
   certificateOfResidency: "Barangay Certificate of Residency",
   certificateOfIndigency: "Certificate of Indigency",
-  certificateOfGoodMoralCharacter: "Certificate of Good Moral Character",
-  certificateOfUnemployment: "Certificate of Unemployment",
   barangayBusinessClearance: "Barangay Business Clearance",
   certificateOfAttestation: "Certificate of Attestation",
   certificationOfTreesCutting: "Certification of Trees Cutting",

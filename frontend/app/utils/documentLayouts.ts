@@ -113,45 +113,6 @@ export const documentLayouts: DocumentLayout[] = [
     ],
   },
   {
-    document: "certificateOfGoodMoralCharacter",
-    price: 60,
-    title: "Certificate of Good Moral Character",
-    source: "",
-    signatoryPrefix: "HON.",
-    description:
-      "This is to certify that the person named herein has demonstrated good moral character in this Barangay.",
-    body:
-      "This is to certify that {fullName}, a resident of {address}, is personally known to this office to be a person of good moral character, conduct and integrity, and has no derogatory record filed against him/her in this Barangay.\n\n" +
-      "This certification is issued upon request of the above-named person for {purpose} and for whatever legal purpose it may serve.\n\n" +
-      "Issued this {dateIssuedDay} day of {dateIssuedMonth}, {dateIssuedYear} at Barangay Rabon, Rosario, La Union.",
-    fields: [
-      { key: "fullName", label: "Full Name" },
-      { key: "address", label: "Address" },
-      { key: "purpose", label: "Purpose" },
-      { key: "dateIssued", label: "Date Issued", format: "date" },
-    ],
-  },
-  {
-    document: "certificateOfUnemployment",
-    price: 45,
-    title: "Certificate of Unemployment",
-    source: "document/Certificate of Unemployment.pdf",
-    signatoryPrefix: "HON.",
-    description:
-      "This is to certify that the person named herein is currently unemployed.",
-    body:
-      "This is to certify that {fullName}, born on {dateOfBirth}, a resident of {address}, is currently unemployed and is actively looking for employment, job opportunities and livelihood.\n\n" +
-      "This certification is issued upon the request of the above-named person for {purpose} and for whatever legal purpose it may serve.\n\n" +
-      "Issued this {dateIssuedDay} day of {dateIssuedMonth}, {dateIssuedYear} at Barangay Rabon, Rosario, La Union.",
-    fields: [
-      { key: "fullName", label: "Full Name" },
-      { key: "dateOfBirth", label: "Date of Birth", format: "date" },
-      { key: "address", label: "Address" },
-      { key: "purpose", label: "Purpose" },
-      { key: "dateIssued", label: "Date Issued", format: "date" },
-    ],
-  },
-  {
     document: "barangayBusinessClearance",
     price: 80,
     title: "Barangay Business Clearance",

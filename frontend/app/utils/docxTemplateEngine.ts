@@ -415,8 +415,8 @@ function assertRequired(spec: DocxTemplateDefinition, data: DocxTemplateRenderDa
 }
 
 // ── Plain .docx fallback for non-templated documents ─────────────
-// Documents without a shipped Word template (clearance, good moral, etc.)
-// still get a downloadable, editable .docx built from the shared layout
+// Documents without a shipped Word template (clearance, etc.) still
+// get a downloadable, editable .docx built from the shared layout
 // (documentLayouts.ts) — the same content the dynamic PDF renders.
 // Optional signature images are embedded (resolved by role from the
 // Officials collection) when the signatory has one uploaded.
@@ -813,7 +813,7 @@ async function convertDocumentDOCXToPDF(
 }
 
 export async function viewDocumentPDFFromDOCX(doc: documentRequestInterface): Promise<void> {
-  // Document types without a Word template (clearance, good moral, etc.) have
+  // Document types without a Word template (clearance, etc.) have
   // no .docx to render, so preview falls back to the dynamic PDF renderer.
   if (!isDocxTemplated(doc.document)) {
     await viewDocumentPDF(doc);

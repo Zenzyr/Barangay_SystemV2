@@ -58,30 +58,6 @@ export const seedTemplateDefinitions: SeedTemplateDef[] = [
       "Given this {{certificate.date}} at {{barangay.name}}, {{barangay.municipality}}, {{barangay.province}}, for all legal intents and purposes it may serve.",
   },
   {
-    documentType: "certificateOfGoodMoralCharacter",
-    name: "Certificate of Good Moral Character",
-    description: "Character reference for employment or school.",
-    fee: 60,
-    title: "Certificate of Good Moral Character",
-    signaturePosition: "Punong Barangay",
-    body:
-      "This is to certify that {{resident.fullName}}, a resident of {{resident.address}}, is personally known to this office to be a person of good moral character, conduct and integrity, and has no derogatory record filed against him/her in this Barangay.\n\n" +
-      "This certification is issued upon request of the above-named person for {{resident.purpose}} and for whatever legal purpose it may serve.\n\n" +
-      "Issued this {{certificate.date}} at {{barangay.name}}, {{barangay.municipality}}, {{barangay.province}}.",
-  },
-  {
-    documentType: "certificateOfUnemployment",
-    name: "Certificate of Unemployment",
-    description: "Certification of current unemployment status.",
-    fee: 45,
-    title: "Certificate of Unemployment",
-    signaturePosition: "Punong Barangay",
-    body:
-      "This is to certify that {{resident.fullName}}, born on {{resident.dateOfBirth}}, a resident of {{resident.address}}, is currently unemployed and is actively looking for employment, job opportunities and livelihood.\n\n" +
-      "This certification is issued upon the request of the above-named person for {{resident.purpose}} and for whatever legal purpose it may serve.\n\n" +
-      "Issued this {{certificate.date}} at {{barangay.name}}, {{barangay.municipality}}, {{barangay.province}}.",
-  },
-  {
     documentType: "barangayBusinessClearance",
     name: "Barangay Business Clearance",
     description: "Permit for operating a business in the barangay.",

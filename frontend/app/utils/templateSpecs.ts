@@ -371,43 +371,6 @@ const BARANGAY_CERTIFICATION: TemplateSpec = {
   ],
 };
 
-// ── Certificate of Unemployment (document/Certificate of Unemployment.pdf) ──
-// The reference is a form whose letterhead/body/boxes are BAKED into the four
-// embedded images; only the five field values are live text (Liberation Sans,
-// 10pt). Draw order = content-stream order (big form image, then the seal,
-// right-side artwork, and the center badge over its edge).
-const CERTIFICATE_OF_UNEMPLOYMENT: TemplateSpec = {
-  document: "certificateOfUnemployment",
-  page: [612, 792],
-  images: [
-    {
-      asset: "/assets/document-template/unemployment/unemployment-background.png",
-      x: 132.07, y: 282.30, w: 294.35, h: 392.47,
-    },
-    {
-      asset: "/assets/document-template/unemployment/unemployment-seal.png",
-      x: 93.91, y: 534.68, w: 46.33, h: 46.33,
-    },
-    {
-      asset: "/assets/document-template/unemployment/unemployment-right.png",
-      x: 419.61, y: 537.36, w: 48.38, h: 37.70,
-    },
-    {
-      asset: "/assets/document-template/unemployment/unemployment-badge.png",
-      x: 383.68, y: 531.91, w: 57.92, h: 48.38,
-    },
-  ],
-  // Value text sits at the exact baseline the reference used (y = baseline,
-  // padX = 0, baselineOffset = 0); the boxes themselves are baked into the art.
-  boxes: [
-    { field: "fullName", x: 187, y: 566.4, w: 1, h: 1, size: 10, font: "helvetica", padX: 0, baselineOffset: 0 },
-    { field: "dateOfBirth", x: 124, y: 540.4, w: 1, h: 1, size: 10, font: "helvetica", format: "date-iso", padX: 0, baselineOffset: 0 },
-    { field: "address", x: 197, y: 510.4, w: 1, h: 1, size: 10, font: "helvetica", padX: 0, baselineOffset: 0 },
-    { field: "purpose", x: 220, y: 400.4, w: 1, h: 1, size: 10, font: "helvetica", padX: 0, baselineOffset: 0 },
-    { field: "dateIssued", x: 147, y: 340.4, w: 1, h: 1, size: 10, font: "helvetica", format: "date-phrase", padX: 0, baselineOffset: 0 },
-  ],
-};
-
 // The FTJ ref is a mostly-live-text letterhead document over a blank page
 // (only the two flanking logos + center seal are images; officials are baked
 // into the template). The dynamic values exist in the ref as *overlays* that
@@ -499,7 +462,6 @@ export const templateSpecs: TemplateSpec[] = [
   BARANGAY_CLEARANCE,
   CERTIFICATE_OF_INDIGENCY,
   BARANGAY_CERTIFICATION,
-  CERTIFICATE_OF_UNEMPLOYMENT,
   CERTIFICATE_OF_FIRST_TIME_JOBSEEKER,
 ];
 

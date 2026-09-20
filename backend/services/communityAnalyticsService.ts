@@ -287,15 +287,12 @@ export class CommunityAnalyticsService {
     const documents = await DocumentModel.find();
 
     const indigencyRequests = documents.filter((d) => d.document === "certificateOfIndigency");
-    const unemploymentCertRequests = documents.filter((d) => d.document === "certificateOfUnemployment");
 
     return {
       available: true,
       totalRegisteredResidents: accounts.length,
       indigencyRequests: indigencyRequests.length,
       indigencyRequestRate: safeRate(indigencyRequests.length, accounts.length),
-      unemploymentCertRequests: unemploymentCertRequests.length,
-      unemploymentCertRequestRate: safeRate(unemploymentCertRequests.length, accounts.length),
       dataSource: "Documents (self-requested certificates) + Accounts",
       note: "This uses a different population (registered login residents, N=" + accounts.length + ") than the census-based sectors above. Counts reflect residents who requested these certificates themselves and are a self-reported signal, not a full survey.",
     };

@@ -18,8 +18,6 @@ const DOCUMENT_NAMES: Record<string, string> = {
   barangayClearance: "Barangay Clearance",
   certificateOfResidency: "Certificate of Residency",
   certificateOfIndigency: "Certificate of Indigency",
-  certificateOfGoodMoralCharacter: "Certificate of Good Moral Character",
-  certificateOfUnemployment: "Certificate of Unemployment",
   barangayBusinessClearance: "Barangay Business Clearance",
   certificateOfAttestation: "Certificate of Attestation",
   certificationOfTreesCutting: "Certification of Trees Cutting",
@@ -241,7 +239,6 @@ export class AnalyticsService {
     };
 
     const indigency = docs.filter((d) => d.document === "certificateOfIndigency");
-    const unemploymentCert = docs.filter((d) => d.document === "certificateOfUnemployment");
 
     return {
       totalResidents: community.totalResidents,
@@ -273,8 +270,6 @@ export class AnalyticsService {
         totalRegisteredResidents: accounts.length,
         indigencyRequests: indigency.length,
         indigencyRequestRate: safeRate(indigency.length, accounts.length),
-        unemploymentCertRequests: unemploymentCert.length,
-        unemploymentCertRequestRate: safeRate(unemploymentCert.length, accounts.length),
       },
     };
   }
