@@ -52,7 +52,7 @@ import { SystemInfoService } from "../services/systemInfo.service";
 
 import { WorkService } from "../services/work.service";
 import { AuditLogService } from "../services/auditLog.service";
-import { ROLES, ROLE_LIST } from "../utils/roles";
+import { ROLES, ROLE_LIST, isStaffRole } from "../utils/roles";
 import {
   assessPersonRegistration,
   buildDuplicateReport,
@@ -1656,7 +1656,11 @@ export class AccountController {
       // Accounts explicitly marked as email-unverified cannot sign in.
       // (Accounts created before email verification existed are left
       // untouched — `undefined` does not block them.)
-      if (account.emailVerified === false) {
+      // Secretary and super_admin accounts are exempt — their roles are
+      // assigned by a trusted super admin, so email ownership proof is
+      // not required for staff to log in.
+      const accountRole = account.role || "resident";
+      if (account.emailVerified === false && !isStaffRole(accountRole)) {
         response
           .status(403)
           .send(

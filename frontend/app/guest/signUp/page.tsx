@@ -929,7 +929,7 @@ export default function SignUpPage() {
       </nav>
 
       {/* Main Content */}
-      <div className="relative max-w-3xl mx-auto px-4 py-8 sm:py-12">
+      <div className="relative max-w-3xl mx-auto px-4 py-8 sm:py-12 overflow-x-hidden">
         <div className="pointer-events-none absolute -top-20 -left-20 size-72 rounded-full bg-sky-200/40 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-20 -right-20 size-72 rounded-full bg-emerald-200/40 blur-3xl" />
 
@@ -959,8 +959,8 @@ export default function SignUpPage() {
                 <div className="size-2 rounded-full bg-gradient-to-r from-sky-400 to-emerald-400" />
                 Personal Information
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+                <div className="space-y-1.5 min-w-0">
                   <Label htmlFor="name" className="text-sm font-medium text-gray-700">
                     Full Name
                   </Label>
