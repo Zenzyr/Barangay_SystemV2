@@ -29,6 +29,7 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
+  SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -167,9 +168,6 @@ interface AppSidebarProps {
 
 
 export function SidebarSecretary({ className }: AppSidebarProps) {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen)
-  const closeMobileMenu = () => setIsMobileMenuOpen(false)
   const queryClient = useQueryClient()
   const router = useRouter()
   const pathname = usePathname()
@@ -181,7 +179,6 @@ export function SidebarSecretary({ className }: AppSidebarProps) {
     queryClient.clear();
     localStorage.clear();
     sessionStorage.clear();
-    setIsMobileMenuOpen(false);
     router.replace("/");
   };
 
@@ -190,75 +187,8 @@ export function SidebarSecretary({ className }: AppSidebarProps) {
       {/* ── Mobile Navbar ── */}
       <div className="fixed left-0 right-0 top-0 z-50 flex items-center justify-between border-b border-slate-200/50 bg-white/50 px-4 py-3 shadow-sm backdrop-blur-md lg:hidden">
         <SidebarBrand subtitle="Secretary" href="/pages/secretary/home" />
-        <button
-          onClick={toggleMobileMenu}
-          aria-label="Toggle menu"
-          className="rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100"
-        >
-          {isMobileMenuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
-        </button>
+        <SidebarTrigger />
       </div>
-
-      {/* ── Mobile Sidebar Drawer ── */}
-      {isMobileMenuOpen && (
-        <div
-          className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm lg:hidden"
-          onClick={closeMobileMenu}
-        >
-          <div
-            className="flex h-full w-72 max-w-[85vw] flex-col bg-white/70 backdrop-blur-md shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4">
-              <SidebarBrand
-                subtitle="Secretary"
-                href="/pages/secretary/home"
-                onNavigate={closeMobileMenu}
-              />
-              <button
-                onClick={closeMobileMenu}
-                aria-label="Close menu"
-                className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100"
-              >
-                <X className="size-5" />
-              </button>
-            </div>
-
-            <nav className="scrollbar-thin flex-1 space-y-1 overflow-y-auto px-3 py-4">
-              {navigationItems.map((item) =>
-                isNavGroup(item) ? (
-                  <NavGroup
-                    key={item.title}
-                    item={item}
-                    isActive={isActive}
-                    onNavigate={closeMobileMenu}
-                    textSizeClass="text-sm"
-                  />
-                ) : (
-                  <NavLink
-                    key={item.title}
-                    item={item}
-                    active={isActive(item.url)}
-                    onNavigate={closeMobileMenu}
-                    textSizeClass="text-sm"
-                  />
-                )
-              )}
-            </nav>
-
-            <div className="border-t border-slate-100 p-3">
-              <button
-                type="button"
-                onClick={logoutHandler}
-                className="flex w-full items-center gap-3 rounded-xl bg-rose-50/70 px-3 py-2.5 text-sm font-medium text-rose-600 transition-all duration-200 hover:bg-rose-100/80 hover:text-rose-700"
-              >
-                <LogOut className="size-4 shrink-0 text-rose-500" />
-                <span className="flex-1">Logout</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Desktop Sidebar ── */}
       <Sidebar
