@@ -41,6 +41,8 @@ export default function RequestActionsMenu({ actions, align = "right", disabled 
             top: rect.top,
             left: rect.left
         });
+        console.log("Menu button rect:", rect);
+
     }
 
     const onPointerDown = (e: PointerEvent) => {
