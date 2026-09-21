@@ -81,7 +81,7 @@ export default function RequestActionsMenu({ actions, align = "right", disabled 
       {open && (
         <div
           className={cn(
-            "fixed z-[100] mt-1 w-48 min-w-[10rem] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg p-1",
+            "fixed z-[1000] mt-1 w-48 min-w-[10rem] overflow-hidden rounded-xl border border-2 border-red-500 bg-white shadow-lg p-1",
             align === "right" ? "right-4" : "left-4"
           )}
           style={{ 
