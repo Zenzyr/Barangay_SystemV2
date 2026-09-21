@@ -91,7 +91,7 @@ export default function Page() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
-      <BackButton />
+      <BackButton href="/pages/secretary/home" />
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-800">
           Barangay Settings

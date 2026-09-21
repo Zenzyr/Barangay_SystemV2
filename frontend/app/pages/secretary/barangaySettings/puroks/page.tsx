@@ -30,6 +30,7 @@ import {
 import { purokApi } from "@/app/utils/barangayApi";
 import { successAlert, errorAlert } from "@/app/utils/alert";
 import { purokInterface, purokInput } from "@/app/types/purok.type";
+import { BackButton } from "@/components/ui/BackButton";
 
 interface ApiError {
   response?: { data?: { message?: string } };
@@ -43,7 +44,7 @@ interface PurokResident {
 }
 
 export default function Page() {
-  const router = useRouter();
+
   const queryClient = useQueryClient();
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -114,6 +115,8 @@ export default function Page() {
 
   if (isLoading) {
     return (
+      <BackButton href="/pages/secretary/barangaySettings" />
+
       <div className="mx-auto max-w-5xl space-y-4 px-4 py-8">
         <Skeleton className="h-8 w-56" />
         <Skeleton className="h-40 w-full" />
@@ -123,6 +126,8 @@ export default function Page() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 px-4 py-8">
+      <BackButton href="/pages/secretary/barangaySettings" />
+
       <div className="flex items-center justify-between">
         <div>
           <Button variant="ghost" size="sm" className="-ml-2 text-slate-500" onClick={() => router.push("/pages/secretary/barangaySettings")}>
