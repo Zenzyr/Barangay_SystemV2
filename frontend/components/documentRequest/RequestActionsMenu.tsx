@@ -38,8 +38,8 @@ export default function RequestActionsMenu({ actions, align = "right", disabled 
     if (buttonRef.current) {
         const rect = buttonRef.current.getBoundingClientRect();
         setPosition({
-            top: rect.top + window.scrollY,
-            left: rect.left + window.scrollX
+            top: rect.top,
+            left: rect.left
         });
     }
 
