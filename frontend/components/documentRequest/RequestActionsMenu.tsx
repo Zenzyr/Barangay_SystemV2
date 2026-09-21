@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -27,10 +28,21 @@ interface Props {
  */
 export default function RequestActionsMenu({ actions, align = "right", disabled }: Props) {
   const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
+
+    if (buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        setPosition({
+            top: rect.top + window.scrollY,
+            left: rect.left + window.scrollX
+        });
+    }
+
     const onPointerDown = (e: PointerEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
@@ -47,25 +59,13 @@ export default function RequestActionsMenu({ actions, align = "right", disabled 
     };
   }, [open]);
 
-  return (
-    <div ref={containerRef} className="relative inline-block">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
-        aria-label="More actions"
-        className="h-7 w-7 text-gray-500 hover:text-gray-800 hover:bg-gray-100"
-      >
-        <MoreVertical className="size-4" />
-      </Button>
-
-      {open && (
+  const menu = (
         <div
           className={cn(
-            "absolute z-50 mt-1 w-48 min-w-[10rem] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg p-1",
-            align === "right" ? "right-0" : "left-0"
+            "fixed z-[100] mt-1 w-48 min-w-[10rem] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg p-1",
+            align === "right" ? "right-4" : "left-4"
           )}
+          style={{ top: position.top + 30, left: align === "right" ? undefined : position.left, right: align === "right" ? window.innerWidth - position.left - 30 : undefined }}
         >
           {actions.map((action) => {
             const Icon = action.icon;
@@ -88,7 +88,23 @@ export default function RequestActionsMenu({ actions, align = "right", disabled 
             );
           })}
         </div>
-      )}
+  );
+
+  return (
+    <div ref={containerRef} className="relative inline-block">
+      <Button
+        ref={buttonRef}
+        variant="ghost"
+        size="icon-sm"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        aria-label="More actions"
+        className="h-7 w-7 text-gray-500 hover:text-gray-800 hover:bg-gray-100"
+      >
+        <MoreVertical className="size-4" />
+      </Button>
+
+      {open && createPortal(menu, document.body)}
     </div>
   );
 }
