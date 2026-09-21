@@ -59,21 +59,47 @@ export default function RequestActionsMenu({ actions, align = "right", disabled 
     };
   }, [open]);
 
-  const menu = (
+  return (
+    <div ref={containerRef} className="relative inline-block">
+      <Button
+        ref={buttonRef}
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        disabled={disabled}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        aria-label="More actions"
+        className="h-7 w-7 text-gray-500 hover:text-gray-800 hover:bg-gray-100"
+      >
+        <MoreVertical className="size-4" />
+      </Button>
+
+      {open && (
         <div
           className={cn(
             "fixed z-[100] mt-1 w-48 min-w-[10rem] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg p-1",
             align === "right" ? "right-4" : "left-4"
           )}
-          style={{ top: position.top + 30, left: align === "right" ? undefined : position.left, right: align === "right" ? window.innerWidth - position.left - 30 : undefined }}
+          style={{ 
+            top: position.top + 30, 
+            left: align === "right" ? undefined : position.left, 
+            right: align === "right" ? window.innerWidth - position.left - 30 : undefined 
+          }}
         >
           {actions.map((action) => {
             const Icon = action.icon;
             return (
               <button
                 key={action.key}
+                type="button"
                 disabled={action.disabled}
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   setOpen(false);
                   action.onClick();
                 }}
@@ -88,23 +114,7 @@ export default function RequestActionsMenu({ actions, align = "right", disabled 
             );
           })}
         </div>
-  );
-
-  return (
-    <div ref={containerRef} className="relative inline-block">
-      <Button
-        ref={buttonRef}
-        variant="ghost"
-        size="icon-sm"
-        disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
-        aria-label="More actions"
-        className="h-7 w-7 text-gray-500 hover:text-gray-800 hover:bg-gray-100"
-      >
-        <MoreVertical className="size-4" />
-      </Button>
-
-      {open && createPortal(menu, document.body)}
+      )}
     </div>
   );
 }
