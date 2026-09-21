@@ -12,6 +12,7 @@ import {
   Trash2,
   ArrowLeft,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/BackButton";
 import useBarangaySettingsStore from "@/app/store/useBarangaySettingsStore";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -223,9 +224,7 @@ const isSingle = SINGLE_HOLDER_POSITIONS.includes(
     <div className="mx-auto max-w-5xl space-y-4 px-4 py-8">
       <div className="flex items-center justify-between">
         <div>
-          <Button variant="ghost" size="sm" className="-ml-2 text-slate-500" onClick={() => router.push("/pages/secretary/barangaySettings")}>
-            <ArrowLeft className="size-4" /> Back to Settings
-          </Button>
+          <BackButton />
           <h1 className="text-2xl font-bold tracking-tight text-slate-800">
             <Users className="mr-2 inline size-6 text-sky-600" />
             Barangay Officials

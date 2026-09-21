@@ -1,4 +1,6 @@
 "use client";
+import { BackButton } from "@/components/ui/BackButton";
+
 
 import { useQuery } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
@@ -64,6 +66,7 @@ export default function DecisionSupportPage() {
 
   return (
     <div className="w-full min-h-dvh p-4 sm:p-6 space-y-6">
+      <BackButton />
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div className="flex items-center gap-3">

@@ -1,6 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { BackButton } from "@/components/ui/BackButton";
+
 import { useSuperAdminGuard } from "@/app/hooks/useRoleGuard";
 import {
   Users,
@@ -89,6 +91,7 @@ export default function Page() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
+      <BackButton />
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-800">
           Barangay Settings

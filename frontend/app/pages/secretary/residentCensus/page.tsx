@@ -53,6 +53,8 @@ import {
   ChevronRight,
   Eye,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/BackButton";
+
 
 // ─── Types ────────────────────────────────────────────────────────
 interface ResidentCensusRecord {
@@ -549,6 +551,8 @@ export default function ResidentCensusPage() {
 
   return (
     <div className="w-full min-h-dvh p-4 sm:p-6 space-y-6">
+      <BackButton />
+
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
