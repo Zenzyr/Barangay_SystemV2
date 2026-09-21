@@ -14,6 +14,7 @@ import axiosInstance from "./axios";
 import { formatDateParts, formatFieldValue, formatDateMDY } from "./documentFormat";
 import { getTemplateSpec } from "./templateSpecs";
 import { getTemplates, generateTemplatePDF } from "./templateService";
+import { renderPdfByType } from "./documentTemplateService";
 
 import { renderTemplatePDF } from "./templateDocumentRenderer";
 import { sanitizeImageUrl } from "./documentImageUrl";
@@ -387,7 +388,23 @@ export async function buildDynamicDocumentPDF(doc: documentRequestInterface): Pr
   bytes: Uint8Array;
   snapshot: Record<string, string>;
 }> {
-  // 1. Check for New DB-driven Template
+  // 1. New tiptap DocumentTemplate (admin-edited in the PDF template builder).
+  //    Renders server-side by matching the active template to the request's
+  //    document type; falls through to the legacy system when none is bound.
+  if (doc._id) {
+    const bytes = await renderPdfByType(doc._id);
+    if (bytes) {
+      return {
+        bytes,
+        snapshot: {
+          type: "db-generated",
+          dateIssued: new Date().toISOString(),
+        },
+      };
+    }
+  }
+
+  // 2. Legacy DB-driven Template (certificate-templates)
   const templates = await getTemplates();
   const dbTemplate = templates.find((t) => t.documentType === doc.document);
   

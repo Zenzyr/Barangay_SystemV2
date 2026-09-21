@@ -7,6 +7,7 @@ import axiosInstance from "./axios";
 import { formatDateParts, formatFieldValue, formatDateMDY } from "./documentFormat";
 import { getDocumentLayout, DocumentLayout } from "./documentLayouts";
 import { viewDocumentPDF, generateDocumentPDF } from "./dynamicDocumentGenerator";
+import { renderDocxByType } from "./docxTemplateService";
 
 /**
  * DOCX template engine (docxtemplater + PizZip).
@@ -679,20 +680,10 @@ async function buildLayoutDocxPkg(
 export async function buildDynamicDocumentDOCX(
   doc: documentRequestInterface
 ): Promise<{ bytes: Uint8Array; header: string; snapshot: Record<string, string> }> {
-  const spec = await getDocxTemplateSpec(doc.document);
-  if (!spec) {
-    throw new Error(`No DOCX template configured for: ${doc.document}`);
-  }
-
   const store = useBarangaySettingsStore.getState();
   if (!store.loaded) await store.refresh();
   const s = useBarangaySettingsStore.getState();
   const activeByPosition = s.activeByPosition();
-  const rosterByPosition = s.activeOfficialsByPosition();
-
-  const data = buildDocumentData(doc, s.settings ?? undefined, activeByPosition, rosterByPosition);
-  assertRequired(spec, data);
-  const bytes = await renderDocxTemplate(spec, data);
 
   const header =
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -700,6 +691,27 @@ export async function buildDynamicDocumentDOCX(
     ...activeByPosition,
     dateIssued: new Date().toISOString(),
   };
+
+  // 1. Admin-edited DOCX template bound to this document type. The backend
+  //    fills it with the request's live data; null means none is bound.
+  if (doc._id) {
+    const bytes = await renderDocxByType(doc._id);
+    if (bytes) {
+      return { bytes, header, snapshot };
+    }
+  }
+
+  // 2. Static asset fallback (the bundled split templates).
+  const spec = await getDocxTemplateSpec(doc.document);
+  if (!spec) {
+    throw new Error(`No DOCX template configured for: ${doc.document}`);
+  }
+
+  const rosterByPosition = s.activeOfficialsByPosition();
+  const data = buildDocumentData(doc, s.settings ?? undefined, activeByPosition, rosterByPosition);
+  assertRequired(spec, data);
+  const bytes = await renderDocxTemplate(spec, data);
+
   return { bytes, header, snapshot };
 }
 
@@ -727,36 +739,40 @@ export async function viewDocumentDOCX(doc: documentRequestInterface): Promise<v
 
 export async function generateDocumentDOCX(doc: documentRequestInterface): Promise<void> {
   try {
-    let bytes: Uint8Array;
-    let header: string;
-    let snapshot: Record<string, string>;
-    let fileName: string;
+    let built: {
+      bytes: Uint8Array;
+      header: string;
+      snapshot: Record<string, string>;
+    } | null = null;
+    let fileName = DOCX_FILE_NAMES[doc.document] || `${doc.document}.docx`;
 
-    if (isDocxTemplated(doc.document)) {
-      const built = await buildDynamicDocumentDOCX(doc);
-      bytes = built.bytes;
-      header = built.header;
-      snapshot = built.snapshot;
-      fileName = DOCX_FILE_NAMES[doc.document] || `${doc.document}.docx`;
-    } else {
+    try {
+      built = await buildDynamicDocumentDOCX(doc);
+    } catch {
+      built = null;
+    }
+
+    if (!built) {
       // No Word template: build a plain, editable .docx from the shared layout.
       const store = useBarangaySettingsStore.getState();
       if (!store.loaded) await store.refresh();
       const s = useBarangaySettingsStore.getState();
       const activeByPosition = s.activeByPosition();
       const activeSignatureByPosition = s.activeSignatureByPosition();
-      const built = await buildLayoutPlainDocx(doc, activeByPosition, activeSignatureByPosition);
-      bytes = built.bytes;
-      header = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-      snapshot = { ...activeByPosition, dateIssued: new Date().toISOString() };
-      fileName = built.fileName;
+      const plain = await buildLayoutPlainDocx(doc, activeByPosition, activeSignatureByPosition);
+      built = {
+        bytes: plain.bytes,
+        header: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        snapshot: { ...activeByPosition, dateIssued: new Date().toISOString() },
+      };
+      fileName = plain.fileName;
     }
 
     // Persist officials snapshot (same as the PDF path)
     if (doc._id) {
       try {
         await axiosInstance.patch(`/document-request/${doc._id}/snapshot`, {
-          snapshot,
+          snapshot: built.snapshot,
         });
       } catch {
         // Non-blocking
@@ -764,7 +780,7 @@ export async function generateDocumentDOCX(doc: documentRequestInterface): Promi
     }
 
     // @ts-expect-error — Uint8Array is a valid BlobPart
-    const blob = new Blob([bytes], { type: header });
+    const blob = new Blob([built.bytes], { type: built.header });
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement("a");
@@ -813,26 +829,30 @@ async function convertDocumentDOCXToPDF(
 }
 
 export async function viewDocumentPDFFromDOCX(doc: documentRequestInterface): Promise<void> {
-  // Document types without a Word template (clearance, etc.) have
-  // no .docx to render, so preview falls back to the dynamic PDF renderer.
-  if (!isDocxTemplated(doc.document)) {
+  try {
+    const { blob } = await convertDocumentDOCXToPDF(doc);
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch {
+    // No Word template for this document type (clearance, etc.): preview
+    // falls back to the dynamic PDF renderer.
     await viewDocumentPDF(doc);
-    return;
   }
-  const { blob } = await convertDocumentDOCXToPDF(doc);
-  const url = URL.createObjectURL(blob);
-  window.open(url, "_blank");
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 export async function generateDocumentPDFFromDOCX(doc: documentRequestInterface): Promise<void> {
   try {
-    // No Word template → fall back to the dynamic PDF renderer.
-    if (!isDocxTemplated(doc.document)) {
+    let blob: Blob;
+    let fileName: string;
+    let snapshot: Record<string, string>;
+    try {
+      ({ blob, fileName, snapshot } = await convertDocumentDOCXToPDF(doc));
+    } catch {
+      // No Word template → fall back to the dynamic PDF renderer.
       await generateDocumentPDF(doc);
       return;
     }
-    const { blob, fileName, snapshot } = await convertDocumentDOCXToPDF(doc);
 
     // Persist officials snapshot (same as the DOCX path)
     if (doc._id) {

@@ -13,6 +13,7 @@ import {
   ArrowLeft,
   Loader2,
   Users,
+  MoreVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +32,17 @@ import { purokApi } from "@/app/utils/barangayApi";
 import { successAlert, errorAlert } from "@/app/utils/alert";
 import { purokInterface, purokInput } from "@/app/types/purok.type";
 import { BackButton } from "@/components/ui/BackButton";
+import RequestActionsMenu, { RequestActionItem } from "@/components/documentRequest/RequestActionsMenu";
+
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+} from "@/components/ui/table";
+
 
 interface ApiError {
   response?: { data?: { message?: string } };
@@ -46,6 +58,7 @@ interface PurokResident {
 export default function Page() {
 
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<purokInterface | null>(null);
@@ -115,12 +128,14 @@ export default function Page() {
 
   if (isLoading) {
     return (
-      <BackButton href="/pages/secretary/barangaySettings" />
+      <>
+        <BackButton href="/pages/secretary/barangaySettings" />
 
-      <div className="mx-auto max-w-5xl space-y-4 px-4 py-8">
-        <Skeleton className="h-8 w-56" />
-        <Skeleton className="h-40 w-full" />
-      </div>
+        <div className="mx-auto max-w-5xl space-y-4 px-4 py-8">
+          <Skeleton className="h-8 w-56" />
+          <Skeleton className="h-40 w-full" />
+        </div>
+      </>
     );
   }
 
@@ -146,53 +161,82 @@ export default function Page() {
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {puroks.length === 0 && (
-          <p className="text-sm text-muted-foreground sm:col-span-full">
-            No puroks yet. Add the puroks in your barangay.
-          </p>
-        )}
-        {puroks.map((p) => (
-          <div key={p._id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="font-semibold text-slate-800">{p.name}</p>
-                <p className="text-xs text-slate-500">
-                  {p.leader ? `Leader: ${p.leader}` : "No leader"} ·{" "}
-                  {p.contact ? p.contact : "No contact"}
-                </p>
-              </div>
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" onClick={() => { setViewing(p); }}>
-                  <Users className="size-4" />
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => { setEditing(p); setModalOpen(true); }}>
-                  <Pencil className="size-4" />
-                </Button>
-                <Button
-                  variant={p.status === "active" ? "ghost" : "outline"}
-                  size="sm"
-                  onClick={() => statusMut.mutate({ id: p._id, status: p.status === "active" ? "inactive" : "active" })}
-                  title={p.status === "active" ? "Deactivate" : "Activate"}
-                >
-                  <Power className="size-4" />
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => removePurok(p)}>
-                  <Trash2 className="size-4 text-rose-500" />
-                </Button>
-              </div>
-            </div>
-            {p.description && (
-              <p className="mt-2 text-sm text-slate-600">{p.description}</p>
-            )}
-            <span className={
-              "mt-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold " +
-              (p.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500")
-            }>
-              {p.status.toUpperCase()}
-            </span>
-          </div>
-        ))}
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b border-slate-100">
+                <TableHead className="p-4 md:p-2">Purok Name</TableHead>
+                <TableHead className="p-4 md:p-2">Leader</TableHead>
+                <TableHead className="p-4 md:p-2">Contact</TableHead>
+                <TableHead className="p-4 md:p-2">Status</TableHead>
+                <TableHead className="p-4 md:p-2 text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {puroks.map((p) => (
+                <TableRow key={p._id} className="border-b border-slate-100 hover:bg-slate-50/50">
+                  <TableCell className="font-medium text-slate-800 p-4 md:p-2">{p.name}</TableCell>
+                  <TableCell className="text-sm text-slate-500 p-4 md:p-2">{p.leader || "—"}</TableCell>
+                  <TableCell className="text-sm text-slate-500 p-4 md:p-2">{p.contact || "—"}</TableCell>
+                  <TableCell className="p-4 md:p-2">
+                    <span className={
+                      "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold " +
+                      (p.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500")
+                    }>
+                      {p.status.toUpperCase()}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right p-4 md:p-2">
+                    <RequestActionsMenu
+                      actions={[
+                        {
+                          key: "view",
+                          label: "View Residents",
+                          icon: Users,
+                          onClick: () => setViewing(p),
+                        },
+                        {
+                          key: "edit",
+                          label: "Edit",
+                          icon: Pencil,
+                          onClick: () => {
+                            setEditing(p);
+                            setModalOpen(true);
+                          },
+                        },
+                        {
+                          key: "status",
+                          label: p.status === "active" ? "Deactivate" : "Activate",
+                          icon: Power,
+                          onClick: () =>
+                            statusMut.mutate({
+                              id: p._id,
+                              status: p.status === "active" ? "inactive" : "active",
+                            }),
+                        },
+                        {
+                          key: "delete",
+                          label: "Delete",
+                          icon: Trash2,
+                          className: "text-rose-500",
+                          onClick: () => removePurok(p),
+                        },
+                      ]}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))}
+              {puroks.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-sm text-slate-500 py-8">
+                    No puroks yet. Add the puroks in your barangay.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       <PurokFormDialog

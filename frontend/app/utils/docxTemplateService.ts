@@ -50,6 +50,29 @@ export async function seedDocxTemplates(): Promise<{
   return res.data;
 }
 
+/**
+ * Renders the DOCX template bound to a document request's type, filled with
+ * that request's live data. Returns null when no template is bound (404), so
+ * callers can fall back to the static assets.
+ */
+export async function renderDocxByType(
+  requestId: string,
+): Promise<Uint8Array | null> {
+  try {
+    const res = await axiosInstance.post(
+      `${BASE}/render-by-type`,
+      { requestId },
+      { responseType: "arraybuffer" },
+    );
+    return new Uint8Array(res.data);
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
 export interface DocxExportOptions {
   editorContent?: JSONContent;
   name?: string;

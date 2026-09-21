@@ -7,7 +7,7 @@ import Official from "../model/official.model";
 import DocumentRequestModel from "../model/documentRequest.model";
 import {
   seedTemplateDefinitions,
-  SeedTemplateDef,
+  buildSeedEditorContent,
 } from "../data/documentTemplateSeed";
 import { resolveVariableValues } from "../utils/templateVariables";
 import { validateTiptapDoc } from "../utils/tiptapDoc";
@@ -320,6 +320,18 @@ export class DocumentTemplateService {
   static async seedDefaults() {
     const created: string[] = [];
     let existingCount = 0;
+    // One-off rename: early seeds used "goodMoralCharacter", which never
+    // matched the actual request code. Preserve the admin's edits by
+    // rebinding rather than creating a duplicate.
+    if (
+      (await DocumentTemplate.exists({ documentType: "goodMoralCharacter" })) &&
+      !(await DocumentTemplate.exists({ documentType: "certificateOfGoodMoralCharacter" }))
+    ) {
+      await DocumentTemplate.updateOne(
+        { documentType: "goodMoralCharacter" },
+        { $set: { documentType: "certificateOfGoodMoralCharacter" } },
+      );
+    }
     for (const def of seedTemplateDefinitions) {
       const exists = await DocumentTemplate.findOne({
         documentType: def.documentType,
@@ -333,16 +345,8 @@ export class DocumentTemplateService {
         description,
         fee,
         documentType,
-        title,
-        body,
-        signaturePosition,
       } = def;
-      const elements = this.buildDefaultElements({
-        title,
-        body,
-        documentType,
-        signaturePosition,
-      });
+      const { editorContent, page } = buildSeedEditorContent(def);
       await DocumentTemplate.create({
         name,
         description,
@@ -352,134 +356,15 @@ export class DocumentTemplateService {
         status: "active",
         isDefault: true,
         version: 1,
-        page: {
-          size: "A4",
-          orientation: "portrait",
-          unit: "pt",
-          margins: { top: 50, right: 50, bottom: 50, left: 50 },
-          background: "",
-          watermark: "",
-        },
-        elements,
+        page,
+        contentFormat: "tiptap",
+        editorContent,
+        elements: [],
         signatoryConfig: {},
       });
       created.push(documentType);
     }
     return { created, existingCount, total: seedTemplateDefinitions.length };
-  }
-
-  static buildDefaultElements(opts: {
-    title: string;
-    body: string;
-    documentType: string;
-    signaturePosition: string;
-  }): any[] {
-    const elements: any[] = [];
-    const add = (el: any) => elements.push({ zIndex: elements.length, ...el });
-    const centerX = 297;
-
-    // 1. Republic header
-    add({
-      id: "hdr-republic",
-      type: "text",
-      content: "REPUBLIC OF THE PHILIPPINES",
-      x: 60,
-      y: 46,
-      width: 475,
-      height: 16,
-      fontSize: 12,
-      fontWeight: "bold",
-      alignment: "center",
-    });
-    add({
-      id: "hdr-barangay",
-      type: "text",
-      content:
-        "{{barangay.name}}, {{barangay.municipality}}, {{barangay.province}}",
-      x: 60,
-      y: 66,
-      width: 475,
-      height: 14,
-      fontSize: 11,
-      alignment: "center",
-    });
-    add({
-      id: "hdr-line",
-      type: "line",
-      x: 60,
-      y: 92,
-      width: 475,
-      height: 1,
-      strokeWidth: 1,
-    });
-
-    // 2. Title
-    add({
-      id: "title",
-      type: "text",
-      content: opts.title.toUpperCase(),
-      x: 60,
-      y: 120,
-      width: 475,
-      height: 26,
-      fontSize: 16,
-      fontWeight: "bold",
-      underline: false,
-      alignment: "center",
-    });
-
-    // 3. Certificate number + date line
-    add({
-      id: "meta-number",
-      type: "dynamicText",
-      field: "certificate.number",
-      x: 60,
-      y: 168,
-      width: 240,
-      height: 14,
-      fontSize: 11,
-      alignment: "left",
-    });
-    add({
-      id: "meta-date",
-      type: "dynamicText",
-      field: "certificate.date",
-      x: 340,
-      y: 168,
-      width: 195,
-      height: 14,
-      fontSize: 11,
-      alignment: "right",
-    });
-
-    // 4. Body
-    add({
-      id: "body",
-      type: "text",
-      content: opts.body,
-      x: 70,
-      y: 200,
-      width: 455,
-      height: 300,
-      fontSize: 12,
-      alignment: "justify",
-      lineHeight: 1.5,
-      wrapText: true,
-    });
-
-    // 5. Signature block (right side)
-    add({
-      id: "sig-block",
-      type: "signature",
-      signaturePosition: opts.signaturePosition,
-      x: 300,
-      y: 640,
-      width: 240,
-      height: 110,
-      alignment: "center",
-    });
-
-    return elements;
   }
 
   // ── Field resolution context ──────────────────────────────────────

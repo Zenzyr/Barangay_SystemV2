@@ -12,6 +12,9 @@ const STAFF = [ROLES.SECRETARY, ROLES.SUPER_ADMIN] as const;
 route.get("/", authenticateJWT, requireRoles(...STAFF), handler(DocxTemplateController.list));
 route.get("/variables", authenticateJWT, requireRoles(...STAFF), handler(DocxTemplateController.variables));
 route.post("/seed", authenticateJWT, requireRoles(ROLES.SUPER_ADMIN), handler(DocxTemplateController.seed));
+// Any authenticated user (residents included) may render the template bound to
+// a document type for their own request. Registered before "/:id".
+route.post("/render-by-type", authenticateJWT, handler(DocxTemplateController.renderByType));
 route.get("/:id", authenticateJWT, requireRoles(...STAFF), handler(DocxTemplateController.get));
 route.put("/:id", authenticateJWT, requireRoles(...STAFF), handler(DocxTemplateController.update));
 route.post("/:id/duplicate", authenticateJWT, requireRoles(...STAFF), handler(DocxTemplateController.duplicate));

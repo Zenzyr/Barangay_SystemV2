@@ -33,6 +33,10 @@ const DocTemplateSchema = new Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: 150 },
     slug: { type: String, required: true, trim: true, lowercase: true, unique: true },
+    // Maps the template to a document request code (e.g. certificateOfIndigency)
+    // so the secretary's DOCX/PDF generation finds it when no static asset
+    // exists. Empty for variants and user-created templates.
+    documentType: { type: String, trim: true, default: "" },
     // Source .docx this template was recreated from (seed dedupe key). Empty
     // for user-created/duplicated templates.
     originalFilename: { type: String, trim: true, default: "" },
@@ -53,5 +57,8 @@ DocTemplateSchema.index(
   { originalFilename: 1 },
   { unique: true, partialFilterExpression: { originalFilename: { $type: "string", $gt: "" } } }
 );
+
+// Lookups by document request code (render-by-type during generation).
+DocTemplateSchema.index({ documentType: 1 });
 
 export default mongoose.model("DocTemplate", DocTemplateSchema);

@@ -1,3 +1,4 @@
+import axios from "axios";
 import axiosInstance from "@/app/utils/axios";
 import type { JSONContent } from "@tiptap/react";
 
@@ -125,4 +126,23 @@ export const previewTemplateContentPdf = async (
 ): Promise<string> => {
   const response = await axiosInstance.post("/document-templates/preview", { editorContent, page }, { responseType: "blob" });
   return URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+};
+
+/**
+ * Renders the active PDF template bound to a document request's type, filled
+ * with that request's live data. Returns null when no template is bound (404),
+ * so callers can fall back to the legacy certificate templates.
+ */
+export const renderPdfByType = async (requestId: string): Promise<Uint8Array | null> => {
+  try {
+    const response = await axiosInstance.post(
+      "/document-templates/render-by-type",
+      { requestId },
+      { responseType: "arraybuffer" }
+    );
+    return new Uint8Array(response.data);
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) return null;
+    throw error;
+  }
 };

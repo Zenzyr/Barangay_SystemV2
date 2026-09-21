@@ -7,6 +7,7 @@ import {
 import { DocumentTemplateRenderer } from "../services/documentTemplateRenderer.service";
 import { isObjectId } from "../utils/validation";
 import { validateTiptapDoc } from "../utils/tiptapDoc";
+import { isStaffRole } from "../utils/roles";
 
 const previewSample = () => ({
   _id: "000000000000000000000001",
@@ -300,6 +301,53 @@ export class DocumentTemplateController {
       response.send(pdf);
     } catch (error) {
       console.error("[DOC-TEMPLATES RENDER ERROR]", error);
+      response.status(500).send("Failed to render document");
+    }
+  };
+
+  /**
+   * Renders the active PDF template bound to a request's document type, filled
+   * with live request data. Returns 404 when no template is bound, so the
+   * caller can fall back to the legacy certificate templates.
+   */
+  static renderByType = async (request: AuthRequest, response: Response) => {
+    try {
+      const { requestId } = request.body || {};
+      if (!requestId || !isObjectId(requestId)) {
+        response.status(400).send("A valid document request id is required");
+        return;
+      }
+      const { DocumentRequestService } =
+        await import("../services/documentRequest.service");
+      const doc = await DocumentRequestService.get(requestId);
+      if (!doc) {
+        response.status(404).send("Document request not found");
+        return;
+      }
+      const account = request.account;
+      const residentId = String((doc as any).resident?._id || (doc as any).resident || "");
+      if (!isStaffRole(account?.role) && account?._id !== residentId) {
+        response.status(403).send("You can only render your own requests");
+        return;
+      }
+      const template = await DocumentTemplateService.getByDocumentType(
+        (doc as any).document,
+      );
+      if (!template) {
+        response.status(404).send("No PDF template bound to this document type");
+        return;
+      }
+      const pdf = await DocumentTemplateRenderer.renderPDF(String(template._id), {
+        data: doc,
+      });
+      response.setHeader("Content-Type", "application/pdf");
+      response.setHeader(
+        "Content-Disposition",
+        `attachment; filename="document-${requestId}.pdf"`,
+      );
+      response.send(pdf);
+    } catch (error) {
+      console.error("[DOC-TEMPLATES RENDER-BY-TYPE ERROR]", error);
       response.status(500).send("Failed to render document");
     }
   };

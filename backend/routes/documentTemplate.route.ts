@@ -15,6 +15,9 @@ route.get("/", authenticateJWT, requireRoles(...STAFF), handler(DocumentTemplate
 route.get("/:id", authenticateJWT, requireRoles(...STAFF), handler(DocumentTemplateController.get));
 route.post("/", authenticateJWT, requireRoles(...STAFF), handler(DocumentTemplateController.create));
 route.post("/seed", authenticateJWT, requireRoles(ROLES.SUPER_ADMIN), handler(DocumentTemplateController.seed));
+// Any authenticated user (residents included) may render the template bound to
+// a document type for their own request. Registered before the "/:id" routes.
+route.post("/render-by-type", authenticateJWT, handler(DocumentTemplateController.renderByType));
 route.put("/:id", authenticateJWT, requireRoles(...STAFF), handler(DocumentTemplateController.update));
 route.post("/preview", authenticateJWT, requireRoles(...STAFF), handler(DocumentTemplateController.previewContent));
 route.get("/:id/editor-content", authenticateJWT, requireRoles(...STAFF), handler(DocumentTemplateController.getEditorContent));

@@ -1,13 +1,19 @@
 /**
  * Default document template definitions. These mirror the barangay's actual
- * certificate designs (text, purpose, fees) as stored in documentLayouts.ts.
- * Templates created from these are independent, data-driven documents —
- * each can be edited on its own without affecting the others.
+ * certificate designs (text, purpose, fees). Each seeded default is a rich
+ * Tiptap document with the same official letterhead as the DOCX templates
+ * (Republic header + logos), so the PDF Document Template render matches the
+ * DOCX look. Templates created from these are independent, data-driven
+ * documents — each can be edited on its own without affecting the others.
  *
  * Note: "Barangay Certificate" is the single consolidated document for what
  * used to be both "Barangay Certificate" and "Barangay Clearance". There is
  * NO separate clearance template.
  */
+import { Style, doc, gap, img, letterhead, p, rule, t, v } from "./docTemplateSeed/builders";
+import { legacyKeyToVariable, TEMPLATE_VARIABLE_KEYS } from "../utils/templateVariables";
+import { TiptapNode } from "../utils/tiptapDoc";
+
 export interface SeedTemplateDef {
   documentType: string;
   name: string;
@@ -22,12 +28,24 @@ export const seedTemplateDefinitions: SeedTemplateDef[] = [
   {
     documentType: "barangayCertificate",
     name: "Barangay Certificate",
-    description: "Official certification of your residency and good moral character.",
+    description: "Official certification of your residency.",
     fee: 30,
     title: "Barangay Certification",
     signaturePosition: "Punong Barangay",
     body:
-      "This is to certify that {{resident.fullName}} legal age, {{resident.civilStatus}} is a resident of this barangay, and is personally known to me to be a person of Good Moral Character and Integrity. He / She is a law abiding citizen.\n\n" +
+      "This is to certify that {{resident.fullName}}, of legal age, {{resident.civilStatus}}, is a resident of this barangay.\n\n" +
+      "This certification is issued upon the request of the herein person for legal intents and purposes.\n\n" +
+      "Issued this {{certificate.date}} at {{barangay.name}}, {{barangay.municipality}}, {{barangay.province}}.",
+  },
+  {
+    documentType: "certificateOfGoodMoralCharacter",
+    name: "Certificate of Good Moral Character",
+    description: "Certification of your good moral character and integrity.",
+    fee: 30,
+    title: "Certificate of Good Moral Character",
+    signaturePosition: "Punong Barangay",
+    body:
+      "This is to certify that {{resident.fullName}}, of legal age, {{resident.civilStatus}}, is a resident of this barangay, and is personally known to me to be a person of Good Moral Character and Integrity. He / She is a law abiding citizen.\n\n" +
       "It is further certified that there is no information that the subject person is a member of any organization and or association that is subversive in nature or one that seeks to overthrow the duly constituted Government of the Philippines.\n\n" +
       "This certification is issued upon the request of the herein person for legal intents and purposes.\n\n" +
       "Issued this {{certificate.date}} at {{barangay.name}}, {{barangay.municipality}}, {{barangay.province}}.",
@@ -160,5 +178,116 @@ export const seedTemplateDefinitions: SeedTemplateDef[] = [
       "Given this {{certificate.date}} at {{barangay.name}}, {{barangay.municipality}}, {{barangay.province}}, for all legal intents and purposes it may serve.",
   },
 ];
+
+// ── Rich Tiptap generator ───────────────────────────────────────────────
+// Builds each seeded default as a Tiptap document with the same official
+// letterhead as the DOCX templates, so the PDF render (renderTiptapDocument)
+// looks like the DOCX instead of the old plain "elements" layout.
+
+const G = "#404040";
+const bookman14 = (extra: Style = {}): Style => ({ font: "Bookman Old Style", size: 14, ...extra });
+
+const LETTERHEAD_WIDTH = 432; // Letter 612pt - 90pt - 90pt margins
+const BODY_STYLE: Style = { size: 14, color: G };
+
+/** Names legacy {{resident.fullName}} etc. → registered variable keys. */
+function placeholderRuns(text: string, style: Style): (TiptapNode | string)[] {
+  const out: (TiptapNode | string)[] = [];
+  const pattern = /\{\{([a-zA-Z0-9_. ]+)\}\}|\{([a-zA-Z][a-zA-Z0-9]*)\}/g;
+  let last = 0;
+  for (const match of text.matchAll(pattern)) {
+    if ((match.index ?? 0) > last) out.push(text.slice(last, match.index));
+    last = (match.index ?? 0) + match[0].length;
+    const raw = (match[1] ?? match[2]).trim();
+    const key = TEMPLATE_VARIABLE_KEYS.has(raw)
+      ? raw
+      : legacyKeyToVariable(raw) ??
+        legacyKeyToVariable(`resident.${raw}`) ??
+        legacyKeyToVariable(`certificate.${raw}`);
+    out.push(key ? v(key, style) : match[0]);
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
+function bodyParagraphs(body: string): TiptapNode[] {
+  return body
+    .split(/\n+/)
+    .map((para) => para.trim())
+    .filter(Boolean)
+    .map((para) =>
+      p(placeholderRuns(para, BODY_STYLE), {
+        align: "justify",
+        indent: 36,
+        after: 17,
+        style: BODY_STYLE,
+      }),
+    );
+}
+
+export interface SeedPage {
+  size: "A4" | "LETTER";
+  orientation: "portrait";
+  margins: { top: number; right: number; bottom: number; left: number };
+}
+
+/** Rich Tiptap editor content + page setup for a seeded default template. */
+export function buildSeedEditorContent(def: Pick<SeedTemplateDef, "title" | "body">): {
+  editorContent: TiptapNode;
+  page: SeedPage;
+} {
+  const editorContent = doc([
+    letterhead({
+      width: LETTERHEAD_WIDTH,
+      leftWidth: 84,
+      rightWidth: 132,
+      left: [
+        img("2b39a1.jpeg", 60, "Seal of the Municipality of Rosario"),
+      ],
+      right: [
+        img("1bf6ef.png", 62, "Bagong Pilipinas"),
+        img("8dd33b.jpeg", 47, "Barangay Rabon seal"),
+      ],
+      lines: [
+        p("Republic of the Philippines", { align: "center", style: bookman14() }),
+        p("Province of La Union", { align: "center", style: bookman14() }),
+        p("Municipality of Rosario", { align: "center", style: bookman14() }),
+        p("Barangay Rabon", { align: "center", style: bookman14() }),
+        p("Office of the Punong Barangay", {
+          align: "center",
+          style: { size: 16, i: true, color: G },
+        }),
+      ],
+    }),
+    rule(),
+    ...gap(2),
+    p(def.title.toUpperCase(), {
+      align: "center",
+      after: 17,
+      style: { font: "Britannic Bold", size: 18, b: true, color: G },
+    }),
+    ...bodyParagraphs(def.body),
+    ...gap(3),
+    p("Certified by:", {
+      align: "center",
+      left: 216,
+      style: { size: 14, b: true, color: G },
+    }),
+    p(
+      [t("Hon. ", { size: 14, b: true, u: true, color: G }), v("punong_barangay", { size: 14, b: true, u: true, color: G })],
+      { align: "center", left: 216 },
+    ),
+    p("Punong Barangay", { align: "center", left: 216, style: { size: 14, color: G } }),
+  ]);
+
+  return {
+    editorContent,
+    page: {
+      size: "LETTER",
+      orientation: "portrait",
+      margins: { top: 72, right: 90, bottom: 72, left: 90 },
+    },
+  };
+}
 
 export default seedTemplateDefinitions;

@@ -16,7 +16,7 @@ const slugify = (value: string): string =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 60) || "template";
 
-const LIST_FIELDS = "name slug originalFilename page version variables createdBy updatedBy createdAt updatedAt";
+const LIST_FIELDS = "name slug documentType originalFilename page version variables createdBy updatedBy createdAt updatedAt";
 
 const isFiniteMargin = (n: unknown) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 216;
 
@@ -113,8 +113,10 @@ export class DocTemplateService {
     const copy = await DocTemplate.create({
       name: baseName,
       slug,
-      // A copy is a user template: it must not claim the seed file's dedupe key.
+      // A copy is a user template: it must not claim the seed file's dedupe key
+      // nor shadow the document type the original is bound to.
       originalFilename: "",
+      documentType: "",
       editorContent: structuredClone(source.editorContent),
       page: structuredClone(source.page),
       variables: source.variables,
@@ -123,6 +125,12 @@ export class DocTemplateService {
       updatedBy: createdBy,
     });
     return this.get(String(copy._id));
+  }
+
+  /** The template bound to a document request code, if any. */
+  static async getByDocumentType(documentType: string) {
+    if (!documentType) return null;
+    return DocTemplate.findOne({ documentType }).lean();
   }
 
   static async remove(id: string): Promise<boolean> {
@@ -139,6 +147,14 @@ export class DocTemplateService {
     const skipped: string[] = [];
     for (const seed of SEED_TEMPLATES) {
       if (await DocTemplate.exists({ originalFilename: seed.originalFilename })) {
+        // Backfill the document-type binding on templates seeded before the
+        // field existed, without touching the admin's content edits.
+        if (seed.documentType) {
+          await DocTemplate.updateOne(
+            { originalFilename: seed.originalFilename, documentType: "" },
+            { $set: { documentType: seed.documentType } }
+          );
+        }
         skipped.push(seed.originalFilename);
         continue;
       }
@@ -153,6 +169,7 @@ export class DocTemplateService {
       await DocTemplate.create({
         name: seed.name,
         slug,
+        documentType: seed.documentType || "",
         originalFilename: seed.originalFilename,
         editorContent: seed.editorContent,
         page: seed.page,

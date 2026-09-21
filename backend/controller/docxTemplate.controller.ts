@@ -2,9 +2,12 @@ import { Response } from "express";
 import { AuthRequest } from "../types/request.type";
 import { DocTemplateService, DocTemplateError, validatePage } from "../services/docTemplate.service";
 import { exportTemplateToDocx, DOCX_MIME_TYPE } from "../services/docTemplateExport.service";
+import { DocumentTemplateService } from "../services/documentTemplate.service";
+import { DocumentRequestService } from "../services/documentRequest.service";
 import { TEMPLATE_VARIABLES, VARIABLE_KEY_PATTERN } from "../utils/templateVariables";
 import { validateTiptapDoc } from "../utils/tiptapDoc";
 import { isObjectId } from "../utils/validation";
+import { isStaffRole } from "../utils/roles";
 
 const MAX_VALUE_LENGTH = 500;
 
@@ -129,6 +132,56 @@ export class DocxTemplateController {
       return response.send(buffer);
     } catch (error) {
       return fail(response, error, "EXPORT", "Failed to export document template");
+    }
+  };
+
+  /**
+   * Renders the DOCX template that is bound to a document request code, filled
+   * with that request's live data (resident fields, officials, issue date).
+   * Used by the secretary's generation path so that editing the admin DOCX
+   * template updates the generated document. Returns 404 when no template is
+   * bound to the document type, so callers can fall back to static assets.
+   */
+  static renderByType = async (request: AuthRequest, response: Response) => {
+    try {
+      const { requestId } = request.body || {};
+      if (!requestId || !isObjectId(requestId)) {
+        return response.status(400).send("A valid document request id is required");
+      }
+      const doc: any = await DocumentRequestService.get(requestId);
+      if (!doc) return response.status(404).send("Document request not found");
+
+      const account = request.account;
+      const residentId = String(doc.resident?._id || doc.resident || "");
+      if (!isStaffRole(account?.role) && account?._id !== residentId) {
+        return response.status(403).send("You can only render your own requests");
+      }
+
+      const template: any = await DocTemplateService.getByDocumentType(doc.document);
+      if (!template) {
+        return response.status(404).send("No DOCX template bound to this document type");
+      }
+
+      const values = await DocumentTemplateService.buildVariableValues(doc);
+      const { buffer, warnings } = await exportTemplateToDocx(
+        {
+          name: template.name,
+          editorContent: template.editorContent,
+          page: template.page,
+        },
+        values
+      );
+
+      response.setHeader("Content-Type", DOCX_MIME_TYPE);
+      response.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${template.slug || `${doc.document}.docx`}"`
+      );
+      response.setHeader("Access-Control-Expose-Headers", "Content-Disposition, X-Export-Warnings");
+      if (warnings.length) response.setHeader("X-Export-Warnings", encodeURIComponent(JSON.stringify(warnings)));
+      return response.send(buffer);
+    } catch (error) {
+      return fail(response, error, "RENDER-BY-TYPE", "Failed to render document template");
     }
   };
 

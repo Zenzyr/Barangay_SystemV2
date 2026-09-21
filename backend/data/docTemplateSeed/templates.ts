@@ -3,9 +3,9 @@
 // Each Word file's real text, fonts, sizes, colours, emphasis, alignment,
 // indents and page setup are reproduced. Sample data typed into the originals
 // (names, dates, incomes...) became {{variables}}; text that is part of the
-// document itself stays literal. Multi-document Word files (Endorsement,
-// Certification 101, First-Time Jobseeker) become ONE template with a page
-// break between the documents. Floating logos are placed in a letterhead table.
+// document itself stays literal. Certification 101, Endorsement for Scholar,
+// and First-Time Jobseeker are each split into individual templates — one per
+// certificate. Floating logos are placed in a letterhead table.
 
 import { TiptapNode } from "../../utils/tiptapDoc";
 import {
@@ -15,6 +15,10 @@ import {
 export interface SeedTemplate {
   slug: string;
   name: string;
+  // Maps this seed to a document request code so generation can render it by
+  // type (falls back to the static .docx assets only when not present). Left
+  // empty on variant/split templates that duplicate another seed's code.
+  documentType?: string;
   originalFilename: string;
   page: {
     size: "A4" | "Letter" | "Legal";
@@ -76,6 +80,7 @@ const indigency: SeedTemplate = (() => {
   return {
     slug: "certificate-of-indigency",
     name: "Certificate of Indigency",
+    documentType: "certificateOfIndigency",
     originalFilename: "Certificate_of_Indigency.docx",
     page: { size: "Letter", margins: { top: 72, right: 90, bottom: 72, left: 90 } },
     editorContent: doc([
@@ -120,6 +125,7 @@ const treesCutting: SeedTemplate = (() => {
   return {
     slug: "certificate-of-trees-cutting",
     name: "Certificate of Trees Cutting",
+    documentType: "certificationOfTreesCutting",
     originalFilename: "certificate-of-trees-cutting.docx",
     page: { size: "Letter", margins: { top: 72, right: 72, bottom: 72, left: 72 } },
     editorContent: doc([
@@ -165,123 +171,141 @@ const treesCutting: SeedTemplate = (() => {
 })();
 
 // ─────────────────────────────────────────────────────────────────────────
-// Endorsement for Scholar (Letter; three documents)
+// Endorsement for Scholar — split into three individual templates
+// (Certificate of Low Income, Certificate of Indigency, Endorsement Letter).
 // ─────────────────────────────────────────────────────────────────────────
 
-const endorsement: SeedTemplate = (() => {
-  const width = 468;
-  const c14: Style = { size: 14 };
-  const head = () =>
-    letterhead({
-      width,
-      leftWidth: 84,
-      rightWidth: 84,
-      left: [img("89dbf7.jpeg", 62, "Seal of the Municipality of Rosario")],
-      right: [img("8dd33b.jpeg", 47, "Barangay Rabon seal")],
-      lines: [
-        p("Republic of the Philippines", { align: "center", style: c14 }),
-        p("Province of La Union", { align: "center", style: c14 }),
-        p("Municipality of Rosario", { align: "center", style: c14 }),
-        p("Barangay Rabon", { align: "center", style: c14 }),
-        p("Office of the Punong Barangay", { align: "center", style: { size: 14, i: true } }),
+const endorsementWidth = 468;
+const endorsementC14: Style = { size: 14 };
+const endorsementB16: Style = { size: 16, b: true };
+const endorsementP16: Style = { size: 16 };
+
+const endorsementHead = (): TiptapNode =>
+  letterhead({
+    width: endorsementWidth,
+    leftWidth: 84,
+    rightWidth: 84,
+    left: [img("89dbf7.jpeg", 62, "Seal of the Municipality of Rosario")],
+    right: [img("8dd33b.jpeg", 47, "Barangay Rabon seal")],
+    lines: [
+      p("Republic of the Philippines", { align: "center", style: endorsementC14 }),
+      p("Province of La Union", { align: "center", style: endorsementC14 }),
+      p("Municipality of Rosario", { align: "center", style: endorsementC14 }),
+      p("Barangay Rabon", { align: "center", style: endorsementC14 }),
+      p("Office of the Punong Barangay", { align: "center", style: { size: 14, i: true } }),
+    ],
+  });
+
+const endorsementSig = (): TiptapNode[] => [
+  p("Certified by:", { align: "center", left: 230, style: { size: 14, b: true } }),
+  p([v("punong_barangay", { size: 14, b: true, u: true, caps: true })], { align: "center", left: 230 }),
+  p("Punong Barangay", { align: "center", left: 230, style: endorsementC14 }),
+];
+
+const endorsementPage: SeedTemplate["page"] = { size: "Letter", margins: { top: 72, right: 72, bottom: 72, left: 72 } };
+
+// 1 ─ Certificate of Low Income
+const endorsementForScholarLowIncome: SeedTemplate = {
+  slug: "endorsement-for-scholar-low-income",
+  name: "Certificate of Low Income",
+  documentType: "certificateOfLowIncome",
+  originalFilename: "ENDORSEMENT-FOR-SCHOLAR-low-income.docx",
+  page: endorsementPage,
+  editorContent: doc([
+    endorsementHead(),
+    rule(),
+    ...gap(1, 6),
+    p("CERTIFICATE OF LOW INCOME", { align: "center", after: 20, style: { size: 18, b: true } }),
+    p("To Whom It May Concern;", { align: "justify", after: 18, style: endorsementB16 }),
+    p(
+      [
+        "This is to certify that ", v("resident_name", endorsementB16), " and ", v("spouse_name", endorsementB16),
+        ", married and a resident of this barangay belongs to indigent families with an annual income of P ", v("annual_income", endorsementB16),
       ],
-    });
+      { align: "justify", indent: 36, after: 18, style: endorsementB16 }
+    ),
+    p(
+      ["Any help or assistance to their daughter ", v("assistance_to", endorsementB16), " by the duly constituted authorities is greatly appreciated."],
+      { align: "justify", indent: 36, after: 18, style: endorsementB16 }
+    ),
+    p(
+      [...DATE_LINE("Given this", "At Barangay Rabon, Rosario, La Union for the purpose of scholarship grant or whatever legal purposes it may serve.")],
+      { align: "justify", left: 36, after: 30, style: endorsementB16 }
+    ),
+    ...endorsementSig(),
+  ]),
+};
 
-  const b16: Style = { size: 16, b: true };
-  const p16: Style = { size: 16 };
-  const sig = (): TiptapNode[] => [
-    p("Certified by:", { align: "center", left: 230, style: { size: 14, b: true } }),
-    p([v("punong_barangay", { size: 14, b: true, u: true, caps: true })], { align: "center", left: 230 }),
-    p("Punong Barangay", { align: "center", left: 230, style: c14 }),
-  ];
+// 2 ─ Certificate of Indigency
+const endorsementForScholarIndigency: SeedTemplate = {
+  slug: "endorsement-for-scholar-indigency",
+  name: "Certificate of Indigency",
+  originalFilename: "ENDORSEMENT-FOR-SCHOLAR-indigency.docx",
+  page: endorsementPage,
+  editorContent: doc([
+    endorsementHead(),
+    rule(),
+    ...gap(1, 6),
+    p("CERTIFICATE OF INDIGENCY", { align: "center", after: 20, style: { size: 18, b: true } }),
+    p("To Whom It May Concern;", { align: "justify", after: 18, style: endorsementB16 }),
+    p(
+      ["This is to certify that ", v("resident_name", endorsementB16), " as per records available in this office, is a bonafide resident of this Barangay."],
+      { align: "justify", indent: 36, after: 18, style: endorsementB16 }
+    ),
+    p("Further said person belongs to an indigent family and has no stable source of income.", { align: "justify", indent: 36, after: 18, style: endorsementP16 }),
+    p(
+      ["Any help or assistance to ", v("assistance_to", endorsementP16), " by the duly constituted authorities is greatly appreciated."],
+      { align: "justify", indent: 36, after: 18, style: endorsementP16 }
+    ),
+    p(DATE_LINE("Given this", "At Barangay Rabon, Rosario, La Union, for all legal intents and purposes it may serve."), {
+      align: "justify",
+      indent: 36,
+      after: 30,
+      style: endorsementP16,
+    }),
+    ...endorsementSig(),
+  ]),
+};
 
-  return {
-    slug: "endorsement-for-scholar",
-    name: "Endorsement for Scholar",
-    originalFilename: "ENDORSEMENT-FOR-SCHOLAR.docx",
-    page: { size: "Letter", margins: { top: 72, right: 72, bottom: 72, left: 72 } },
-    editorContent: doc([
-      // 1 ─ Certificate of Low Income
-      head(),
-      rule(),
-      ...gap(1, 6),
-      p("CERTIFICATE OF LOW INCOME", { align: "center", after: 20, style: { size: 18, b: true } }),
-      p("To Whom It May Concern;", { align: "justify", after: 18, style: b16 }),
-      p(
-        [
-          "This is to certify that ", v("resident_name", b16), " and ", v("spouse_name", b16),
-          ", married and a resident of this barangay belongs to indigent families with an annual income of P ", v("annual_income", b16),
-        ],
-        { align: "justify", indent: 36, after: 18, style: b16 }
-      ),
-      p(
-        ["Any help or assistance to their daughter ", v("assistance_to", b16), " by the duly constituted authorities is greatly appreciated."],
-        { align: "justify", indent: 36, after: 18, style: b16 }
-      ),
-      p(
-        [...DATE_LINE("Given this", "At Barangay Rabon, Rosario, La Union for the purpose of scholarship grant or whatever legal purposes it may serve.")],
-        { align: "justify", left: 36, after: 30, style: b16 }
-      ),
-      ...sig(),
-      pageBreak(),
-
-      // 2 ─ Certificate of Indigency
-      head(),
-      rule(),
-      ...gap(1, 6),
-      p("CERTIFICATE OF INDIGENCY", { align: "center", after: 20, style: { size: 18, b: true } }),
-      p("To Whom It May Concern;", { align: "justify", after: 18, style: b16 }),
-      p(
-        ["This is to certify that ", v("resident_name", b16), " as per records available in this office, is a bonafide resident of this Barangay."],
-        { align: "justify", indent: 36, after: 18, style: b16 }
-      ),
-      p("Further said person belongs to an indigent family and has no stable source of income.", { align: "justify", indent: 36, after: 18, style: p16 }),
-      p(
-        ["Any help or assistance to ", v("assistance_to", p16), " by the duly constituted authorities is greatly appreciated."],
-        { align: "justify", indent: 36, after: 18, style: p16 }
-      ),
-      p(DATE_LINE("Given this", "At Barangay Rabon, Rosario, La Union, for all legal intents and purposes it may serve."), {
-        align: "justify",
-        indent: 36,
-        after: 30,
-        style: p16,
-      }),
-      ...sig(),
-      pageBreak(),
-
-      // 3 ─ Endorsement letter
-      head(),
-      rule(),
-      ...gap(1, 6),
-      p("ENDORSEMENT LETTER", { align: "center", after: 14, style: { size: 18, b: true } }),
-      p([v("issue_date", { size: 14, b: true })], { align: "justify", after: 14 }),
-      p("Hon. Bellarmin A. Flores II", { style: { size: 14, b: true, u: true } }),
-      p("Mayor", { left: 36, style: { size: 14, b: true } }),
-      p("Rosario, La Union", { after: 14, style: { size: 14, b: true } }),
-      p("Dear Hon. Bellarmin A. Flores,", { align: "justify", after: 14, style: { size: 14, b: true } }),
-      p(["This is to endorse ", v("resident_name", c14), " of ", v("purok", c14), ", Barangay Rabon Rosario, La Union."], {
-        align: "justify",
-        indent: 36,
-        after: 14,
-        style: c14,
-      }),
-      p("That I have known this student has a good record and good moral character.", { align: "justify", indent: 36, after: 14, style: c14 }),
-      p("Furthermore, that I will endorse to your good office to having a scholarship as one of your scholar.", {
-        align: "justify",
-        indent: 36,
-        after: 14,
-        style: c14,
-      }),
-      p(DATE_LINE("Given this", "at Barangay Rabon, Rosario, La Union, for all legal intents and purposes it may serve."), {
-        align: "justify",
-        indent: 36,
-        after: 30,
-        style: c14,
-      }),
-      ...sig(),
-    ]),
-  };
-})();
+// 3 ─ Endorsement Letter
+const endorsementForScholarLetter: SeedTemplate = {
+  slug: "endorsement-for-scholar-letter",
+  name: "Endorsement Letter",
+  documentType: "endorsementLetter",
+  originalFilename: "ENDORSEMENT-FOR-SCHOLAR-letter.docx",
+  page: endorsementPage,
+  editorContent: doc([
+    endorsementHead(),
+    rule(),
+    ...gap(1, 6),
+    p("ENDORSEMENT LETTER", { align: "center", after: 14, style: { size: 18, b: true } }),
+    p([v("issue_date", { size: 14, b: true })], { align: "justify", after: 14 }),
+    p("Hon. Bellarmin A. Flores II", { style: { size: 14, b: true, u: true } }),
+    p("Mayor", { left: 36, style: { size: 14, b: true } }),
+    p("Rosario, La Union", { after: 14, style: { size: 14, b: true } }),
+    p("Dear Hon. Bellarmin A. Flores,", { align: "justify", after: 14, style: { size: 14, b: true } }),
+    p(["This is to endorse ", v("resident_name", endorsementC14), " of ", v("purok", endorsementC14), ", Barangay Rabon Rosario, La Union."], {
+      align: "justify",
+      indent: 36,
+      after: 14,
+      style: endorsementC14,
+    }),
+    p("That I have known this student has a good record and good moral character.", { align: "justify", indent: 36, after: 14, style: endorsementC14 }),
+    p("Furthermore, that I will endorse to your good office to having a scholarship as one of your scholar.", {
+      align: "justify",
+      indent: 36,
+      after: 14,
+      style: endorsementC14,
+    }),
+    p(DATE_LINE("Given this", "at Barangay Rabon, Rosario, La Union, for all legal intents and purposes it may serve."), {
+      align: "justify",
+      indent: 36,
+      after: 30,
+      style: endorsementC14,
+    }),
+    ...endorsementSig(),
+  ]),
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Attestation Docs (A4, swirl background)
@@ -295,6 +319,7 @@ const attestation: SeedTemplate = (() => {
   return {
     slug: "attestation-documents",
     name: "Attestation Documents",
+    documentType: "certificateOfAttestation",
     originalFilename: "Attestation-Docs.docx",
     page: {
       size: "A4",
@@ -363,15 +388,41 @@ const attestation: SeedTemplate = (() => {
 })();
 
 // ─────────────────────────────────────────────────────────────────────────
-// Certification 101 (Letter; certification + roster, residency, indigency)
+// Certification 101 — split into three individual templates, one per
+// certificate (Barangay Certification, Residency, Indigency).
 // ─────────────────────────────────────────────────────────────────────────
 
-const certification101: SeedTemplate = (() => {
-  const width = 541;
-  const tnr = (o: Style = {}): Style => ({ font: "Times New Roman", ...o });
-  const bookman = (o: Style = {}): Style => ({ font: "Bookman Old Style", ...o });
+const cert101Width = 541;
+const cert101Tnr = (o: Style = {}): Style => ({ font: "Times New Roman", ...o });
+const cert101Bookman = (o: Style = {}): Style => ({ font: "Bookman Old Style", ...o });
 
-  // Page 1: council roster (left) beside the barangay certification (right).
+const cert101OfficeLines = (color: string, size: number, tnrFont: boolean): TiptapNode[] => {
+  const s: Style = tnrFont ? cert101Tnr({ size, b: true, color }) : { size, color };
+  return [
+    p("Republic of the Philippines", { align: "center", style: s }),
+    p("Province of La Union", { align: "center", style: s }),
+    p("MUNICIPALITY OF ROSARIO", { align: "center", style: s }),
+    p("Barangay Rabon", { align: "center", style: s }),
+    p("Office of the Punong Barangay", { align: "center", style: tnrFont ? s : { size: 16, i: true, color } }),
+  ];
+};
+
+const CERT101_G3 = "#3A3A3A";
+const CERT101_G4 = "#404040";
+
+const cert101Page: SeedTemplate["page"] = {
+  size: "Letter",
+  margins: { top: 37, right: 28, bottom: 28, left: 43 },
+  watermark: { src: `${ASSET}/8dd33b.jpeg`, opacity: 0.1 },
+};
+
+// 1 ─ Barangay Certification with council roster
+const certification101BarangayCertification: SeedTemplate = (() => {
+  const width = cert101Width;
+  const tnr = cert101Tnr;
+  const bookman = cert101Bookman;
+
+  // Council roster (left) beside the barangay certification (right).
   const roster: TiptapNode[] = [
     p([v("punong_barangay", bookman({ size: 12, b: true, u: true, caps: true }))], { align: "center" }),
     p("Punong Barangay", { align: "center", after: 10 }),
@@ -425,31 +476,13 @@ const certification101: SeedTemplate = (() => {
     ),
   ];
 
-  const officeLines = (color: string, size: number, tnrFont: boolean): TiptapNode[] => {
-    const s: Style = tnrFont ? tnr({ size, b: true, color }) : { size, color };
-    return [
-      p("Republic of the Philippines", { align: "center", style: s }),
-      p("Province of La Union", { align: "center", style: s }),
-      p("MUNICIPALITY OF ROSARIO", { align: "center", style: s }),
-      p("Barangay Rabon", { align: "center", style: s }),
-      p("Office of the Punong Barangay", { align: "center", style: tnrFont ? s : { size: 16, i: true, color } }),
-    ];
-  };
-
-  const G3 = "#3A3A3A";
-  const G4 = "#404040";
-
   return {
-    slug: "certification-101",
-    name: "Certification 101",
-    originalFilename: "certification-101.docx",
-    page: {
-      size: "Letter",
-      margins: { top: 37, right: 28, bottom: 28, left: 43 },
-      watermark: { src: `${ASSET}/8dd33b.jpeg`, opacity: 0.1 },
-    },
+    slug: "certification-101-barangay-certification",
+    name: "Barangay Certification",
+    documentType: "barangayCertification",
+    originalFilename: "certification-101-barangay-certification.docx",
+    page: cert101Page,
     editorContent: doc([
-      // 1 ─ Barangay Certification with council roster
       letterhead({
         width,
         leftWidth: 80,
@@ -466,16 +499,29 @@ const certification101: SeedTemplate = (() => {
       }),
       rule(),
       table([[{ content: roster, width: px(170) }, { content: certBody, width: px(371) }]], { borders: "none" }),
-      pageBreak(),
+    ]),
+  };
+})();
 
-      // 2 ─ Barangay Certificate of Residency
+// 2 ─ Barangay Certificate of Residency
+const certification101Residency: SeedTemplate = (() => {
+  const width = cert101Width;
+  const tnr = cert101Tnr;
+  const G3 = CERT101_G3;
+  return {
+    slug: "certification-101-residency",
+    name: "Barangay Certificate of Residency",
+    documentType: "certificateOfResidency",
+    originalFilename: "certification-101-residency.docx",
+    page: cert101Page,
+    editorContent: doc([
       letterhead({
         width,
         leftWidth: 90,
         rightWidth: 90,
         left: [img("2b39a1.jpeg", 66, "Seal of the Municipality of Rosario")],
         right: [img("ac6ab4.png", 72, "Bagong Pilipinas")],
-        lines: officeLines(G3, 12, true),
+        lines: cert101OfficeLines(G3, 12, true),
       }),
       rule(),
       ...gap(1, 6),
@@ -502,16 +548,27 @@ const certification101: SeedTemplate = (() => {
       p("Certified by:", { align: "center", left: 260, style: tnr({ size: 14, color: G3 }) }),
       p([t("HON. ", tnr({ size: 14, u: true, color: G3 })), v("punong_barangay", tnr({ size: 14, u: true, color: G3, caps: true }))], { align: "center", left: 260, before: 14 }),
       p("Barangay Captain", { align: "center", left: 260, style: tnr({ size: 14, color: G3 }) }),
-      pageBreak(),
+    ]),
+  };
+})();
 
-      // 3 ─ Certificate of Indigency
+// 3 ─ Certificate of Indigency
+const certification101Indigency: SeedTemplate = (() => {
+  const width = cert101Width;
+  const G4 = CERT101_G4;
+  return {
+    slug: "certification-101-indigency",
+    name: "Certificate of Indigency",
+    originalFilename: "certification-101-indigency.docx",
+    page: cert101Page,
+    editorContent: doc([
       letterhead({
         width,
         leftWidth: 90,
         rightWidth: 90,
         left: [img("33a295.png", 79, "Seal of the Municipality of Rosario")],
         right: [img("3f45b0.jpeg", 65, "Barangay Rabon seal")],
-        lines: officeLines(G4, 12, false),
+        lines: cert101OfficeLines(CERT101_G4, 12, false),
       }),
       rule(),
       ...gap(1, 6),
@@ -530,110 +587,126 @@ const certification101: SeedTemplate = (() => {
 })();
 
 // ─────────────────────────────────────────────────────────────────────────
-// First-Time Jobseeker (Legal; certification + oath of undertaking)
+// First-Time Jobseeker — split into two individual templates
+// (Barangay Certification, Oath of Undertaking).
 // ─────────────────────────────────────────────────────────────────────────
 
-const jobseeker: SeedTemplate = (() => {
-  const width = 540;
-  const office = (): TiptapNode[] => {
-    const s: Style = { font: "Times New Roman", size: 12, b: true };
-    return [
-      p(
-        [img("4577f2.png", 54, "Seal of the Municipality of Rosario"), "      ", img("c27702.png", 57, "Bagong Pilipinas"), "      ", img("3c31c8.jpeg", 48, "Barangay Rabon seal")],
-        { align: "center", after: 6 }
-      ),
-      p("Republic of the Philippines", { align: "center", style: s }),
-      p("Province of La Union", { align: "center", style: s }),
-      p("MUNICIPALITY OF ROSARIO", { align: "center", style: s }),
-      p("Barangay Rabon", { align: "center", style: s }),
-      p("OFFICE OF PUNONG BARANGAY", { align: "center", style: { ...s, i: true } }),
-      rule(),
-    ];
-  };
-  const an: Style = { font: "Arial Narrow", size: 12 };
-  const bk = (b: boolean): Style => ({ font: "Bookman Old Style", size: 10, b });
+const jobseekerWidth = 540;
+const jobseekerAn: Style = { font: "Arial Narrow", size: 12 };
+const jobseekerBk = (b: boolean): Style => ({ font: "Bookman Old Style", size: 10, b });
 
-  const undertakings: [string, boolean][] = [
-    ["That this is the first time that actively look for job, and therefore requesting that a Barangay Certification be issued in my favor the benefits off the law;", true],
-    ["That I am Aware that the benefit and privileges/s under the said law shall be valid only for one year from the  date that the Barangay Certification issued;", true],
-    ["That I  can avail the benefits of the law only once;", true],
-    ["That I understand that my personal information that shall be included in the Rooster/ List of First Time Jobseekers and will not be used  for any unlawful purpose;", true],
-    ["That I will inform and / or report to the Barangay personally, through text or other means, or through my family/relatives once I get employed ; and", true],
-    ["Thar I am not a beneficiary of the Job Start Program under R.A. No.10869 and other laws that give similar exemption for the documents or transactions exempted under R.A No. 11261;", true],
-    ["That if issued the requested certification , I will not use the same in any fraud, neither falsity nor help and/or assist in the fabrication of the said certification", true],
-    ["That this undertaking is made society for the purpose of obtaining A Barangay Certification consistent with the objective of R.A 11261 and not for any other purposes.", false],
-    ["THAT I consent to the use of my personal information pursuant to the data privacy  and other applicable laws ,rules, ad regulations.", false],
+const jobseekerOffice = (): TiptapNode[] => {
+  const s: Style = { font: "Times New Roman", size: 12, b: true };
+  return [
+    p(
+      [img("4577f2.png", 54, "Seal of the Municipality of Rosario"), "      ", img("c27702.png", 57, "Bagong Pilipinas"), "      ", img("3c31c8.jpeg", 48, "Barangay Rabon seal")],
+      { align: "center", after: 6 }
+    ),
+    p("Republic of the Philippines", { align: "center", style: s }),
+    p("Province of La Union", { align: "center", style: s }),
+    p("MUNICIPALITY OF ROSARIO", { align: "center", style: s }),
+    p("Barangay Rabon", { align: "center", style: s }),
+    p("OFFICE OF PUNONG BARANGAY", { align: "center", style: { ...s, i: true } }),
+    rule(),
   ];
+};
 
-  return {
-    slug: "first-time-jobseeker-certification",
-    name: "First-Time Jobseeker Certification",
-    originalFilename: "certification-of-first-time-jobseeker.docx",
-    page: { size: "Legal", margins: { top: 36, right: 36, bottom: 36, left: 36 } },
-    editorContent: doc([
-      // 1 ─ Barangay Certification (RA 11261)
-      ...office(),
-      ...gap(1, 4),
-      p("BARANGAY CERTIFICATION", { align: "center", style: { font: "Engravers MT", size: 14, b: true } }),
-      p("(First Time Jobseekers Assistance Act – RA 11261)", { align: "center", after: 14, style: { size: 12 } }),
-      p(
-        [
-          "THIS IS TO CERTIFY THAT: ", v("resident_name", { ...an, b: true }),
-          " a resident of Barangay Rabon, Rosario, La Union for ", v("age", { ...an, b: true }),
-          " years old, is a qualified of RA 11261 or the First Time Jobseekers Act of 2019.",
-        ].map((n) => (typeof n === "string" ? t(n, { ...an, b: true }) : n)),
-        { align: "justify", indent: 36, after: 14 }
-      ),
-      p(
-        "I further certify that the holder/bearer was informed of his/her rights, including duties and responsibilities accorded by RA 11261 through the Oath of Understanding he/she has signed and executed in the presence of our Barangay officials.",
-        { align: "justify", indent: 36, after: 14, style: an }
-      ),
-      p(DATE_LINE("Signed this", "in Barangay Rabon, Rosario, La Union.").map((n) => (typeof n === "string" ? t(n, an) : n)), {
-        align: "justify",
-        indent: 36,
-        after: 14,
-      }),
-      p("This certification is valid only for one (1) year from the issuance.", { align: "justify", indent: 36, after: 28, style: an }),
-      p("Certified by:", { align: "center", after: 14, style: an }),
-      p([t("HON. ", { size: 12, b: true, caps: true }), v("punong_barangay", { size: 12, b: true, caps: true })], { align: "center" }),
-      p("Barangay Captain", { align: "center", after: 24, style: { size: 12, b: true } }),
-      p("Witnessed by:", { align: "center", after: 14, style: { font: "Arial Narrow" } }),
-      p([v("barangay_secretary", { font: "Bodoni MT", b: true, caps: true })], { align: "center" }),
-      p("Barangay Secretary", { align: "center", style: { size: 10 } }),
-      pageBreak(),
+const jobseekerUndertakings: [string, boolean][] = [
+  ["That this is the first time that actively look for job, and therefore requesting that a Barangay Certification be issued in my favor the benefits off the law;", true],
+  ["That I am Aware that the benefit and privileges/s under the said law shall be valid only for one year from the  date that the Barangay Certification issued;", true],
+  ["That I  can avail the benefits of the law only once;", true],
+  ["That I understand that my personal information that shall be included in the Rooster/ List of First Time Jobseekers and will not be used  for any unlawful purpose;", true],
+  ["That I will inform and / or report to the Barangay personally, through text or other means, or through my family/relatives once I get employed ; and", true],
+  ["Thar I am not a beneficiary of the Job Start Program under R.A. No.10869 and other laws that give similar exemption for the documents or transactions exempted under R.A No. 11261;", true],
+  ["That if issued the requested certification , I will not use the same in any fraud, neither falsity nor help and/or assist in the fabrication of the said certification", true],
+  ["That this undertaking is made society for the purpose of obtaining A Barangay Certification consistent with the objective of R.A 11261 and not for any other purposes.", false],
+  ["THAT I consent to the use of my personal information pursuant to the data privacy  and other applicable laws ,rules, ad regulations.", false],
+];
 
-      // 2 ─ Oath of Undertaking
-      ...office(),
-      ...gap(1, 4),
-      p("OATH OF UNDERTAKING", { align: "center", after: 14, style: { size: 16 } }),
-      p(
-        [
-          "I ", v("resident_name", bk(false)), " ", v("age", bk(false)),
-          " yrs. of age , a  resident of RABON ROSARIO LA UNION, availing the benefits of Republic act 111261, otherwise known as the first time jobseekers Act of 2019, do hereby declare, agree and undertake  to abide and be bound by the following:",
-        ].map((n) => (typeof n === "string" ? t(n, bk(false)) : n)),
-        { align: "justify", after: 10 }
-      ),
-      numbered(undertakings.map(([text, bold]) => [p(text, { align: "justify", after: 8, style: bk(bold) })])),
-      p(DATE_LINE("Signed this", "in Barangay Rabon Rosario LA union.").map((n) => (typeof n === "string" ? t(n, { size: 10 }) : n)), {
-        align: "justify",
-        left: 36,
-        before: 8,
-        after: 28,
-      }),
-      p([v("resident_name", { size: 10, b: true, caps: true })], { left: 36 }),
-      p("First Time Jobseeker", { left: 36, after: 20, style: { size: 10, i: true } }),
-      p("Certified by:", { align: "center", after: 12, style: { font: "Arial Narrow", size: 10 } }),
-      p([t("HON. ", { size: 10, b: true, caps: true }), v("punong_barangay", { size: 10, b: true, caps: true })], { align: "center" }),
-      p("Barangay Captain", { align: "center", style: { size: 10, b: true } }),
-    ]),
-  };
-})();
+const jobseekerPage: SeedTemplate["page"] = { size: "Legal", margins: { top: 36, right: 36, bottom: 36, left: 36 } };
+
+// 1 ─ Barangay Certification (RA 11261)
+const firstTimeJobseekerCertification: SeedTemplate = {
+  slug: "first-time-jobseeker-certification",
+  name: "First-Time Jobseeker Certification",
+  documentType: "certificateOfFirstTimeJobseeker",
+  originalFilename: "certification-of-first-time-jobseeker-certification.docx",
+  page: jobseekerPage,
+  editorContent: doc([
+    ...jobseekerOffice(),
+    ...gap(1, 4),
+    p("BARANGAY CERTIFICATION", { align: "center", style: { font: "Engravers MT", size: 14, b: true } }),
+    p("(First Time Jobseekers Assistance Act – RA 11261)", { align: "center", after: 14, style: { size: 12 } }),
+    p(
+      [
+        "THIS IS TO CERTIFY THAT: ", v("resident_name", { ...jobseekerAn, b: true }),
+        " a resident of Barangay Rabon, Rosario, La Union for ", v("age", { ...jobseekerAn, b: true }),
+        " years old, is a qualified of RA 11261 or the First Time Jobseekers Act of 2019.",
+      ].map((n) => (typeof n === "string" ? t(n, { ...jobseekerAn, b: true }) : n)),
+      { align: "justify", indent: 36, after: 14 }
+    ),
+    p(
+      "I further certify that the holder/bearer was informed of his/her rights, including duties and responsibilities accorded by RA 11261 through the Oath of Understanding he/she has signed and executed in the presence of our Barangay officials.",
+      { align: "justify", indent: 36, after: 14, style: jobseekerAn }
+    ),
+    p(DATE_LINE("Signed this", "in Barangay Rabon, Rosario, La Union.").map((n) => (typeof n === "string" ? t(n, jobseekerAn) : n)), {
+      align: "justify",
+      indent: 36,
+      after: 14,
+    }),
+    p("This certification is valid only for one (1) year from the issuance.", { align: "justify", indent: 36, after: 28, style: jobseekerAn }),
+    p("Certified by:", { align: "center", after: 14, style: jobseekerAn }),
+    p([t("HON. ", { size: 12, b: true, caps: true }), v("punong_barangay", { size: 12, b: true, caps: true })], { align: "center" }),
+    p("Barangay Captain", { align: "center", after: 24, style: { size: 12, b: true } }),
+    p("Witnessed by:", { align: "center", after: 14, style: { font: "Arial Narrow" } }),
+    p([v("barangay_secretary", { font: "Bodoni MT", b: true, caps: true })], { align: "center" }),
+    p("Barangay Secretary", { align: "center", style: { size: 10 } }),
+  ]),
+};
+
+// 2 ─ Oath of Undertaking
+const firstTimeJobseekerOath: SeedTemplate = {
+  slug: "first-time-jobseeker-oath",
+  name: "Oath of Undertaking (First-Time Jobseeker)",
+  documentType: "firstTimeJobseekerOath",
+  originalFilename: "certification-of-first-time-jobseeker-oath.docx",
+  page: jobseekerPage,
+  editorContent: doc([
+    ...jobseekerOffice(),
+    ...gap(1, 4),
+    p("OATH OF UNDERTAKING", { align: "center", after: 14, style: { size: 16 } }),
+    p(
+      [
+        "I ", v("resident_name", jobseekerBk(false)), " ", v("age", jobseekerBk(false)),
+        " yrs. of age , a  resident of RABON ROSARIO LA UNION, availing the benefits of Republic act 111261, otherwise known as the first time jobseekers Act of 2019, do hereby declare, agree and undertake  to abide and be bound by the following:",
+      ].map((n) => (typeof n === "string" ? t(n, jobseekerBk(false)) : n)),
+      { align: "justify", after: 10 }
+    ),
+    numbered(jobseekerUndertakings.map(([text, bold]) => [p(text, { align: "justify", after: 8, style: jobseekerBk(bold) })])),
+    p(DATE_LINE("Signed this", "in Barangay Rabon Rosario LA union.").map((n) => (typeof n === "string" ? t(n, { size: 10 }) : n)), {
+      align: "justify",
+      left: 36,
+      before: 8,
+      after: 28,
+    }),
+    p([v("resident_name", { size: 10, b: true, caps: true })], { left: 36 }),
+    p("First Time Jobseeker", { left: 36, after: 20, style: { size: 10, i: true } }),
+    p("Certified by:", { align: "center", after: 12, style: { font: "Arial Narrow", size: 10 } }),
+    p([t("HON. ", { size: 10, b: true, caps: true }), v("punong_barangay", { size: 10, b: true, caps: true })], { align: "center" }),
+    p("Barangay Captain", { align: "center", style: { size: 10, b: true } }),
+  ]),
+};
 
 export const SEED_TEMPLATES: SeedTemplate[] = [
   indigency,
   attestation,
   treesCutting,
-  certification101,
-  jobseeker,
-  endorsement,
+  certification101BarangayCertification,
+  certification101Residency,
+  certification101Indigency,
+  firstTimeJobseekerCertification,
+  firstTimeJobseekerOath,
+  endorsementForScholarLowIncome,
+  endorsementForScholarIndigency,
+  endorsementForScholarLetter,
 ];

@@ -136,20 +136,21 @@ export default function MyDocumentsPage() {
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-                <TableRow className="border-b border-slate-100 hover:bg-transparent">
-                  <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Document</TableHead>
-                  <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 hidden sm:table-cell">Price</TableHead>
-                  <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 hidden sm:table-cell">Date</TableHead>
-                  <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Status</TableHead>
-                  <TableHead className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 hidden md:table-cell">Paid</TableHead>
-                  <TableHead className="text-right px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
+              <TableRow className="border-b border-slate-100">
+                <TableHead className="!px-6 !py-4 font-semibold text-slate-500">Document</TableHead>
+                <TableHead className="!px-6 !py-4 font-semibold text-slate-500 hidden sm:table-cell">Price</TableHead>
+                <TableHead className="!px-6 !py-4 font-semibold text-slate-500 hidden sm:table-cell">Date</TableHead>
+                <TableHead className="!px-6 !py-4 font-semibold text-slate-500">Status</TableHead>
+                <TableHead className="!px-6 !py-4 font-semibold text-slate-500 hidden md:table-cell">Paid</TableHead>
+                <TableHead className="!px-6 !py-4 text-right font-semibold text-slate-500">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
             <TableBody>
               {isLoading ? (
                 Array.from({ length: 4 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell><Skeleton className="h-4 w-40" /></TableCell>
+
                     <TableCell className="hidden sm:table-cell"><Skeleton className="h-4 w-28" /></TableCell>
                     <TableCell className="hidden sm:table-cell"><Skeleton className="h-4 w-28" /></TableCell>
                     <TableCell><Skeleton className="h-5 w-24 rounded-full" /></TableCell>
