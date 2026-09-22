@@ -3,7 +3,7 @@ import path from "path";
 import { AuthRequest } from "../types/request.type";
 import { DocTemplateService, DocTemplateError, validatePage } from "../services/docTemplate.service";
 import { exportTemplateToDocx, DOCX_MIME_TYPE } from "../services/docTemplateExport.service";
-import { replaceVariablesInDocx } from "../services/docTemplateFidelity.service";
+
 import { DocumentTemplateService } from "../services/documentTemplate.service";
 import { DocumentRequestService } from "../services/documentRequest.service";
 import { TEMPLATE_VARIABLES, VARIABLE_KEY_PATTERN } from "../utils/templateVariables";
@@ -169,24 +169,19 @@ export class DocxTemplateController {
       let buffer: Buffer;
       let warnings: string[] = [];
 
-      if (template.sourceType === "original-docx") {
-        const result = await DocTemplateService.getOriginalDocumentData(template._id);
-        if (!result) return response.status(404).send("Original document data not found");
-        buffer = await replaceVariablesInDocx(result.data, values);
-      } else {
-        const exportRes = await exportTemplateToDocx(
-          {
-            name: template.name,
-            editorContent: template.editorContent,
-            page: template.page,
-          },
-          values
-        );
-        buffer = exportRes.buffer;
-        warnings = exportRes.warnings;
-      }
+      const exportRes = await exportTemplateToDocx(
+        {
+          name: template.name,
+          editorContent: template.editorContent,
+          page: template.page,
+        },
+        values
+      );
+      buffer = exportRes.buffer;
+      warnings = exportRes.warnings;
 
       response.setHeader("Content-Type", DOCX_MIME_TYPE);
+
       response.setHeader(
         "Content-Disposition",
         `attachment; filename="${template.slug || `${doc.document}.docx`}"`
