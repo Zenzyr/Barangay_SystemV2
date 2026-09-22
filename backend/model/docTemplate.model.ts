@@ -29,10 +29,41 @@ const PageSchema = new Schema(
   { _id: false }
 );
 
+// Where the template content is authored:
+//   "editor"      – Tiptap/editorContent is the source (legacy, unchanged).
+//   "original-docx" – the stored original DOCX package is the source; the
+//                     editor content is kept as a lightweight preview only.
+export const DOC_TEMPLATE_SOURCE_TYPES = ["editor", "original-docx"] as const;
+export type DocTemplateSourceType = (typeof DOC_TEMPLATE_SOURCE_TYPES)[number];
+
+// Metadata + the original DOCX binary (BSON BinData). The binary is stored
+// inside the template document so the package travels atomically with its
+// template — never inside editorContent. Sizes are small (<1 MB for the
+// bundled originals; uploads capped at the existing 10 MB multer limit).
+const OriginalDocxSchema = new Schema(
+  {
+    storage: { type: String, default: "database" },
+    originalFilename: { type: String, trim: true, default: "" },
+    mimeType: { type: String, default: "" },
+    size: { type: Number, default: 0 },
+    sha256: { type: String, trim: true, default: "" },
+    data: { type: Buffer },
+    uploadedAt: { type: Date, default: null },
+  },
+  { _id: false }
+);
+
 const DocTemplateSchema = new Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: 150 },
     slug: { type: String, required: true, trim: true, lowercase: true, unique: true },
+    // Additive source indicator: default "editor" keeps every existing
+    // template and all Tiptap editing behaviour untouched.
+    sourceType: { type: String, enum: DOC_TEMPLATE_SOURCE_TYPES, default: "editor" },
+    // Present only when an original DOCX package has been stored. `data` is
+    // excluded from every default read; use getOriginalDocumentData() to fetch
+    // the binary (e.g. the download endpoint or the Phase 2 OOXML renderer).
+    originalDocx: { type: OriginalDocxSchema, default: undefined },
     // Maps the template to a document request code (e.g. certificateOfIndigency)
     // so the secretary's DOCX/PDF generation finds it when no static asset
     // exists. Empty for variants and user-created templates.

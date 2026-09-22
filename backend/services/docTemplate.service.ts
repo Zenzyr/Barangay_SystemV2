@@ -1,7 +1,15 @@
-import DocTemplate, { PAGE_SIZES } from "../model/docTemplate.model";
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
+import mongoose, { Schema } from "mongoose";
+import DocTemplate, { PAGE_SIZES, DOC_TEMPLATE_SOURCE_TYPES, DocTemplateSourceType } from "../model/docTemplate.model";
 import { extractVariables, validateTiptapDoc, TiptapNode } from "../utils/tiptapDoc";
 import { TEMPLATE_VARIABLE_KEYS } from "../utils/templateVariables";
 import { SEED_TEMPLATES } from "../data/docTemplateSeed";
+import { isDocxPackage, sha256Hex } from "../utils/docxPackage";
+
+const DOCX_MIME =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 export class DocTemplateError extends Error {
   constructor(public status: number, message: string) {
@@ -16,7 +24,12 @@ const slugify = (value: string): string =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 60) || "template";
 
-const LIST_FIELDS = "name slug documentType originalFilename page version variables createdBy updatedBy createdAt updatedAt";
+const LIST_FIELDS =
+  "name slug sourceType documentType originalFilename page version variables createdBy updatedBy createdAt updatedAt";
+
+// Default reads never carry the binary (keeps list/get JSON small). The bytes
+// are only fetched explicitly via getOriginalDocumentData().
+const WITHOUT_BINARY_SELECT = "-originalDocx.data";
 
 const isFiniteMargin = (n: unknown) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 216;
 
@@ -48,6 +61,7 @@ export class DocTemplateService {
 
   static async get(id: string) {
     return DocTemplate.findById(id)
+      .select(WITHOUT_BINARY_SELECT)
       .populate("createdBy", "name")
       .populate("updatedBy", "name")
       .lean();
@@ -130,12 +144,105 @@ export class DocTemplateService {
   /** The template bound to a document request code, if any. */
   static async getByDocumentType(documentType: string) {
     if (!documentType) return null;
-    return DocTemplate.findOne({ documentType }).lean();
+    return DocTemplate.findOne({ documentType }).select(WITHOUT_BINARY_SELECT).lean();
   }
 
   static async remove(id: string): Promise<boolean> {
     const result = await DocTemplate.findByIdAndDelete(id);
     return !!result;
+  }
+
+  /**
+   * Stores an original DOCX package as the template's source document and
+   * flips `sourceType` to "original-docx". The binary remains an untouched,
+   * byte-for-byte copy of the upload (fingerprinted with SHA-256). The Tiptap
+   * editorContent is deliberately left in place as a preview. Returns null
+   * when the template does not exist.
+   */
+  static async uploadOriginalDocx(
+    id: string,
+    file: { buffer: Buffer; originalname?: string; mimetype?: string },
+    updatedBy?: string
+  ) {
+    if (!file || !Buffer.isBuffer(file.buffer) || file.buffer.length === 0) {
+      throw new DocTemplateError(400, "A .docx file is required");
+    }
+    if (!isDocxPackage(file.buffer)) {
+      throw new DocTemplateError(400, "The uploaded file is not a valid .docx document");
+    }
+
+    const template = await DocTemplate.findById(id);
+    if (!template) return null;
+    // eslint-disable-next-line no-console
+    console.log("[DEBUG uploadOriginalDocx findById]", {
+      found: !!template,
+      id,
+    });
+
+    const originalFilename =
+      path
+        .basename(file.originalname || "document.docx")
+        .replace(/[^\w.\- ]+/g, "_")
+        .slice(0, 100) || "document.docx";
+
+    template.sourceType = "original-docx";
+    template.set("originalDocx", {
+      storage: "database",
+      originalFilename,
+      mimeType: file.mimetype || DOCX_MIME,
+      size: file.buffer.length,
+      sha256: sha256Hex(file.buffer),
+      data: file.buffer,
+      uploadedAt: new Date(),
+    });
+    template.markModified("originalDocx");
+    template.version = (template.version || 1) + 1;
+    if (updatedBy) template.updatedBy = updatedBy as any;
+    await template.save();
+    return this.get(String(template._id));
+  }
+
+  /**
+   * The original DOCX package (template metadata + binary). Returns null when
+   * the template does not exist or has no stored original document. This is
+   * the only path that reads the binary — used by the download endpoint and,
+   * later, the OOXML placeholder renderer.
+   */
+  static async getOriginalDocumentData(id: string) {
+    const template = await DocTemplate.findById(id).lean();
+    if (!template) return null;
+    const raw = (template as any).originalDocx;
+    let data = raw?.data;
+    // eslint-disable-next-line no-console
+    console.log("[DEBUG getOriginalDocumentData]", {
+      found: !!template,
+      hasOriginal: !!raw,
+      dataType: data && data.constructor ? data.constructor.name : typeof data,
+      isBuffer: Buffer.isBuffer(data),
+      length: Buffer.isBuffer(data) ? data.length : undefined,
+    });
+    if (data && (data as any)._bsontype === 'Binary') {
+       data = Buffer.from((data as any).buffer);
+    }
+
+    if (!Buffer.isBuffer(data) || data.length === 0) return null;
+    return { template, data };
+  }
+
+  /**
+  /**
+   * Helper to load the original DOCX file from disk.
+   */
+  private static async loadOriginalDocxFile(filename: string) {
+    const filePath = path.join(path.resolve(process.cwd(), "..", "frontend", "docs"), filename);
+    if (!fs.existsSync(filePath)) return null;
+    const buffer = fs.readFileSync(filePath);
+    return {
+      buffer,
+      originalname: filename,
+      mimetype: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      sha256: sha256Hex(buffer),
+    };
   }
 
   /**
@@ -146,14 +253,32 @@ export class DocTemplateService {
     const created: string[] = [];
     const skipped: string[] = [];
     for (const seed of SEED_TEMPLATES) {
-      if (await DocTemplate.exists({ originalFilename: seed.originalFilename })) {
+      const existing = await DocTemplate.findOne({ originalFilename: seed.originalFilename });
+      if (existing) {
         // Backfill the document-type binding on templates seeded before the
         // field existed, without touching the admin's content edits.
-        if (seed.documentType) {
+        if (seed.documentType && !existing.documentType) {
           await DocTemplate.updateOne(
-            { originalFilename: seed.originalFilename, documentType: "" },
+            { _id: existing._id },
             { $set: { documentType: seed.documentType } }
           );
+        }
+        // Backfill binary data if originalFilename exists and binary is missing
+        if (seed.originalFilename && !existing.originalDocx) {
+          const data = await this.loadOriginalDocxFile(seed.originalFilename);
+          if (data) {
+             existing.sourceType = "original-docx";
+             existing.originalDocx = {
+                storage: "database",
+                originalFilename: seed.originalFilename,
+                mimeType: data.mimetype,
+                size: data.buffer.length,
+                sha256: data.sha256,
+                data: data.buffer,
+                uploadedAt: new Date(),
+             } as any;
+             await existing.save();
+          }
         }
         skipped.push(seed.originalFilename);
         continue;

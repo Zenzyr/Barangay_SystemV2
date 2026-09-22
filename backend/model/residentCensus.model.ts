@@ -20,6 +20,10 @@ const ResidentCensusSchema = new Schema({
   // Link to the Accounts collection for census residents who also
   // registered an account online. Set automatically by upsertFromAccount.
   accountId: { type: Schema.Types.ObjectId, ref: "Accounts", required: false },
+  // Soft-delete: archived records stay in the database (and keep their
+  // account link) so they can be viewed and restored instead of lost.
+  isArchived: { type: Boolean, default: false },
+  archivedAt: { type: Date, required: false },
 }, { timestamps: true });
 
 // Fast duplicate-prevention lookups (name + birthday are the identity key).

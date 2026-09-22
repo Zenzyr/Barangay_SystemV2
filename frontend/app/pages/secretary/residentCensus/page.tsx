@@ -52,6 +52,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  Archive,
+  RotateCcw,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/BackButton";
 
@@ -396,6 +398,8 @@ export default function ResidentCensusPage() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [viewing, setViewing] = useState<ResidentCensusRecord | null>(null);
+  // Archived view shows soft-deleted records so they can be restored.
+  const [showArchived, setShowArchived] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const importRows = useMemo(() => {
@@ -435,9 +439,11 @@ export default function ResidentCensusPage() {
 
   // ── Fetch census data ───────────────────────────────────────────
   const { data: records, isLoading } = useQuery<ResidentCensusRecord[]>({
-    queryKey: ["resident-census"],
+    queryKey: ["resident-census", showArchived],
     queryFn: async () => {
-      const res = await axiosInstance.get("/resident-census");
+      const res = await axiosInstance.get("/resident-census", {
+        params: showArchived ? { archived: "true" } : {},
+      });
       return res.data;
     },
   });
@@ -482,11 +488,26 @@ export default function ResidentCensusPage() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => axiosInstance.delete(`/resident-census/${id}`),
     onSuccess: () => {
-      successAlert("Record deleted");
+      successAlert("Record archived");
       queryClient.invalidateQueries({ queryKey: ["resident-census"] });
     },
-    onError: () => errorAlert("Failed to delete record"),
+    onError: () => errorAlert("Failed to archive record"),
   });
+
+  const restoreMutation = useMutation({
+    mutationFn: async (id: string) => axiosInstance.put(`/resident-census/${id}/restore`),
+    onSuccess: () => {
+      successAlert("Record restored to census");
+      queryClient.invalidateQueries({ queryKey: ["resident-census"] });
+    },
+    onError: () => errorAlert("Failed to restore record"),
+  });
+
+  const handleRestore = (id: string, name: string) => {
+    confirmAlert(`Restore "${name}" to the active census?`, "Restore", () => {
+      restoreMutation.mutate(id);
+    });
+  };
 
   const openAddModal = () => {
     setEditingId(null);
@@ -544,9 +565,13 @@ export default function ResidentCensusPage() {
   };
 
   const handleDelete = (id: string, name: string) => {
-    confirmAlert(`Delete record for "${name}"? This cannot be undone.`, "Delete", () => {
-      deleteMutation.mutate(id);
-    });
+    confirmAlert(
+      `Archive record for "${name}"? It will be hidden from the census but can be restored from the Archived tab.`,
+      "Archive",
+      () => {
+        deleteMutation.mutate(id);
+      }
+    );
   };
 
   return (
@@ -567,6 +592,24 @@ export default function ResidentCensusPage() {
           </div>
         </div>
      <div className="flex items-center justify-center gap-2">
+        <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+          <button
+            type="button"
+            onClick={() => { setShowArchived(false); setPage(1); }}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${!showArchived ? "bg-sky-600 text-white" : "text-gray-500 hover:text-gray-800"}`}
+          >
+            <Users className="size-3.5" />
+            Active
+          </button>
+          <button
+            type="button"
+            onClick={() => { setShowArchived(true); setPage(1); }}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${showArchived ? "bg-slate-800 text-white" : "text-gray-500 hover:text-gray-800"}`}
+          >
+            <Archive className="size-3.5" />
+            Archived
+          </button>
+        </div>
          <Button onClick={openAddModal} className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white shadow-lg shadow-sky-200/50 gap-1.5">
           <Plus className="size-4" />
           Add Record
@@ -693,18 +736,31 @@ export default function ResidentCensusPage() {
                         >
                           <Eye className="size-3.5" />
                         </button>
-                        <button
-                          onClick={() => openEditModal(r)}
-                          className="size-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-sky-600 hover:bg-sky-50 transition-colors"
-                        >
-                          <Pencil className="size-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(r._id, r.name)}
-                          className="size-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
+                        {showArchived ? (
+                          <button
+                            onClick={() => handleRestore(r._id, r.name)}
+                            className="size-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                            title="Restore to active census"
+                          >
+                            <RotateCcw className="size-3.5" />
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => openEditModal(r)}
+                              className="size-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-sky-600 hover:bg-sky-50 transition-colors"
+                            >
+                              <Pencil className="size-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(r._id, r.name)}
+                              className="size-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                              title="Archive record"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

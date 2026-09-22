@@ -35,7 +35,7 @@ export class CommunityAnalyticsService {
 
   // ── Population Overview ─────────────────────────────────────────
   static async getOverview() {
-    const residents = await ResidentCensusModel.find();
+    const residents = await ResidentCensusModel.find({ isArchived: { $ne: true } });
     const households = new Set(residents.map((r) => r.householdNumber));
 
     let children = 0, youth = 0, workingAge = 0, seniors = 0, pwd = 0;
@@ -71,7 +71,7 @@ export class CommunityAnalyticsService {
 
   // ── Employment ───────────────────────────────────────────────────
   static async getEmploymentSector() {
-    const residents = await ResidentCensusModel.find();
+    const residents = await ResidentCensusModel.find({ isArchived: { $ne: true } });
     const workingAge = residents.filter((r) => {
       const age = getAge(r);
       return age !== null && age >= 15 && age <= 64;
@@ -105,7 +105,7 @@ export class CommunityAnalyticsService {
 
   // ── Education ──────────────────────────────────────────────────
   static async getEducationSector() {
-    const residents = await ResidentCensusModel.find();
+    const residents = await ResidentCensusModel.find({ isArchived: { $ne: true } });
     const schoolAge = residents.filter((r) => {
       const age = getAge(r);
       return age !== null && age >= 5 && age <= 17;
@@ -137,7 +137,7 @@ export class CommunityAnalyticsService {
 
   // ── Senior Citizens ────────────────────────────────────────────
   static async getSeniorSector() {
-    const residents = await ResidentCensusModel.find();
+    const residents = await ResidentCensusModel.find({ isArchived: { $ne: true } });
     const seniors = residents.filter((r) => r.isSenior === "YES");
     const pensioners = residents.filter((r) => isFilled(r.pensioner));
     const rate = safeRate(seniors.length, residents.length);
@@ -154,7 +154,7 @@ export class CommunityAnalyticsService {
 
   // ── PWD ────────────────────────────────────────────────────────
   static async getPwdSector() {
-    const residents = await ResidentCensusModel.find();
+    const residents = await ResidentCensusModel.find({ isArchived: { $ne: true } });
     const pwd = residents.filter((r) => r.isPWD === "YES");
     const rate = safeRate(pwd.length, residents.length);
 
@@ -175,7 +175,7 @@ export class CommunityAnalyticsService {
 
   // ── Youth ──────────────────────────────────────────────────────
   static async getYouthSector() {
-    const residents = await ResidentCensusModel.find();
+    const residents = await ResidentCensusModel.find({ isArchived: { $ne: true } });
     const youth = residents.filter((r) => {
       const age = getAge(r);
       return age !== null && age >= 15 && age <= 30;
@@ -196,7 +196,7 @@ export class CommunityAnalyticsService {
 
   // ── Social / Household Welfare ────────────────────────────────
   static async getSocialWelfareSector() {
-    const residents = await ResidentCensusModel.find();
+    const residents = await ResidentCensusModel.find({ isArchived: { $ne: true } });
     const households = new Set(residents.map((r) => r.householdNumber));
     const fourPs = residents.filter((r) => r.is4Ps === "YES");
     const soloParents = residents.filter((r) => r.soloParent === "YES");
@@ -219,7 +219,7 @@ export class CommunityAnalyticsService {
 
   // ── Health (partial data only) ────────────────────────────────
   static async getHealthSector() {
-    const residents = await ResidentCensusModel.find();
+    const residents = await ResidentCensusModel.find({ isArchived: { $ne: true } });
     const hpnMaintenance = residents.filter((r) => r.hpnMaintenance === "YES");
     const familyPlanning = residents.filter((r) => isFilled(r.familyPlanning));
 
@@ -247,7 +247,7 @@ export class CommunityAnalyticsService {
 
   // ── Purok Analysis ──────────────────────────────────────────────
   static async getPurokAnalysis() {
-    const residents = await ResidentCensusModel.find();
+    const residents = await ResidentCensusModel.find({ isArchived: { $ne: true } });
     const puroks = Array.from(new Set(residents.map((r) => r.purok))).sort();
 
     return puroks.map((purok) => {

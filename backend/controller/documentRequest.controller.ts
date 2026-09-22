@@ -66,7 +66,6 @@ export class DocumentRequestController {
         return;
       }
       const validDocs = [
-        "barangayCertificate",
         "certificateOfResidency",
         "certificateOfIndigency",
         "barangayBusinessClearance",

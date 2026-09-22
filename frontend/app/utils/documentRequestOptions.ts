@@ -48,7 +48,6 @@ export const DOCUMENT_NAMES: Record<string, string> = {
 // Canonical, selectable document types (no Barangay Clearance — it is
 // consolidated into Barangay Certificate).
 export const SELECTABLE_DOCUMENT_TYPES = [
-  "barangayCertificate",
   "certificateOfResidency",
   "certificateOfIndigency",
   "barangayBusinessClearance",

@@ -17,6 +17,9 @@
     "seed:doc-templates": "ts-node scripts/seedDocumentTemplates.ts",
     "seed:docx-templates": "ts-node scripts/seedDocxTemplates.ts",
     "cleanup:legacy-docx": "ts-node scripts/dropLegacyDocxTemplates.ts",
+    "backup:census": "ts-node scripts/backupResidentCensus.ts",
+    "standardize:census": "ts-node scripts/standardizeResidentCensus.ts",
+    "standardize:census:apply": "ts-node scripts/standardizeResidentCensus.ts --apply",
     "test": "jest"
   },
   "keywords": [],

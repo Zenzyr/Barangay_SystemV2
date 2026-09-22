@@ -3,6 +3,7 @@ import { DocxTemplateController } from "../controller/docxTemplate.controller";
 import { authenticateJWT, requireRoles } from "../middleware/auth";
 import { ROLES } from "../utils/roles";
 import { handler } from "../utils/handler";
+import { uploadDocx } from "../utils/upload";
 
 const route = Router();
 const STAFF = [ROLES.SECRETARY, ROLES.SUPER_ADMIN] as const;
@@ -19,6 +20,21 @@ route.get("/:id", authenticateJWT, requireRoles(...STAFF), handler(DocxTemplateC
 route.put("/:id", authenticateJWT, requireRoles(...STAFF), handler(DocxTemplateController.update));
 route.post("/:id/duplicate", authenticateJWT, requireRoles(...STAFF), handler(DocxTemplateController.duplicate));
 route.post("/:id/export", authenticateJWT, requireRoles(...STAFF), handler(DocxTemplateController.exportDocx));
+// Phase 1 of DOCX template fidelity: store/stream the original DOCX package
+// (staff-only). The editor flow above is untouched.
+route.post(
+  "/:id/upload-original",
+  authenticateJWT,
+  requireRoles(...STAFF),
+  uploadDocx.single("file"),
+  handler(DocxTemplateController.uploadOriginalDocx)
+);
+route.get(
+  "/:id/original-docx",
+  authenticateJWT,
+  requireRoles(...STAFF),
+  handler(DocxTemplateController.getOriginalDocx)
+);
 route.delete("/:id", authenticateJWT, requireRoles(...STAFF), handler(DocxTemplateController.remove));
 
 export default route;

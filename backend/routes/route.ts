@@ -17,6 +17,8 @@ import documentTemplateRoute from "./documentTemplate.route";
 import docxTemplateRoute from "./docxTemplate.route";
 import publicRoute from "./public.route";
 import backupRoute from "./backup.route";
+import decisionSupportRoute from "./decisionSupport.route";
+import analyticsSnapshotRoute from "./analyticsSnapshot.route";
 
 const routes = Router();
 
@@ -43,5 +45,7 @@ routes.use("/document-templates", documentTemplateRoute);
 routes.use("/document-templates-docx", docxTemplateRoute);
 routes.use("/public", publicRoute);
 routes.use("/backup", backupRoute);
+routes.use("/decision-support", decisionSupportRoute);
+routes.use("/analytics-snapshots", analyticsSnapshotRoute);
 
 export default routes;

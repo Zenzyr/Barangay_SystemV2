@@ -3,6 +3,16 @@ import AccountModel from "../model/account.model";
 import { residentCensusInterfaceInput } from "../types/residentCensus.type";
 import { matchPerson } from "../utils/duplicateCheck";
 import { calculateAge } from "../utils/age";
+import {
+  normalizeCensusSex,
+  censusSexToAccountGender,
+  normalizeEducation,
+  normalizeOccupation,
+  normalizePensioner,
+  normalizeYesNoFlag,
+  normalizeCellphone,
+  normalizeAge,
+} from "../utils/residentDataStandardization";
 
 // Values used to signal "not applicable / unknown" on legacy census records.
 const NVA = ["", "n/a", "na", "none", "null", "-", "undeclared", "not applicable"];
@@ -45,6 +55,9 @@ export class ResidentCensusService {
       return [];
     }
     if (idToExclude) q._id = { $ne: idToExclude };
+    // Archived records no longer count as candidates, so re-adding (or
+    // approving) a resident who was archived creates a fresh live record.
+    q.isArchived = { $ne: true };
     return await ResidentCensusModel.find(q).limit(50).lean();
   }
 
@@ -81,7 +94,7 @@ export class ResidentCensusService {
     } else {
       census = await ResidentCensusModel.create({
         name: name || "N/A",
-        sex: gender || "N/A",
+        sex: normalizeCensusSex(gender),
         birthday: dateOfBirth || "N/A",
         age: dateOfBirth ? calculateAge(dateOfBirth) : "N/A",
         occupation: "N/A",
@@ -95,7 +108,7 @@ export class ResidentCensusService {
         hpnMaintenance: "N/A",
         pensioner: "N/A",
         isPWD: "N/A",
-        cellphone: contact || "N/A",
+        cellphone: normalizeCellphone(contact),
         accountId: _id || undefined,
       });
       created = true;
@@ -134,7 +147,10 @@ export class ResidentCensusService {
         ? census.name.split(",").reverse().join(" ").replace(/\s+/g, " ").trim()
         : census.name;
     }
-    if (census.sex && census.sex !== "N/A") updates.gender = census.sex;
+    if (census.sex && census.sex !== "N/A") {
+      const gender = censusSexToAccountGender(census.sex);
+      if (gender) updates.gender = gender;
+    }
     if (census.birthday && census.birthday !== "N/A") updates.dateOfBirth = census.birthday;
     if (census.age && census.age !== "N/A") updates.age = census.age;
     if (census.purok && census.purok !== "N/A") updates.purok = census.purok;
@@ -154,7 +170,10 @@ export class ResidentCensusService {
     const censusId = String(account.censusId);
     const updates: Record<string, any> = {};
     if (account.name) updates.name = account.name;
-    if (account.gender) updates.sex = account.gender;
+    if (account.gender) {
+      const sex = normalizeCensusSex(account.gender);
+      if (sex !== "N/A") updates.sex = sex;
+    }
     if (account.dateOfBirth) {
       updates.birthday = account.dateOfBirth;
       updates.age = calculateAge(account.dateOfBirth);
@@ -182,8 +201,8 @@ export class ResidentCensusService {
         continue;
       }
       const birthday = clean(raw.birthday ?? raw.birthDate ?? raw.dob);
-      const sex = clean(raw.sex ?? raw.gender);
-      const cellphone = clean(raw.cellphone ?? raw.contact ?? raw.contactNumber ?? raw.mobile);
+      const sex = normalizeCensusSex(raw.sex ?? raw.gender);
+      const cellphone = normalizeCellphone(raw.cellphone ?? raw.contact ?? raw.contactNumber ?? raw.mobile);
 
       let duplicate = null;
       try {
@@ -215,18 +234,18 @@ export class ResidentCensusService {
           name,
           sex,
           birthday,
-          age,
-          occupation: clean(raw.occupation),
-          education: clean(raw.education),
+          age: normalizeAge(age, birthday),
+          occupation: normalizeOccupation(raw.occupation),
+          education: normalizeEducation(raw.education),
           purok: clean(raw.purok ?? raw.purock ?? "N/A") || "N/A",
           householdNumber: clean(raw.householdNumber ?? raw.household ?? raw.householdNo),
-          is4Ps: clean(raw.is4Ps ?? raw.isP4ps ?? raw.fourPs),
-          soloParent: clean(raw.soloParent ?? raw.soloParentStatus),
+          is4Ps: normalizeYesNoFlag(raw.is4Ps ?? raw.isP4ps ?? raw.fourPs),
+          soloParent: normalizeYesNoFlag(raw.soloParent ?? raw.soloParentStatus),
           familyPlanning: clean(raw.familyPlanning ?? raw.familyPlanningMethod),
-          isSenior: clean(raw.isSenior ?? raw.senior),
-          hpnMaintenance: clean(raw.hpnMaintenance ?? raw.hypertensionMaintenance ?? raw.hppMaintenance),
-          pensioner: clean(raw.pensioner),
-          isPWD: clean(raw.isPWD ?? raw.pwd),
+          isSenior: normalizeYesNoFlag(raw.isSenior ?? raw.senior),
+          hpnMaintenance: normalizeYesNoFlag(raw.hpnMaintenance ?? raw.hypertensionMaintenance ?? raw.hppMaintenance),
+          pensioner: normalizePensioner(raw.pensioner),
+          isPWD: normalizeYesNoFlag(raw.isPWD ?? raw.pwd),
           cellphone,
         });
         inserted++;
@@ -251,6 +270,27 @@ export class ResidentCensusService {
     return await ResidentCensusModel.findByIdAndUpdate(id, data, { new: true });
   }
 
+  /** Soft-delete: marks the record archived; the document and its account
+   *  link are kept so it can be viewed and restored later. */
+  static async archive(id: string) {
+    return await ResidentCensusModel.findByIdAndUpdate(
+      id,
+      { isArchived: true, archivedAt: new Date() },
+      { new: true },
+    );
+  }
+
+  /** Bring an archived record back into the active census. */
+  static async restore(id: string) {
+    return await ResidentCensusModel.findByIdAndUpdate(
+      id,
+      { isArchived: false, archivedAt: null },
+      { new: true },
+    );
+  }
+
+  /** Permanent removal (used by backup/restore and maintenance, not by the
+   *  UI — normal deletes go through archive()). */
   static async delete(id: string) {
     return await ResidentCensusModel.findByIdAndDelete(id);
   }

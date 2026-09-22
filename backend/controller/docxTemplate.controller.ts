@@ -1,7 +1,9 @@
 import { Response } from "express";
+import path from "path";
 import { AuthRequest } from "../types/request.type";
 import { DocTemplateService, DocTemplateError, validatePage } from "../services/docTemplate.service";
 import { exportTemplateToDocx, DOCX_MIME_TYPE } from "../services/docTemplateExport.service";
+import { replaceVariablesInDocx } from "../services/docTemplateFidelity.service";
 import { DocumentTemplateService } from "../services/documentTemplate.service";
 import { DocumentRequestService } from "../services/documentRequest.service";
 import { TEMPLATE_VARIABLES, VARIABLE_KEY_PATTERN } from "../utils/templateVariables";
@@ -163,14 +165,26 @@ export class DocxTemplateController {
       }
 
       const values = await DocumentTemplateService.buildVariableValues(doc);
-      const { buffer, warnings } = await exportTemplateToDocx(
-        {
-          name: template.name,
-          editorContent: template.editorContent,
-          page: template.page,
-        },
-        values
-      );
+
+      let buffer: Buffer;
+      let warnings: string[] = [];
+
+      if (template.sourceType === "original-docx") {
+        const result = await DocTemplateService.getOriginalDocumentData(template._id);
+        if (!result) return response.status(404).send("Original document data not found");
+        buffer = await replaceVariablesInDocx(result.data, values);
+      } else {
+        const exportRes = await exportTemplateToDocx(
+          {
+            name: template.name,
+            editorContent: template.editorContent,
+            page: template.page,
+          },
+          values
+        );
+        buffer = exportRes.buffer;
+        warnings = exportRes.warnings;
+      }
 
       response.setHeader("Content-Type", DOCX_MIME_TYPE);
       response.setHeader(
@@ -191,6 +205,64 @@ export class DocxTemplateController {
       return response.json(result);
     } catch (error) {
       return fail(response, error, "SEED", "Failed to import default templates");
+    }
+  };
+
+  /**
+   * Stores an original DOCX package as the template's source document
+   * (sets `sourceType` to "original-docx"; the package is kept byte-for-byte
+   * with a SHA-256 fingerprint). Phase 1 — placeholder replacement inside the
+   * package is Phase 2.
+   */
+  static uploadOriginalDocx = async (request: AuthRequest, response: Response) => {
+    try {
+      const { id } = request.params;
+      if (!isObjectId(id)) return response.status(400).send("Invalid template id");
+      if (!request.file) return response.status(400).send("A .docx file is required");
+
+      const template = await DocTemplateService.uploadOriginalDocx(
+        id,
+        {
+          buffer: request.file.buffer,
+          originalname: request.file.originalname,
+          mimetype: request.file.mimetype,
+        },
+        request.account?._id
+      );
+      if (!template) return response.status(404).send("Template not found");
+      return response.json(template);
+    } catch (error) {
+      return fail(response, error, "UPLOAD-ORIGINAL", "Failed to store the original document");
+    }
+  };
+
+  /**
+   * Streams the stored original DOCX package back as an attachment. Lets staff
+   * (and, later, the OOXML renderer) retrieve the byte-exact source document.
+   */
+  static getOriginalDocx = async (request: AuthRequest, response: Response) => {
+    try {
+      const { id } = request.params;
+      if (!isObjectId(id)) return response.status(400).send("Invalid template id");
+
+      const result = await DocTemplateService.getOriginalDocumentData(id);
+      if (!result) return response.status(404).send("Template not found or has no original document");
+
+      const { template, data } = result;
+      const safeName =
+        path
+          .basename(template.originalDocx?.originalFilename || `${template.slug}.docx`)
+          .replace(/[^\w.\- ]+/g, "_") || `${template.slug}.docx`;
+
+      response.setHeader("Content-Type", template.originalDocx?.mimeType || DOCX_MIME_TYPE);
+      response.setHeader("Content-Disposition", `attachment; filename="${safeName}"`);
+      response.setHeader("Access-Control-Expose-Headers", "Content-Disposition, X-Original-Sha256");
+      if (template.originalDocx?.sha256) {
+        response.setHeader("X-Original-Sha256", template.originalDocx.sha256);
+      }
+      return response.send(data);
+    } catch (error) {
+      return fail(response, error, "GET-ORIGINAL", "Failed to download the original document");
     }
   };
 }
