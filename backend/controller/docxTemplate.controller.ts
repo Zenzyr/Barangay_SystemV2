@@ -169,22 +169,33 @@ export class DocxTemplateController {
       let buffer: Buffer;
       let warnings: string[] = [];
 
-      const exportRes = await exportTemplateToDocx(
-        {
-          name: template.name,
-          editorContent: template.editorContent,
-          page: template.page,
-        },
-        values
-      );
-      buffer = exportRes.buffer;
-      warnings = exportRes.warnings;
+      if (template.sourceType === "original-docx") {
+        // Fidelity path: fill {{variables}} inside the stored original DOCX
+        // package instead of regenerating from the Tiptap editor content.
+        const original = await DocTemplateService.renderOriginalDocx(String(template._id), values);
+        if (!original) {
+          return response.status(409).send("This template has no stored original document to render from");
+        }
+        buffer = original.buffer;
+        warnings = original.warnings;
+      } else {
+        const exportRes = await exportTemplateToDocx(
+          {
+            name: template.name,
+            editorContent: template.editorContent,
+            page: template.page,
+          },
+          values
+        );
+        buffer = exportRes.buffer;
+        warnings = exportRes.warnings;
+      }
 
       response.setHeader("Content-Type", DOCX_MIME_TYPE);
 
       response.setHeader(
         "Content-Disposition",
-        `attachment; filename="${template.slug || `${doc.document}.docx`}"`
+        `attachment; filename="${(template.slug || doc.document)}.docx"`
       );
       response.setHeader("Access-Control-Expose-Headers", "Content-Disposition, X-Export-Warnings");
       if (warnings.length) response.setHeader("X-Export-Warnings", encodeURIComponent(JSON.stringify(warnings)));
@@ -206,8 +217,8 @@ export class DocxTemplateController {
   /**
    * Stores an original DOCX package as the template's source document
    * (sets `sourceType` to "original-docx"; the package is kept byte-for-byte
-   * with a SHA-256 fingerprint). Phase 1 — placeholder replacement inside the
-   * package is Phase 2.
+   * with a SHA-256 fingerprint). renderByType fills {{variables}} inside this
+   * package when sourceType is "original-docx".
    */
   static uploadOriginalDocx = async (request: AuthRequest, response: Response) => {
     try {

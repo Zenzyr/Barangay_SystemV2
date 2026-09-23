@@ -6,7 +6,8 @@ import DocTemplate, { PAGE_SIZES, DOC_TEMPLATE_SOURCE_TYPES, DocTemplateSourceTy
 import { extractVariables, validateTiptapDoc, TiptapNode } from "../utils/tiptapDoc";
 import { TEMPLATE_VARIABLE_KEYS } from "../utils/templateVariables";
 import { SEED_TEMPLATES } from "../data/docTemplateSeed";
-import { isDocxPackage, sha256Hex } from "../utils/docxPackage";
+import { isDocxPackage, sha256Hex, toOriginalDocxBuffer, readZipEntry, replaceZipEntry } from "../utils/docxPackage";
+import { replacePlaceholdersInDocumentXml } from "../utils/ooxmlPlaceholder";
 
 const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -173,11 +174,6 @@ export class DocTemplateService {
 
     const template = await DocTemplate.findById(id);
     if (!template) return null;
-    // eslint-disable-next-line no-console
-    console.log("[DEBUG uploadOriginalDocx findById]", {
-      found: !!template,
-      id,
-    });
 
     const originalFilename =
       path
@@ -213,26 +209,40 @@ export class DocTemplateService {
     if (!template) return null;
     const raw = (template as any).originalDocx;
     let data = raw?.data;
-    // eslint-disable-next-line no-console
-    console.log("[DEBUG getOriginalDocumentData]", {
-      found: !!template,
-      hasOriginal: !!raw,
-      dataType: data && data.constructor ? data.constructor.name : typeof data,
-      isBuffer: Buffer.isBuffer(data),
-      length: Buffer.isBuffer(data) ? data.length : undefined,
-    });
-    if (data && (data as any)._bsontype === 'Binary') {
-       data = Buffer.from((data as any).buffer);
+    // Mongoose hands a lean-read BinData back as the BSON `Binary` wrapper (not
+    // a Buffer); a direct Buffer read already returns a Buffer. Coerce both.
+    if (data && (data as any)._bsontype === "Binary") {
+      data = Buffer.from((data as any).buffer);
     }
-
     if (!Buffer.isBuffer(data) || data.length === 0) return null;
     return { template, data };
   }
 
   /**
-  /**
-   * Helper to load the original DOCX file from disk.
+   * Fills {{variables}} directly inside the stored original DOCX package and
+   * returns the rewritten package as a buffer, preserving every other part of
+   * the file. Returns null when the template has no stored original or the
+   * package cannot be re-built.
    */
+  static async renderOriginalDocx(id: string, values: Record<string, string>) {
+    const original = await this.getOriginalDocumentData(id);
+    if (!original) return null;
+    const { template, data } = original;
+
+    const documentXml = readZipEntry(data, "word/document.xml");
+    if (documentXml === null) {
+      throw new DocTemplateError(409, "The stored original document is missing word/document.xml");
+    }
+
+    const filled = replacePlaceholdersInDocumentXml(documentXml.toString("utf8"), values);
+
+    const buffer = replaceZipEntry(data, "word/document.xml", Buffer.from(filled, "utf8"));
+    if (!buffer) {
+      throw new DocTemplateError(500, "Failed to rebuild the DOCX package");
+    }
+    return { buffer, warnings: [] as string[], template };
+  }
+
   private static async loadOriginalDocxFile(filename: string) {
     const filePath = path.join(path.resolve(process.cwd(), "..", "frontend", "docs"), filename);
     if (!fs.existsSync(filePath)) return null;
