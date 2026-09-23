@@ -44,6 +44,7 @@ import {
   Trash2,
   History,
   Loader2,
+  Download,
 } from "lucide-react";
 
 export default function MyDocumentsPage() {
@@ -232,6 +233,20 @@ export default function MyDocumentsPage() {
                           </button>
                           <RequestActionsMenu
                             actions={[
+                              {
+                                key: "download",
+                                label: "Download PDF",
+                                icon: Download,
+                                disabled: !doc.isPaid,
+                                onClick: async () => {
+                                  try {
+                                    const { generateDocumentPDFFromDOCX } = await import("@/app/utils/generateDocument");
+                                    await generateDocumentPDFFromDOCX(doc);
+                                  } catch {
+                                    errorAlert("Failed to download the PDF. Please try again.");
+                                  }
+                                },
+                              },
                               {
                                 key: "preview",
                                 label: "Preview PDF",
