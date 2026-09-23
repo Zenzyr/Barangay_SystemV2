@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -32,9 +32,12 @@ export default function Page() {
   const [form, setForm] = useState<barangayInfo>({ ...EMPTY_BARANGAY_INFO });
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (store.settings) setForm({ ...EMPTY_BARANGAY_INFO, ...store.settings.barangay });
-  }, [store.settings]);
+  const settings = store.settings;
+  const [resolvedSettings, setResolvedSettings] = useState(settings);
+  if (settings !== resolvedSettings) {
+    setResolvedSettings(settings);
+    if (settings) setForm({ ...EMPTY_BARANGAY_INFO, ...settings.barangay });
+  }
 
   const set = (key: keyof barangayInfo, value: string) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -47,8 +50,10 @@ export default function Page() {
       queryClient.invalidateQueries({ queryKey: ["settings"] });
       successAlert("Branding asset updated.");
     },
-    onError: (e: any) =>
-      errorAlert(e?.response?.data?.message || "Failed to upload asset."),
+    onError: (e: unknown) => {
+      const err = e as { response?: { data?: { message?: string } } } | null;
+      errorAlert(err?.response?.data?.message || "Failed to upload asset.");
+    },
   });
 
   const saveInfo = async () => {
@@ -62,8 +67,9 @@ export default function Page() {
       store.setSettings(updated);
       queryClient.invalidateQueries({ queryKey: ["settings"] });
       successAlert("Barangay information updated.");
-    } catch (e: any) {
-      errorAlert(e?.response?.data?.message || "Failed to update settings.");
+    } catch (e) {
+      const err = e as { response?: { data?: { message?: string } } } | null;
+      errorAlert(err?.response?.data?.message || "Failed to update settings.");
     } finally {
       setSaving(false);
     }
@@ -152,10 +158,11 @@ function AssetCard({
   onRemove: () => void;
 }) {
   const [preview, setPreview] = useState<string | null>(null);
-  useEffect(() => {
-    if (!url) return;
+  const [shownUrl, setShownUrl] = useState(url);
+  if (url && url !== shownUrl) {
+    setShownUrl(url);
     setPreview(null);
-  }, [url]);
+  }
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

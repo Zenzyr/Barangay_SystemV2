@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -74,17 +74,8 @@ export default function EditProfileModal({
   const [houseHoldNumber, setHouseHoldNumber] = useState(currentHouseHoldNumber);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    setName(currentName);
-    setAddress(currentAddress);
-    setContact(currentContact);
-    setGender(currentGender);
-    setDateOfBirth(currentDateOfBirth);
-    setCivilStatus(currentCivilStatus);
-    setPurok(currentPurok);
-    setVoterStatus(currentVoterStatus);
-    setHouseHoldNumber(currentHouseHoldNumber);
-  }, [
+  const snapshotKey = [
+    open,
     currentName,
     currentAddress,
     currentContact,
@@ -94,8 +85,20 @@ export default function EditProfileModal({
     currentPurok,
     currentVoterStatus,
     currentHouseHoldNumber,
-    open,
-  ]);
+  ].join("|");
+  const [resolvedKey, setResolvedKey] = useState(snapshotKey);
+  if (snapshotKey !== resolvedKey) {
+    setResolvedKey(snapshotKey);
+    setName(currentName);
+    setAddress(currentAddress);
+    setContact(currentContact);
+    setGender(currentGender);
+    setDateOfBirth(currentDateOfBirth);
+    setCivilStatus(currentCivilStatus);
+    setPurok(currentPurok);
+    setVoterStatus(currentVoterStatus);
+    setHouseHoldNumber(currentHouseHoldNumber);
+  }
 
   const handleSubmit = async () => {
     if (!name.trim()) return;

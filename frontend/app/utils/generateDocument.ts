@@ -24,4 +24,5 @@ export {
   generateDocumentDOCX,
   viewDocumentPDFFromDOCX,
   generateDocumentPDFFromDOCX,
+  printDocumentPDF,
 } from "./docxTemplateEngine";

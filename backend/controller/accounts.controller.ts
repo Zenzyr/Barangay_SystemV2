@@ -1,4 +1,5 @@
 import { PurokService } from "../services/purok.service";
+import { randomBytes } from "crypto";
 import { Response } from "express";
 import { AuthRequest } from "../types/request.type";
 import { accountInterfaceInput } from "../types/accounts.type";
@@ -185,6 +186,25 @@ async function dispatchEmailOtp(
     message: "A verification code has been sent to your email.",
     resendCooldownSeconds: EMAIL_OTP_RESEND_COOLDOWN_SECONDS,
   });
+}
+
+// ── Welcome emails for staff-created resident accounts ──────────────
+function accountWelcomeEmailHtml(name: string, tempPassword: string): string {
+  return [
+    `<p>Hi ${name},</p>`,
+    "<p>Your barangay resident account has been created by the barangay office. You can now log in to the resident portal.</p>",
+    `<p>Your temporary password is: <b>${tempPassword}</b></p>`,
+    "<p>Please sign in and change your password right away to keep your account secure.</p>",
+    "<p>Thank you,<br/>Barangay Office</p>",
+  ].join("");
+}
+
+function accountApprovedEmailHtml(name: string): string {
+  return [
+    `<p>Hi ${name},</p>`,
+    "<p>Your barangay resident account has been created and approved by the barangay office. You can now log in to the resident portal.</p>",
+    "<p>Thank you,<br/>Barangay Office</p>",
+  ].join("");
 }
 
 export class AccountController {
@@ -473,6 +493,201 @@ export class AccountController {
         return response.status(409).send(EMAIL_IN_USE_MSG);
       }
       return response.status(500).send("Failed to register account");
+    }
+  };
+
+  /**
+   * Staff-only resident creation (secretary / super admin).
+   *
+   * The clerk meets the person face-to-face, confirms identity against their
+   * ID and records their details — so no OTP, no Gemini ID-document check and
+   * no later account-verification step are needed. The account is created
+   * already "approved". Every field mirrors the public sign-up form.
+   *
+   * The duplicate/identity protections still apply exactly as in register():
+   * email reuse → 409; a confident same-person match (name + DOB + phone across
+   * accounts and the census) → blocked with an explanation. Uncertain matches
+   * are flagged for the administrator's review instead of blocking the clerk.
+   * Every created resident is synced into the resident census.
+   */
+  static createResidentAdmin = async (request: AuthRequest, response: Response) => {
+    try {
+      const body = (request.body || {}) as Record<string, unknown>;
+      const email = String(body.email || "")
+        .trim()
+        .toLowerCase();
+      const name = String(body.name || "").trim();
+      const address = String(body.address || "").trim();
+      const contact = String(body.contact || "").trim();
+      const gender = String(body.gender || "").trim();
+      const dateOfBirth = String(body.dateOfBirth || "").trim();
+      const civilStatus = String(body.civilStatus || "").trim();
+      const purok = String(body.purok || "").trim();
+      const voterStatus = String(body.voterStatus || "").trim();
+      const houseHoldNumber = String(body.houseHoldNumber || "").trim();
+      const password = String(body.password || "");
+
+      // Verify purok is active
+      const activePuroks = await PurokService.getAll({ status: "active" });
+      if (!activePuroks.some((p: any) => p.name === purok)) {
+        return response.status(400).send("Invalid purok selected");
+      }
+
+      // ── Field validation (same rules as the sign-up form) ─────
+      if (!isNonEmptyString(name))
+        return response.status(400).send("Full name is required");
+      if (!isName(name))
+        return response
+          .status(400)
+          .send(
+            "Name can only contain letters, spaces, periods, hyphens and apostrophes",
+          );
+      if (!withinLength(name, MAX_NAME_LENGTH))
+        return response
+          .status(400)
+          .send(`Name must be at most ${MAX_NAME_LENGTH} characters`);
+
+      if (!isEmail(email))
+        return response.status(400).send("A valid email address is required");
+      if (!withinLength(email, MAX_EMAIL_LENGTH))
+        return response.status(400).send("Email is too long");
+      const emailDomainCheck = emailDomainError(email);
+      if (emailDomainCheck)
+        return response.status(400).send(emailDomainCheck);
+
+      if (!isPhilippineMobile(contact))
+        return response
+          .status(400)
+          .send(
+            "A valid 11-digit Philippine mobile number is required (e.g. 09171234567)",
+          );
+
+      if (!isNonEmptyString(address))
+        return response.status(400).send("Address is required");
+      if (!withinLength(address, MAX_ADDRESS_LENGTH))
+        return response
+          .status(400)
+          .send(`Address must be at most ${MAX_ADDRESS_LENGTH} characters`);
+
+      // A clerk-typed password is accepted; when omitted a secure temporary
+      // one is generated and sent to the resident in the welcome email.
+      const finalPassword = password || randomBytes(6).toString("hex");
+      const passwordError = passwordStrengthError(finalPassword);
+      if (passwordError) return response.status(400).send(passwordError);
+
+      const requiredEnums: Record<string, readonly string[]> = {
+        gender: ["Male", "Female", "Other"],
+        civilStatus: ["Single", "Married", "Widowed", "Separated", "Divorced"],
+        purok: ["Purok 1", "Purok 2", "Purok 3", "Purok 4"],
+        voterStatus: ["Registered", "Not Registered"],
+      };
+      for (const [field, allowed] of Object.entries(requiredEnums)) {
+        const value = String(body[field] || "").trim();
+        if (!allowed.includes(value)) {
+          return response.status(400).send(`Invalid value for ${field}`);
+        }
+      }
+
+      // ── Duplicate email check ────────────────────────────────
+      const existing = await AccountService.checkEmailIfExist(email);
+      if (existing) {
+        return response.status(409).send(EMAIL_IN_USE_MSG);
+      }
+
+      // ── ONE PERSON = ONE ACCOUNT (same as register) ─────────
+      const assessment = await assessPersonRegistration({
+        name,
+        dateOfBirth,
+        gender,
+        contact,
+      });
+      if (assessment.status === "blocked") {
+        const message =
+          assessment.reason === DUPLICATE_NAME_REASON
+            ? DUPLICATE_NAME_MSG
+            : DUPLICATE_PERSON_MSG;
+        return response.status(409).send(message);
+      }
+
+      const hashedPassword = await bcrypt.hash(finalPassword, 10);
+      const age = calculateAge(dateOfBirth);
+      const identityHash = computeIdentityHash(name, dateOfBirth);
+
+      const account = await AccountService.create({
+        profile: String(body.profile || ""),
+        name,
+        address,
+        contact,
+        email,
+        gender,
+        dateOfBirth,
+        age,
+        civilStatus,
+        purok,
+        voterStatus,
+        houseHoldNumber,
+        password: hashedPassword,
+        status: "approved",
+        role: "resident",
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+        idImg: { idFront: "", idBack: "", idSelfie: "" },
+        skills: [],
+        reviews: [],
+        legalConsent: { privacyPolicy: true, termsOfService: true },
+
+        ...(identityHash ? { identityHash } : {}),
+        ...(assessment.status === "flagged" && assessment.reason
+          ? {
+              possibleDuplicate: {
+                status: "review",
+                reason: assessment.reason,
+                records: (assessment.records || []).map((r) => ({
+                  type: r.kind,
+                  id: r.id,
+                  name: r.name,
+                })),
+              },
+            }
+          : {}),
+      });
+
+      // ── Auto-sync into the census (idempotent) ──────────────
+      await ResidentCensusService.upsertFromAccount(account).catch((err) =>
+        console.error("[CENSUS-SYNC ERROR]", err),
+      );
+
+      // ── Welcome email with the temporary password ─────────────
+      // The account is real either way; a failed email is logged, never a
+      // reason to roll back the registration.
+      try {
+        const welcomeHtml = password
+          ? accountApprovedEmailHtml(name)
+          : accountWelcomeEmailHtml(name, finalPassword);
+        await sendEmail(
+          account.email,
+          "Your Barangay Resident Account",
+          welcomeHtml,
+        );
+      } catch (emailError) {
+        console.error(
+          "[ADMIN-CREATE-RESIDENT] welcome email failed for account " +
+            account._id,
+          emailError,
+        );
+      }
+
+      return response.status(201).json({ userId: account._id });
+    } catch (error: any) {
+      console.error("[ADMIN CREATE RESIDENT ERROR]", error);
+      if (error?.code === 11000) {
+        const keyValues = Object.keys(error?.keyValue || {});
+        if (keyValues.includes("identityHash")) {
+          return response.status(409).send(DUPLICATE_PERSON_MSG);
+        }
+        return response.status(409).send(EMAIL_IN_USE_MSG);
+      }
+      return response.status(500).send("Failed to create resident");
     }
   };
 

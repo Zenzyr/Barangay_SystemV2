@@ -11,7 +11,22 @@ import { convertDocxToPdf } from "../utils/docxToPdf";
 import { isStaffRole } from "../utils/roles";
 import { verifyPayMongoPayment } from "../services/payment.service";
 
-const DOC_STATUSES = ["pending", "processing", "to claim", "completed", "rejected"];
+const DOC_STATUSES = ["pending", "processing", "ready", "released", "cancelled", "to claim", "completed", "rejected"];
+
+// Allowed forward moves per status. A request can only move along these edges;
+// invalid transitions are rejected with a descriptive error. Primary lifecycle:
+// pending -> processing -> ready -> released. Any open stage may be cancelled.
+// Legacy statuses can step into the primary set so old records migrate forward.
+const STATUS_TRANSITIONS: Record<string, string[]> = {
+  pending: ["processing", "cancelled"],
+  processing: ["ready", "cancelled"],
+  ready: ["released", "cancelled"],
+  released: ["ready"],
+  cancelled: ["pending"],
+  "to claim": ["ready", "released", "cancelled"],
+  completed: ["released", "ready", "cancelled"],
+  rejected: ["pending", "cancelled"],
+};
 
 // ... (other parts of the file remain the same, just keeping the imports correct)
 
@@ -259,6 +274,27 @@ export class DocumentRequestController {
         return;
       }
 
+      // ── Workflow enforcement ──────────────────────────────────
+      // The requested status must be a legal forward move from the current
+      // one (pending -> processing -> ready -> released, or cancelled at any
+      // open stage). This keeps the audit trail a clean linear narrative.
+      const currentDoc = await DocumentRequestService.get(id);
+      if (!currentDoc) {
+        response.status(404).send("Document request not found");
+        return;
+      }
+      const allowed = STATUS_TRANSITIONS[currentDoc.status] || [];
+      if (!allowed.includes(String(status))) {
+        response
+          .status(400)
+          .send(
+            `Cannot change status from "${currentDoc.status}" to "${status}". Valid moves: ${
+              allowed.length ? allowed.join(", ") : "none (terminal status)"
+            }.`,
+          );
+        return;
+      }
+
       const document = await DocumentRequestService.updateStatus(id, status);
       if (!document) {
         response.status(404).send("Document request not found");
@@ -324,11 +360,12 @@ export class DocumentRequestController {
       const isStaff = isStaffRole(account.role);
 
       // Owner/resident edits are only allowed on pending and rejected requests.
-      // Secretaries may also edit processing requests; to-claim/completed stay
-      // locked until an authorized user explicitly reopens the request.
+      // Secretaries may also edit processing/ready requests; released and
+      // cancelled stay locked unless an authorized user explicitly reopens
+      // (cancelled -> pending) the request.
       const editable: Record<string, string[]> = {
         resident: ["pending", "rejected"],
-        secretary: ["pending", "processing", "rejected"],
+        secretary: ["pending", "processing", "ready", "rejected", "cancelled"],
       };
       const allowedFor = isStaff ? editable.secretary : editable.resident;
 
@@ -459,11 +496,12 @@ export class DocumentRequestController {
         return;
       }
 
-      // ── Completed requests are archived (soft delete), never hard-deleted,
-      //    so the request history and audit trail are preserved. ──
-      if (isStaff && current.status === "completed") {
+      // ── Completed/released requests are archived (soft delete), never
+      //    hard-deleted, so the request history and audit trail are preserved. ──
+      const TERMINAL_STATUSES = ["released", "completed"];
+      if (isStaff && TERMINAL_STATUSES.includes(current.status)) {
         await DocumentRequestService.archive(id);
-        response.send({ message: "Completed request archived. It remains visible in Request History.", archived: true });
+        response.send({ message: "Released request archived. It remains visible in Request History.", archived: true });
         return;
       }
 
@@ -537,7 +575,9 @@ export class DocumentRequestController {
             }
 
             const document = await DocumentRequestService.updatePayment(documentID, true);
-            await DocumentRequestService.updateStatus(documentID, "completed");
+            // Online payment marks the request ready for the secretary to print
+            // and release — payment alone never releases the document.
+            await DocumentRequestService.updateStatus(documentID, "ready");
             
             const account = request.account;
             if (account) {

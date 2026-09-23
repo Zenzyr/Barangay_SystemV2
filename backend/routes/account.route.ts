@@ -26,6 +26,9 @@ route.get("/ai-context", ...staffOnly, handler(AccountController.getAiContext))
 route.put("/ai-context", ...superAdminOnly, handler(AccountController.upsertAiContext))
 
 route.post("/", uploadIdImages, handler(AccountController.register))
+// Staff-only resident creation: secretary meets the resident in person and
+// records a fully-verified account (no OTP / ID-document verification needed).
+route.post("/admin/create", ...staffOnly, handler(AccountController.createResidentAdmin))
 // Pre-registration identity check (UX only — register() re-validates).
 route.post("/check-duplicate", handler(AccountController.checkDuplicate))
 // Read-only possible-duplicate report for administrator review.

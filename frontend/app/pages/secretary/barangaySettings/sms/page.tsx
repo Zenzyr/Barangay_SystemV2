@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -31,9 +31,12 @@ export default function Page() {
   const [form, setForm] = useState<smsSettings>({ ...EMPTY_SMS_SETTINGS });
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (store.settings) setForm({ ...EMPTY_SMS_SETTINGS, ...store.settings.sms });
-  }, [store.settings]);
+  const settings = store.settings;
+  const [resolvedSettings, setResolvedSettings] = useState(settings);
+  if (settings !== resolvedSettings) {
+    setResolvedSettings(settings);
+    if (settings) setForm({ ...EMPTY_SMS_SETTINGS, ...settings.sms });
+  }
 
   const set = <K extends keyof smsSettings>(key: K, value: smsSettings[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -45,8 +48,9 @@ export default function Page() {
       store.setSettings(updated);
       queryClient.invalidateQueries({ queryKey: ["settings"] });
       successAlert("SMS settings saved.");
-    } catch (e: any) {
-      errorAlert(e?.response?.data?.message || "Failed to save SMS settings.");
+    } catch (e) {
+      const err = e as { response?: { data?: { message?: string } } } | null;
+      errorAlert(err?.response?.data?.message || "Failed to save SMS settings.");
     } finally {
       setSaving(false);
     }

@@ -1033,7 +1033,7 @@ export default function SignUpPage() {
                           Verify your email address
                         </p>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          We'll send a 6-digit code to{" "}
+                          We&apos;ll send a 6-digit code to{" "}
                           <span className="font-medium text-gray-700">
                             {email.trim() || "your email"}
                           </span>

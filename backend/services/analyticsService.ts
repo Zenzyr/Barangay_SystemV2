@@ -117,13 +117,15 @@ export class AnalyticsService {
     now: Date,
     from: Date | null
   ): AnalyticsOverview {
-    const completed = docs.filter((d) => d.status === "completed").length;
+    // "completed" is the legacy terminal status; "released" is the current one.
+    const isFinished = (d: any) => d.status === "released" || d.status === "completed";
+    const completed = docs.filter(isFinished).length;
     const completionRate = docs.length > 0 ? Math.round((completed / docs.length) * 100) : 0;
 
     const revenueCollected = docs
       .filter((d) => d.isPaid)
       .reduce((sum, d) => sum + (Number(d.price) || 0), 0);
-    const activeDocs = docs.filter((d) => !d.isPaid && d.status !== "completed");
+    const activeDocs = docs.filter((d) => !d.isPaid && !isFinished(d));
     const pendingRevenue = activeDocs.reduce((sum, d) => sum + (Number(d.price) || 0), 0);
     const unpaidCount = activeDocs.length;
 

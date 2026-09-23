@@ -17,7 +17,20 @@ const DOCUMENT_TYPES = [
   "endorsementLetter",
 ];
 
-const DOCUMENT_STATUSES = ["pending", "processing", "to claim", "completed", "rejected"];
+// Primary lifecycle: pending -> processing -> ready -> released (or cancelled
+// at any open stage). Legacy statuses ("to claim", "completed", "rejected")
+// are kept for backward compatibility with existing records and transition
+// into the primary set on their next status update.
+const DOCUMENT_STATUSES = [
+  "pending",
+  "processing",
+  "ready",
+  "released",
+  "cancelled",
+  "to claim",
+  "completed",
+  "rejected",
+];
 
 const DocumentSchema = new Schema({
     // Optional: linked to an Accounts doc when the resident has an account.

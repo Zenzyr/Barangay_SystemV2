@@ -65,20 +65,22 @@ export default function Page() {
       {/* Ambient Background Overlay */}
       <div className="fixed inset-0 pointer-events-none bg-ambient-pattern opacity-10" />
 
-  // ── Active (non-completed) document requests ──────────────────
+  // ── Active (non-released) document requests ──────────────────
   const { data: activeDocs, isLoading: activeLoading, isError: activeError, refetch: refetchActiveDocs } = useQuery<documentRequestInterface[]>({
     queryKey: ["document-requests", "secretary", "active"],
     queryFn: async () => {
-      const res = await axiosInstance.get("/document-request", { params: { statusNot: "completed" } });
-      return res.data;
+      const res = await axiosInstance.get("/document-request", { params: { statusNot: "released" } });
+      // Legacy "completed" records are effectively released — exclude them so
+      // the active list stays accurate until they are migrated.
+      return res.data.filter((d: documentRequestInterface) => d.status !== "completed");
     },
   });
 
-  // ── Completed document requests (for stats) ────────────────────
-  const { data: completedDocs, isLoading: completedLoading, isError: completedError, refetch: refetchCompletedDocs } = useQuery<documentRequestInterface[]>({
-    queryKey: ["document-requests", "secretary", "completed"],
+  // ── Released document requests (for stats) ────────────────────
+  const { data: releasedDocs, isLoading: releasedLoading, isError: releasedError, refetch: refetchReleasedDocs } = useQuery<documentRequestInterface[]>({
+    queryKey: ["document-requests", "secretary", "released"],
     queryFn: async () => {
-      const res = await axiosInstance.get("/document-request", { params: { status: "completed" } });
+      const res = await axiosInstance.get("/document-request", { params: { status: "released" } });
       return res.data;
     },
   });
@@ -107,17 +109,17 @@ export default function Page() {
     activeRequests: activeDocs?.length || 0,
     pending: activeDocs?.filter((d) => d.status === "pending").length || 0,
     unpaid: activeDocs?.filter((d) => !d.isPaid).length || 0,
-    completed: completedDocs?.length || 0,
+    completed: releasedDocs?.length || 0,
   };
 
   const STATS_CARDS = [
     { label: "Pending Verification", value: stats.pendingVerification, icon: UserPlus2, bg: "bg-amber-50", text: "text-amber-700", iconBg: "bg-amber-100", iconColor: "text-amber-600", href: "/pages/secretary/verifyResident" },
     { label: "Approved Residents", value: stats.totalResidents, icon: Users, bg: "bg-emerald-50", text: "text-emerald-700", iconBg: "bg-emerald-100", iconColor: "text-emerald-600", href: "/pages/secretary/verifyResident" },
     { label: "Active Requests", value: stats.activeRequests, icon: ClipboardList, bg: "bg-sky-50", text: "text-sky-700", iconBg: "bg-sky-100", iconColor: "text-sky-600", href: "/pages/secretary/documentRequest" },
-    { label: "Completed", value: stats.completed, icon: CheckCircle2, bg: "bg-violet-50", text: "text-violet-700", iconBg: "bg-violet-100", iconColor: "text-violet-600", href: "/pages/secretary/requestHistory" },
+    { label: "Released", value: stats.completed, icon: CheckCircle2, bg: "bg-violet-50", text: "text-violet-700", iconBg: "bg-violet-100", iconColor: "text-violet-600", href: "/pages/secretary/requestHistory" },
   ];
 
-  const isStatsLoading = pendingLoading || allLoading || activeLoading || completedLoading;
+  const isStatsLoading = pendingLoading || allLoading || activeLoading || releasedLoading;
 
   const recentDocs = activeDocs
     ? [...activeDocs].sort((a, b) => (a._id < b._id ? 1 : -1)).slice(0, 5)
@@ -231,7 +233,7 @@ export default function Page() {
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">
-                          {doc.resident?.name || "Unknown"}
+                          {doc.resident?.name || doc.fullName || "Unknown"}
                         </p>
                         <p className="text-xs text-gray-400 truncate">
                           {DOCUMENT_NAMES[doc.document] || doc.document}

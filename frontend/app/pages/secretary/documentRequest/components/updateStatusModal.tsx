@@ -22,6 +22,7 @@ import {
   FileText,
   Wallet,
   Ban,
+  BadgeCheck,
 } from "lucide-react";
 
 interface ApiError {
@@ -38,6 +39,9 @@ interface Props {
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; bg: string; text: string }> = {
   pending:    { label: "Pending",    icon: Clock,        bg: "bg-amber-50",   text: "text-amber-700" },
   processing: { label: "Processing", icon: Loader2,      bg: "bg-sky-50",     text: "text-sky-700" },
+  ready:      { label: "Ready",      icon: BadgeCheck,   bg: "bg-violet-50",  text: "text-violet-700" },
+  released:   { label: "Released",   icon: CheckCircle2, bg: "bg-emerald-50", text: "text-emerald-700" },
+  cancelled:  { label: "Cancelled",  icon: Ban,          bg: "bg-rose-50",    text: "text-rose-700" },
   "to claim": { label: "To Claim",   icon: FileCheck,    bg: "bg-violet-50",  text: "text-violet-700" },
   completed:  { label: "Completed",  icon: CheckCircle2, bg: "bg-emerald-50", text: "text-emerald-700" },
   rejected:   { label: "Rejected",   icon: Ban,          bg: "bg-rose-50",    text: "text-rose-700" },
@@ -128,7 +132,7 @@ export default function UpdateStatusModal({ open, onOpenChange, document: doc }:
           {/* Resident info */}
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <UserRound className="size-4 text-gray-400 shrink-0" />
-            <span className="truncate">{doc.resident?.name || "Unknown"}</span>
+            <span className="truncate">{doc.resident?.name || doc.fullName || "Unknown"}</span>
           </div>
 
           {/* Payment status */}
@@ -156,8 +160,12 @@ export default function UpdateStatusModal({ open, onOpenChange, document: doc }:
                 Available Actions
               </p>
 
+              {/* Legal forward moves are derived from the backend transition
+                  map (pending -> processing -> ready -> released, cancellable
+                  at any open stage) and rendered below per status. */}
+
               {/* Processing */}
-              {doc.status !== "processing" && (
+              {["pending"].includes(doc.status) && (
                 <Button
                   onClick={() => statusMutation.mutate("processing")}
                   disabled={isPendingAction}
@@ -169,23 +177,23 @@ export default function UpdateStatusModal({ open, onOpenChange, document: doc }:
                 </Button>
               )}
 
-              {/* To Claim */}
-              {doc.status !== "to claim" && (
+              {/* Ready (printed) */}
+              {["processing", "to claim", "completed", "rejected"].includes(doc.status) && (
                 <Button
-                  onClick={() => statusMutation.mutate("to claim")}
+                  onClick={() => statusMutation.mutate("ready")}
                   disabled={isPendingAction}
                   className="w-full h-10 justify-start gap-3 bg-violet-50 text-violet-700 border border-violet-100 shadow-sm hover:bg-violet-100 hover:text-violet-800 transition-all font-medium"
                   variant="outline"
                 >
-                  <FileCheck className="size-4" />
-                  {isPendingAction ? "Updating..." : "Mark as Ready to Claim"}
+                  <BadgeCheck className="size-4" />
+                  {isPendingAction ? "Updating..." : "Mark as Ready (Printed)"}
                 </Button>
               )}
 
-              {/* Completed */}
-              {doc.status !== "completed" && (
+              {/* Released */}
+              {(doc.status === "ready" || doc.status === "completed") && (
                 <Button
-                  onClick={() => statusMutation.mutate("completed")}
+                  onClick={() => statusMutation.mutate("released")}
                   disabled={isPendingAction || !doc.isPaid}
                   className={`w-full h-10 justify-start gap-3 transition-all font-medium ${
                     doc.isPaid
@@ -195,18 +203,31 @@ export default function UpdateStatusModal({ open, onOpenChange, document: doc }:
                   variant="outline"
                 >
                   <CheckCircle2 className="size-4" />
-                  {isPendingAction ? "Updating..." : "Mark as Completed"}
+                  {isPendingAction ? "Updating..." : "Mark as Released"}
                 </Button>
               )}
 
-              {/* Rejected */}
-              {doc.status !== "rejected" && (
+              {/* Re-open from released (e.g. reprint) */}
+              {doc.status === "released" && (
+                <Button
+                  onClick={() => statusMutation.mutate("ready")}
+                  disabled={isPendingAction}
+                  className="w-full h-10 justify-start gap-3 bg-violet-50 text-violet-700 border border-violet-100 shadow-sm hover:bg-violet-100 hover:text-violet-800 transition-all font-medium"
+                  variant="outline"
+                >
+                  <BadgeCheck className="size-4" />
+                  {isPendingAction ? "Updating..." : "Reopen as Ready"}
+                </Button>
+              )}
+
+              {/* Cancel / reopen */}
+              {(doc.status === "pending" || doc.status === "processing" || doc.status === "ready" || doc.status === "to claim" || doc.status === "completed") && (
                 <Button
                   onClick={() => {
                     confirmAlert(
-                      "This will mark the request as rejected. The resident may need to submit a correction.",
-                      "Confirm Rejection",
-                      () => statusMutation.mutate("rejected")
+                      "This will cancel the request. The resident can request a new one if needed.",
+                      "Confirm Cancellation",
+                      () => statusMutation.mutate("cancelled")
                     );
                   }}
                   disabled={isPendingAction}
@@ -214,12 +235,12 @@ export default function UpdateStatusModal({ open, onOpenChange, document: doc }:
                   variant="outline"
                 >
                   <Ban className="size-4" />
-                  Reject Request
+                  Cancel Request
                 </Button>
               )}
 
               {/* Reopen */}
-              {(doc.status === "rejected" || doc.status === "to claim" || doc.status === "completed") && (
+              {(doc.status === "rejected" || doc.status === "cancelled") && (
                 <Button
                   onClick={() => statusMutation.mutate("pending")}
                   disabled={isPendingAction}

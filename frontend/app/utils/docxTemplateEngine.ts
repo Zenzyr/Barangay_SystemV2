@@ -6,7 +6,7 @@ import useBarangaySettingsStore from "@/app/store/useBarangaySettingsStore";
 import axiosInstance from "./axios";
 import { formatDateParts, formatFieldValue, formatDateMDY } from "./documentFormat";
 import { getDocumentLayout, DocumentLayout } from "./documentLayouts";
-import { viewDocumentPDF, generateDocumentPDF } from "./dynamicDocumentGenerator";
+import { viewDocumentPDF, generateDocumentPDF, buildDynamicDocumentPDF } from "./dynamicDocumentGenerator";
 import { renderDocxByType } from "./docxTemplateService";
 
 /**
@@ -878,4 +878,57 @@ export async function generateDocumentPDFFromDOCX(doc: documentRequestInterface)
     console.error("Failed to generate DOCX PDF:", error);
     throw error;
   }
+}
+
+/**
+ * Renders the final PDF and opens the browser's print dialog directly — no
+ * file download, no watermark. Used by the secretary's "Print Document"
+ * action. Opens a same-origin popup that embeds the PDF in a full-page
+ * iframe and triggers print() once loaded; if the popup is blocked the PDF
+ * simply opens for the user to print with Ctrl+P.
+ */
+export async function printDocumentPDF(doc: documentRequestInterface): Promise<void> {
+  let blob: Blob;
+  try {
+    ({ blob } = await convertDocumentDOCXToPDF(doc));
+  } catch {
+    const { bytes } = await buildDynamicDocumentPDF(doc);
+    blob = new Blob([bytes as unknown as BlobPart], { type: "application/pdf" });
+  }
+
+  const url = URL.createObjectURL(blob);
+
+  const win = window.open("", "_blank");
+  if (!win) {
+    // Popup blocked — fall back to a plain viewer the user can Ctrl+P.
+    window.open(url, "_blank");
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return;
+  }
+
+  const html =
+    "<!doctype html><html><head><title>Print Document</title>" +
+    "<style>html,body{margin:0;height:100%;overflow:hidden}" +
+    "iframe{width:100%;height:100%;border:0}</style></head>" +
+    `<body><iframe id="pdf-frame" src="${url}"></iframe></body></html>`;
+  win.document.write(html);
+  win.document.close();
+
+  const tryPrint = () => {
+    const frame = win.document.getElementById("pdf-frame") as HTMLIFrameElement | null;
+    if (frame?.contentWindow) {
+      win.focus();
+      frame.contentWindow.focus();
+      frame.contentWindow.print();
+    }
+  };
+
+  const frame = win.document.getElementById("pdf-frame") as HTMLIFrameElement | null;
+  if (frame) {
+    frame.onload = () => setTimeout(tryPrint, 200);
+    // Some browsers fire load before attaching — safety retry.
+    setTimeout(tryPrint, 1500);
+  }
+
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }

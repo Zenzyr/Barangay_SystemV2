@@ -90,25 +90,32 @@ export default function PaymentModal({ open, onOpenChange, document: doc }: Prop
   const [receiptDate] = useState(new Date());
 
   // Set initial step based on payment status
-  useEffect(() => {
-    if (open) {
-      if (doc?.isPaid) {
-        setStep("receipt");
-        setProcessed(true);
-      } else {
-        setStep("input");
-        setAmountPaid("");
-        setProcessed(false);
-      }
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open && !wasOpen) {
+    setWasOpen(true);
+    if (doc?.isPaid) {
+      setStep("receipt");
+      setProcessed(true);
     } else {
-      // Delay reset so the closing animation plays nicely
-      setTimeout(() => {
+      setStep("input");
+      setAmountPaid("");
+      setProcessed(false);
+    }
+  } else if (!open && wasOpen) {
+    setWasOpen(false);
+  }
+
+  // Reset after the closing animation plays
+  useEffect(() => {
+    if (!open) {
+      const timer = setTimeout(() => {
         setStep("input");
         setAmountPaid("");
         setProcessed(false);
       }, 200);
+      return () => clearTimeout(timer);
     }
-  }, [open, doc?.isPaid]);
+  }, [open]);
 
   // ── Lookup price ──────────────────────────────────────────────
   const price = useMemo(() => {
@@ -144,9 +151,10 @@ export default function PaymentModal({ open, onOpenChange, document: doc }: Prop
       setStep("receipt");
       successAlert("Payment processed successfully!");
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: unknown }; message?: unknown } | null;
       const message =
-        err?.response?.data || err?.message || "Failed to process payment";
+        e?.response?.data || e?.message || "Failed to process payment";
       errorAlert(typeof message === "string" ? message : "Payment failed");
     },
   });
@@ -226,7 +234,7 @@ export default function PaymentModal({ open, onOpenChange, document: doc }: Prop
       <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border border-gray-100">
         <span className="text-sm text-gray-600">Resident</span>
         <span className="text-sm font-semibold text-gray-900 truncate max-w-[200px]">
-          {doc.resident?.name || "Unknown"}
+          {doc.resident?.name || doc.fullName || "Unknown"}
         </span>
       </div>
 
@@ -358,7 +366,7 @@ export default function PaymentModal({ open, onOpenChange, document: doc }: Prop
         {/* Resident */}
         <div className="px-5 py-2 text-[11px] text-gray-700">
           <span className="text-gray-500">Resident:</span>
-          <p className="font-semibold text-gray-900">{doc.resident?.name || "N/A"}</p>
+          <p className="font-semibold text-gray-900">{doc.resident?.name || doc.fullName || "N/A"}</p>
           {doc.resident?.address && (
             <p className="text-gray-500 text-[10px]">{doc.resident.address}</p>
           )}

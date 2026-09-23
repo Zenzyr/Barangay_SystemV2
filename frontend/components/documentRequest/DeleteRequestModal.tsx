@@ -78,7 +78,7 @@ export default function DeleteRequestModal({ open, onOpenChange, document: doc }
                     {isArchivedForCompleted ? "Archive Request" : "Delete Request"}
                   </DialogTitle>
                   <DialogDescription className="text-sm text-gray-500">
-                    {doc.resident?.name || "Unknown"}
+                    {doc.resident?.name || doc.fullName || "Unknown"}
                   </DialogDescription>
                 </div>
               </div>

@@ -156,7 +156,7 @@ export default function RequestDetailsModal({ open, onOpenChange, document: doc 
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-gray-900 truncate">
-                {doc.resident?.name || "Unknown"}
+                {doc.resident?.name || doc.fullName || "Unknown"}
               </p>
               <p className="text-xs text-gray-500 truncate">
                 {doc.resident?.email || ""}

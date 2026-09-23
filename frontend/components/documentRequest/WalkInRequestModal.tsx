@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
 import { documentRequestInterfaceInput } from "@/app/types/documentRequest";
@@ -204,23 +204,25 @@ export default function WalkInRequestModal({ open, onOpenChange }: Props) {
   }, [residents, residentSearch]);
 
   // Reset state when the dialog opens
-  useEffect(() => {
-    if (open) {
-      setStep("select");
-      setSelectedDocument(null);
-      setSelectedResident(null);
-      setResidentSearch("");
-      setFormData({});
-      setShowReview(false);
-    }
-  }, [open]);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open && !wasOpen) {
+    setWasOpen(true);
+    setStep("select");
+    setSelectedDocument(null);
+    setSelectedResident(null);
+    setResidentSearch("");
+    setFormData({});
+    setShowReview(false);
+  } else if (!open && wasOpen) {
+    setWasOpen(false);
+  }
 
   const updateField = (key: string, value: string | number | null) =>
     setFormData((prev) => ({ ...prev, [key]: value }));
 
   const buildPayload = (): documentRequestInterfaceInput | null => {
     if (!selectedDocument || !selectedResident) return null;
-    const payload: any = {
+    const payload: Record<string, unknown> = {
       document: selectedDocument,
       price: docPrice(selectedDocument),
       status: "pending",
@@ -254,7 +256,7 @@ export default function WalkInRequestModal({ open, onOpenChange }: Props) {
         }
       }
     }
-    return payload as documentRequestInterfaceInput;
+    return payload as unknown as documentRequestInterfaceInput;
   };
 
   const submitMutation = useMutation({
@@ -269,14 +271,17 @@ export default function WalkInRequestModal({ open, onOpenChange }: Props) {
       successAlert("Walk-in request submitted successfully!");
       onOpenChange(false);
     },
-    onError: (err: any) => {
-      const data = err?.response?.data;
-      if (err?.response?.status === 409 && data?.existing) {
-        setDuplicateExisting(data.existing);
+    onError: (err: unknown) => {
+      const e = err as
+        | { response?: { status?: number; data?: { existing?: unknown; message?: string } }; message?: string }
+        | null;
+      const data = e?.response?.data;
+      if (e?.response?.status === 409 && data?.existing) {
+        setDuplicateExisting(data.existing as documentRequestInterface);
         setDuplicateOpen(true);
         return;
       }
-      const message = data?.message || err?.message || "Failed to submit request";
+      const message = data?.message || e?.message || "Failed to submit request";
       toast.error(typeof message === "string" ? message : "Submission failed");
     },
   });

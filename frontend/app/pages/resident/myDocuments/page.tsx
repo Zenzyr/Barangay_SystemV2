@@ -39,13 +39,11 @@ import {
   PhilippinePeso,
   Wallet,
   CreditCard,
-  Download,
   Eye,
   PencilLine,
   Trash2,
   History,
   Loader2,
-  FileOutput,
 } from "lucide-react";
 
 export default function MyDocumentsPage() {
@@ -249,34 +247,6 @@ export default function MyDocumentsPage() {
                                 },
                               },
                               {
-                                key: "pdf",
-                                label: "Download PDF",
-                                icon: Download,
-                                disabled: !doc.isPaid,
-                                onClick: async () => {
-                                  try {
-                                    const { generateDocumentPDFFromDOCX } = await import("@/app/utils/generateDocument");
-                                    await generateDocumentPDFFromDOCX(doc);
-                                  } catch {
-                                    errorAlert("Failed to generate the PDF. Please try again.");
-                                  }
-                                },
-                              },
-                              {
-                                key: "docx",
-                                label: "Download DOCX",
-                                icon: FileOutput,
-                                disabled: !doc.isPaid,
-                                onClick: async () => {
-                                  try {
-                                    const { generateDocumentDOCX } = await import("@/app/utils/generateDocument");
-                                    await generateDocumentDOCX(doc);
-                                  } catch {
-                                    errorAlert("Failed to generate the DOCX. Please try again.");
-                                  }
-                                },
-                              },
-                              !doc.isPaid && {
                                 key: "pay",
                                 label: "Pay Online",
                                 icon: CreditCard,

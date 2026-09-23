@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
 import {
@@ -38,18 +38,24 @@ export default function EditRequestModal({ open, onOpenChange, document: doc, ro
     return documentTypes.find((d) => d.document === doc.document)?.fields || [];
   }, [doc]);
 
-  useEffect(() => {
+  const [resolved, setResolved] = useState<{ doc: documentRequestInterface | null; open: boolean }>({ doc, open });
+  if (resolved.doc !== doc || resolved.open !== open) {
+    setResolved({ doc, open });
     if (doc) {
       const initial: Record<string, string | number | null> = {};
       for (const key of docFields) {
-        initial[key] = (doc as any)[key] ?? "";
+        const value = (doc as unknown as Record<string, unknown>)[key];
+        initial[key] =
+          typeof value === "string" || typeof value === "number" || value === null
+            ? value
+            : "";
       }
       if (!docFields.includes("contact")) initial.contact = doc.contact ?? "";
       setFormData(initial);
     } else {
       setFormData({});
     }
-  }, [doc, docFields, open]);
+  }
 
   // Status-based editability: residents may edit pending/rejected;
   // secretaries may also edit processing.
@@ -82,8 +88,11 @@ export default function EditRequestModal({ open, onOpenChange, document: doc, ro
       successAlert("Document request updated successfully!");
       onOpenChange(false);
     },
-    onError: (err: any) => {
-      const message = err?.response?.data || err?.message || "Failed to update request";
+    onError: (err: unknown) => {
+      const e = err as
+        | { response?: { data?: { message?: string } | string }; message?: string }
+        | null;
+      const message = e?.response?.data || e?.message || "Failed to update request";
       if (typeof message === "object" && message?.message) {
         toast.error(message.message);
       } else {

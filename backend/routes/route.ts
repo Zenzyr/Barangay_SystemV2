@@ -19,6 +19,7 @@ import publicRoute from "./public.route";
 import backupRoute from "./backup.route";
 import decisionSupportRoute from "./decisionSupport.route";
 import analyticsSnapshotRoute from "./analyticsSnapshot.route";
+import eventRoute from "./event.route";
 
 const routes = Router();
 
@@ -47,5 +48,6 @@ routes.use("/public", publicRoute);
 routes.use("/backup", backupRoute);
 routes.use("/decision-support", decisionSupportRoute);
 routes.use("/analytics-snapshots", analyticsSnapshotRoute);
+routes.use("/events", eventRoute);
 
 export default routes;

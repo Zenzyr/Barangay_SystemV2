@@ -31,6 +31,7 @@ import {
   Camera,
   KeyRound,
   CalendarDays,
+  Ban,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -64,6 +65,9 @@ const STATUS_CONFIG: Record<
 > = {
   pending: { label: "Pending", icon: Clock, bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
   processing: { label: "Processing", icon: Loader2, bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200" },
+  ready: { label: "Ready", icon: BadgeCheck, bg: "bg-violet-50", text: "text-violet-700", border: "border-violet-200" },
+  released: { label: "Released", icon: CheckCircle2, bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
+  cancelled: { label: "Cancelled", icon: Ban, bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200" },
   "to claim": { label: "To Claim", icon: FileCheck, bg: "bg-violet-50", text: "text-violet-700", border: "border-violet-200" },
   completed: { label: "Completed", icon: CheckCircle2, bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
 };
@@ -130,8 +134,9 @@ export default function Page() {
     total: documents?.length || 0,
     pending: documents?.filter((d) => d.status === "pending").length || 0,
     processing: documents?.filter((d) => d.status === "processing").length || 0,
-    toClaim: documents?.filter((d) => d.status === "to claim").length || 0,
-    completed: documents?.filter((d) => d.status === "completed").length || 0,
+    ready: documents?.filter((d) => d.status === "ready" || d.status === "to claim").length || 0,
+    released: documents?.filter((d) => d.status === "released" || d.status === "completed").length || 0,
+    cancelled: documents?.filter((d) => d.status === "cancelled").length || 0,
   };
 
   const recentDocs = documents
@@ -145,8 +150,8 @@ export default function Page() {
   const STATS_CARDS = [
     { label: "Total Requests", value: stats.total, icon: ClipboardList, bg: "bg-sky-50", text: "text-sky-700", iconBg: "bg-sky-100", iconColor: "text-sky-600" },
     { label: "Pending", value: stats.pending, icon: Clock, bg: "bg-amber-50", text: "text-amber-700", iconBg: "bg-amber-100", iconColor: "text-amber-600" },
-    { label: "To Claim", value: stats.toClaim, icon: FileCheck, bg: "bg-violet-50", text: "text-violet-700", iconBg: "bg-violet-100", iconColor: "text-violet-600" },
-    { label: "Completed", value: stats.completed, icon: CheckCircle2, bg: "bg-emerald-50", text: "text-emerald-700", iconBg: "bg-emerald-100", iconColor: "text-emerald-600" },
+    { label: "Ready", value: stats.ready, icon: BadgeCheck, bg: "bg-violet-50", text: "text-violet-700", iconBg: "bg-violet-100", iconColor: "text-violet-600" },
+    { label: "Released", value: stats.released, icon: CheckCircle2, bg: "bg-emerald-50", text: "text-emerald-700", iconBg: "bg-emerald-100", iconColor: "text-emerald-600" },
   ];
 
   const QUICK_LINKS = [
