@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { BarChart3, Sparkles, CalendarRange } from "lucide-react";
+import { BackButton } from "@/components/ui/BackButton";
+
 import { AnalyticsOverview } from "./components/analytics-overview";
 import { AnalyticsCommunity } from "./components/analytics-community";
 
@@ -38,6 +40,7 @@ export default function SecretaryAnalyticsPage() {
 
   return (
     <div className="w-full min-h-dvh p-4 sm:p-6 space-y-6">
+      <BackButton />
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div className="flex items-center gap-3">

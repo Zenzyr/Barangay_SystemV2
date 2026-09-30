@@ -13,6 +13,7 @@ import Link from "next/link";
 import { successAlert, errorAlert, confirmAlert } from "@/app/utils/alert";
 import { DOCUMENT_NAMES } from "@/app/utils/documentRequestOptions";
 
+import { BackButton } from "@/components/ui/BackButton";
 const STATUS_STYLES: Record<string, string> = {
   active: "bg-emerald-50 text-emerald-700 border-emerald-200",
   inactive: "bg-gray-100 text-gray-600 border-gray-200",
@@ -109,6 +110,7 @@ export default function Page() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
         <div>
+<BackButton />
           <h1 className="text-2xl font-bold">Document Templates</h1>
           <p className="text-sm text-muted-foreground">
             Visual templates drive document layout, fees, and PDF generation for every barangay document.

@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 
 const PAYMONGO_API = 'https://api.paymongo.com/v1/checkout_sessions';
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL_LIVE || 'http://localhost:5000';
+// Server-side calls must use an absolute, internal URL (Docker network),
+// never the browser-facing relative proxy path.
+const BACKEND_URL =
+  process.env.BACKEND_INTERNAL_URL ||
+  process.env.NEXT_PUBLIC_BACKEND_URL_LIVE ||
+  'http://localhost:5000';
 
 // The public origin the resident is redirected back to after paying. When
 // NEXT_PUBLIC_BASE_URL_LIVE is not set, derive it from the incoming request

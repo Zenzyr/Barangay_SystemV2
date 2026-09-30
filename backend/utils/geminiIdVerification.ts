@@ -50,17 +50,23 @@ export async function verifyIdDocumentWithGemini(params: {
   backBase64: string;
   backMimeType: string;
 }): Promise<GeminiIdVerificationResult> {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  const apiKey =
+    process.env.ID_VERIFY_API_KEY ||
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY;
   if (!apiKey) {
     console.warn(
-      "[ID-VERIFY] GEMINI_API_KEY is not configured — skipping AI document check",
+      "[ID-VERIFY] ID_VERIFY_API_KEY (or GEMINI_API_KEY) is not configured — skipping AI document check",
     );
     return skippedResult(
       "AI document verification is not configured yet; your ID will be reviewed manually.",
     );
   }
 
-  const modelName = process.env.GEMINI_MODEL as string;
+  const modelName =
+    (process.env.ID_VERIFY_MODEL as string) ||
+    (process.env.GEMINI_MODEL as string) ||
+    "gemini-3.6-flash";
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel(
     {

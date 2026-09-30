@@ -12,7 +12,7 @@ import routes from "./routes/route"
 import cors from "cors";
 
 const app = express();
-const port = process.env.PORT || 5001;
+const port = Number(process.env.PORT) || 5000;
 const mongodb_uri = process.env.MONGODB_URI || "";
 
 app.set('trust proxy', 1);
@@ -87,7 +87,7 @@ mongoose
     process.exit(1);
   });
 
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
   const date = new Date()
   console.log(`Server is running on http://localhost:${port} date: ${date}`);
 });

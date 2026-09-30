@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,17 +63,21 @@ export default function RequestServiceModal({
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (open) {
-      setSkill(providerSkills[0]?.skill || "");
-      setLocation(defaultLocation || "");
-    }
-  }, [open, providerSkills, defaultLocation]);
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open && !wasOpen) {
+    setWasOpen(true);
+    setSkill(providerSkills[0]?.skill || "");
+    setLocation(defaultLocation || "");
+  } else if (!open && wasOpen) {
+    setWasOpen(false);
+  }
 
-  useEffect(() => {
+  const [resolvedSkill, setResolvedSkill] = useState(skill);
+  if (skill !== resolvedSkill) {
+    setResolvedSkill(skill);
     setServiceType("");
     setCustomServiceType("");
-  }, [skill]);
+  }
 
   const resetForm = () => {
     setSkill("");

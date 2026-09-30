@@ -61,15 +61,21 @@ export class GeminiAIProvider implements AIInsightProvider {
   async generateInsights(
     analyticsData: AnalyticsSummary,
   ): Promise<AIInsightOutput> {
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    const apiKey =
+      process.env.AI_ANALYTICS_API_KEY ||
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_API_KEY;
     if (!apiKey) {
       throw new Error(
-        "AI_PROVIDER=gemini requires GEMINI_API_KEY (or GOOGLE_API_KEY) in backend/.env. " +
+        "AI_PROVIDER=gemini requires AI_ANALYTICS_API_KEY (or GEMINI_API_KEY / GOOGLE_API_KEY) in backend/.env. " +
           "Get one for free from Google AI Studio (https://aistudio.google.com/apikey).",
       );
     }
 
-    const modelName = process.env.GEMINI_MODEL as string;
+    const modelName =
+      (process.env.AI_ANALYTICS_MODEL as string) ||
+      (process.env.GEMINI_MODEL as string) ||
+      "gemini-3.6-flash";
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel(
       {

@@ -14,5 +14,7 @@ route.post("/", authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_ADMIN
 route.post("/import", authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_ADMIN), handler(ResidentCensusController.importCsv));
 route.put("/:id", authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_ADMIN), handler(ResidentCensusController.update));
 route.delete("/:id", authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_ADMIN), handler(ResidentCensusController.delete));
+// Archiving is a soft delete: this restores an archived record.
+route.put("/:id/restore", authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_ADMIN), handler(ResidentCensusController.restore));
 
 export default route;

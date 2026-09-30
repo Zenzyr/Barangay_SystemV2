@@ -71,8 +71,6 @@ export interface CommunityServiceSignals {
   totalRegisteredResidents: number;
   indigencyRequests: number;
   indigencyRequestRate: number;
-  unemploymentCertRequests: number;
-  unemploymentCertRequestRate: number;
 }
 
 export interface AnalyticsCommunity {

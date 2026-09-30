@@ -45,7 +45,7 @@ import {
   Wallet,
   Receipt,
   Eye,
-  Download,
+  Printer,
   ArrowUpRight,
   PencilLine,
   Trash2,
@@ -55,10 +55,15 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type StatusFilter = "all" | "pending" | "processing" | "to claim" | "completed" | "rejected";
+type StatusFilter = "all" | "pending" | "processing" | "ready" | "released" | "cancelled" | "rejected";
 type PaymentFilter = "all" | "paid" | "unpaid";
 type SourceFilter = "all" | "online" | "walk-in";
 type DateFilter = "all" | "today" | "7" | "30";
+
+// Legacy statuses are folded into the primary lifecycle for filtering:
+// "to claim" behaved like READY, "completed" like RELEASED.
+const normalizeStatus = (s: string): string =>
+  s === "to claim" ? "ready" : s === "completed" ? "released" : s;
 
 export default function SecretaryDocumentRequestsPage() {
   const [search, setSearch] = useState("");
@@ -95,11 +100,12 @@ export default function SecretaryDocumentRequestsPage() {
   const stats = useMemo(
     () => ({
       total: documents?.length || 0,
-      pending: documents?.filter((d) => d.status === "pending").length || 0,
-      processing: documents?.filter((d) => d.status === "processing").length || 0,
-      toClaim: documents?.filter((d) => d.status === "to claim").length || 0,
-      completed: documents?.filter((d) => d.status === "completed").length || 0,
-      rejected: documents?.filter((d) => d.status === "rejected").length || 0,
+      pending: documents?.filter((d) => normalizeStatus(d.status) === "pending").length || 0,
+      processing: documents?.filter((d) => normalizeStatus(d.status) === "processing").length || 0,
+      ready: documents?.filter((d) => normalizeStatus(d.status) === "ready").length || 0,
+      released: documents?.filter((d) => normalizeStatus(d.status) === "released").length || 0,
+      cancelled: documents?.filter((d) => normalizeStatus(d.status) === "cancelled").length || 0,
+      rejected: documents?.filter((d) => normalizeStatus(d.status) === "rejected").length || 0,
       unpaid: documents?.filter((d) => !d.isPaid).length || 0,
       paid: documents?.filter((d) => d.isPaid).length || 0,
     }),
@@ -120,15 +126,15 @@ export default function SecretaryDocumentRequestsPage() {
     { label: "Active Requests", value: stats.total, icon: ClipboardList, bg: "bg-sky-50", text: "text-sky-700", iconBg: "bg-sky-100", iconColor: "text-sky-600", filter: "all" },
     { label: "Pending", value: stats.pending, icon: Clock, bg: "bg-amber-50", text: "text-amber-700", iconBg: "bg-amber-100", iconColor: "text-amber-600", filter: "pending" },
     { label: "Processing", value: stats.processing, icon: Loader2, bg: "bg-sky-50", text: "text-sky-700", iconBg: "bg-sky-100", iconColor: "text-sky-600", filter: "processing" },
-    { label: "To Claim", value: stats.toClaim, icon: FileCheck, bg: "bg-violet-50", text: "text-violet-700", iconBg: "bg-violet-100", iconColor: "text-violet-600", filter: "to claim" },
-    { label: "Completed", value: stats.completed, icon: CheckCircle2, bg: "bg-emerald-50", text: "text-emerald-700", iconBg: "bg-emerald-100", iconColor: "text-emerald-600", filter: "completed" },
+    { label: "Ready", value: stats.ready, icon: FileCheck, bg: "bg-violet-50", text: "text-violet-700", iconBg: "bg-violet-100", iconColor: "text-violet-600", filter: "ready" },
+    { label: "Released", value: stats.released, icon: CheckCircle2, bg: "bg-emerald-50", text: "text-emerald-700", iconBg: "bg-emerald-100", iconColor: "text-emerald-600", filter: "released" },
     { label: "Unpaid", value: stats.unpaid, icon: Wallet, bg: "bg-rose-50", text: "text-rose-700", iconBg: "bg-rose-100", iconColor: "text-rose-600", filter: "unpaid" },
     { label: "Paid", value: stats.paid, icon: Receipt, bg: "bg-teal-50", text: "text-teal-700", iconBg: "bg-teal-100", iconColor: "text-teal-600", filter: "paid" },
   ];
 
   const handleCardFilter = (filter: StatusFilter | PaymentFilter) => {
     setPaymentFilter(filter === "paid" || filter === "unpaid" ? filter : "all");
-    setStatusFilter((["pending", "processing", "to claim", "completed", "rejected"] as StatusFilter[]).includes(filter as StatusFilter) ? filter as StatusFilter : "all");
+    setStatusFilter((["pending", "processing", "ready", "released", "cancelled", "rejected"] as StatusFilter[]).includes(filter as StatusFilter) ? filter as StatusFilter : "all");
   };
 
   const isCardActive = (filter: StatusFilter | PaymentFilter) =>
@@ -137,7 +143,7 @@ export default function SecretaryDocumentRequestsPage() {
   // ── Filtering ─────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const list = (documents || []).filter((doc) => {
-      if (statusFilter !== "all" && doc.status !== statusFilter) return false;
+      if (statusFilter !== "all" && normalizeStatus(doc.status) !== statusFilter) return false;
       if (paymentFilter === "paid" && !doc.isPaid) return false;
       if (paymentFilter === "unpaid" && doc.isPaid) return false;
       if (docFilter !== "all" && doc.document !== docFilter) return false;
@@ -161,7 +167,7 @@ export default function SecretaryDocumentRequestsPage() {
       if (search) {
         const q = search.toLowerCase();
         const docName = DOCUMENT_NAMES[doc.document] || doc.document;
-        const residentName = doc.resident?.name?.toLowerCase() || "";
+        const residentName = (doc.resident?.name || doc.fullName || "")?.toLowerCase() || "";
         if (
           !docName.toLowerCase().includes(q) &&
           !residentName.includes(q) &&
@@ -184,20 +190,12 @@ export default function SecretaryDocumentRequestsPage() {
       errorAlert("Failed to preview the PDF. Please try again.");
     }
   };
-  const downloadPDF = async (doc: documentRequestInterface) => {
+  const printPDF = async (doc: documentRequestInterface) => {
     try {
-      const { generateDocumentPDFFromDOCX } = await import("@/app/utils/generateDocument");
-      await generateDocumentPDFFromDOCX(doc);
+      const { printDocumentPDF } = await import("@/app/utils/generateDocument");
+      await printDocumentPDF(doc);
     } catch {
-      errorAlert("Failed to generate the PDF. Please try again.");
-    }
-  };
-  const downloadDOCX = async (doc: documentRequestInterface) => {
-    try {
-      const { generateDocumentDOCX } = await import("@/app/utils/generateDocument");
-      await generateDocumentDOCX(doc);
-    } catch {
-      errorAlert("Failed to generate the DOCX. Please try again.");
+      errorAlert("Failed to print the document. Please try again.");
     }
   };
 
@@ -205,8 +203,9 @@ export default function SecretaryDocumentRequestsPage() {
     { key: "all", label: "All" },
     { key: "pending", label: "Pending" },
     { key: "processing", label: "Processing" },
-    { key: "to claim", label: "To Claim" },
-    { key: "completed", label: "Completed" },
+    { key: "ready", label: "Ready" },
+    { key: "released", label: "Released" },
+    { key: "cancelled", label: "Cancelled" },
     { key: "rejected", label: "Rejected" },
   ];
 
@@ -234,7 +233,7 @@ export default function SecretaryDocumentRequestsPage() {
             <FileText className="size-4 text-sky-500" />
             <span>
               Active Requests:{" "}
-              <strong className="text-sky-700">{stats.total - stats.completed}</strong>
+              <strong className="text-sky-700">{stats.total - stats.released}</strong>
             </span>
           </div>
           <Button
@@ -393,7 +392,7 @@ export default function SecretaryDocumentRequestsPage() {
                   const StatusIcon = statusCfg.icon;
                   const source = doc.source || "online";
                   const editLocked =
-                    !["pending", "processing", "rejected"].includes(doc.status);
+                    !["pending", "processing", "ready", "rejected", "cancelled"].includes(doc.status);
 
                   return (
                     <TableRow key={doc._id} className="hover:bg-slate-50/60 transition-colors">
@@ -403,7 +402,7 @@ export default function SecretaryDocumentRequestsPage() {
                             <UserRound className="size-3.5 text-sky-600" />
                           </div>
                           <div className="min-w-0">
-                            <p className="truncate max-w-[140px]">{doc.resident?.name || "Unknown"}</p>
+                            <p className="truncate max-w-[140px]">{doc.resident?.name || doc.fullName || "Unknown"}</p>
                             <p className="flex items-center gap-1 text-[10px] text-slate-400">
                               {source === "walk-in" ? (
                                 <><Store className="size-2.5" /> Walk-in</>
@@ -465,16 +464,10 @@ export default function SecretaryDocumentRequestsPage() {
                                 onClick: () => previewPDF(doc),
                               },
                               {
-                                key: "pdf",
-                                label: "Download PDF",
-                                icon: Download,
-                                onClick: () => downloadPDF(doc),
-                              },
-                              {
-                                key: "docx",
-                                label: "Download DOCX",
-                                icon: FileText,
-                                onClick: () => downloadDOCX(doc),
+                                key: "print",
+                                label: "Print Document",
+                                icon: Printer,
+                                onClick: () => printPDF(doc),
                               },
                               {
                                 key: "status",
@@ -503,7 +496,7 @@ export default function SecretaryDocumentRequestsPage() {
                               },
                               {
                                 key: "delete",
-                                label: doc.status === "completed" ? "Archive Request" : "Delete Request",
+                                label: ["released", "completed"].includes(doc.status) ? "Archive Request" : "Delete Request",
                                 icon: Trash2,
                                 className: "text-rose-600 hover:bg-rose-50",
                                 onClick: () => { setDeleteDoc(doc); setDeleteModalOpen(true); },

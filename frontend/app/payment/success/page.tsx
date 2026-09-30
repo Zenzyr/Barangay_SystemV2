@@ -3,7 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import axiosInstance from "@/app/utils/axios";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, useRef, Suspense } from "react";
+import { useEffect, useRef, Suspense } from "react";
 import { CheckCircle, Download, ArrowRight, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { successAlert, errorAlert } from "@/app/utils/alert";
@@ -53,24 +53,25 @@ function PaymentSuccessContent() {
       // Invalidate the document-requests query to force a fresh fetch
       queryClient.invalidateQueries({ queryKey: ["document-requests"] });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
+      const e = err as { response?: { data?: unknown }; message?: unknown } | null;
       const message =
-        err?.response?.data || err?.message || "Failed to process payment";
+        e?.response?.data || e?.message || "Failed to process payment";
       errorAlert(typeof message === "string" ? message : "Payment failed");
     },
   });
 
-  const [hasCalled, setHasCalled] = useState(false);
+  const { mutate: processPayment } = paymentMutation;
+  const hasCalledRef = useRef(false);
   const now = new Date();
 
   useEffect(() => {
     // Only need sender, documentId, amount to trigger
-    if (sender && documentId && amount && !hasCalled) {
-      paymentMutation.mutate();
-      setHasCalled(true);
+    if (sender && documentId && amount && !hasCalledRef.current) {
+      hasCalledRef.current = true;
+      processPayment();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sender, documentId, amount, processPayment]);
 
   const date = now.toLocaleDateString("en-PH", {
     year: "numeric",

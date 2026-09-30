@@ -54,26 +54,6 @@ export interface DocumentTypeEntry {
  */
 export const documentLayouts: DocumentLayout[] = [
   {
-    document: "barangayCertificate",
-    price: 30,
-    title: "Barangay Certification",
-    source: "document/Barangay Certificate (1).pdf",
-    signatoryPrefix: "HON.",
-    preparedByPosition: "Barangay Secretary",
-    description:
-      "This is to certify that the person named herein is a bonafide resident of this Barangay.",
-    body:
-      "This is to certify that {fullName} legal age, {civilStatus} is a resident of this barangay, and is personally known to me to be a person of Good Moral Character and Integrity. He / She is a law abiding citizen.\n\n" +
-      "It is further certified that there is no information that the subject person is a member of any organization and or association that is subversive in nature or one that seeks to overthrow the duly constituted Government of the Philippines.\n\n" +
-      "This certification is issued upon the request of the herein person for legal intents and purposes.\n\n" +
-      "Issued this {dateIssuedDay} day of {dateIssuedMonth}, {dateIssuedYear} at Barangay Rabon, Rosario, La Union.",
-    fields: [
-      { key: "fullName", label: "Full Name" },
-      { key: "civilStatus", label: "Civil Status" },
-      { key: "dateIssued", label: "Date Issued", format: "date" },
-    ],
-  },
-  {
     document: "certificateOfResidency",
     price: 35,
     title: "Barangay Certificate of Residency",
@@ -109,45 +89,6 @@ export const documentLayouts: DocumentLayout[] = [
     fields: [
       { key: "fullName", label: "Full Name" },
       { key: "assistanceTo", label: "Assistance To" },
-      { key: "dateIssued", label: "Date Issued", format: "date" },
-    ],
-  },
-  {
-    document: "certificateOfGoodMoralCharacter",
-    price: 60,
-    title: "Certificate of Good Moral Character",
-    source: "",
-    signatoryPrefix: "HON.",
-    description:
-      "This is to certify that the person named herein has demonstrated good moral character in this Barangay.",
-    body:
-      "This is to certify that {fullName}, a resident of {address}, is personally known to this office to be a person of good moral character, conduct and integrity, and has no derogatory record filed against him/her in this Barangay.\n\n" +
-      "This certification is issued upon request of the above-named person for {purpose} and for whatever legal purpose it may serve.\n\n" +
-      "Issued this {dateIssuedDay} day of {dateIssuedMonth}, {dateIssuedYear} at Barangay Rabon, Rosario, La Union.",
-    fields: [
-      { key: "fullName", label: "Full Name" },
-      { key: "address", label: "Address" },
-      { key: "purpose", label: "Purpose" },
-      { key: "dateIssued", label: "Date Issued", format: "date" },
-    ],
-  },
-  {
-    document: "certificateOfUnemployment",
-    price: 45,
-    title: "Certificate of Unemployment",
-    source: "document/Certificate of Unemployment.pdf",
-    signatoryPrefix: "HON.",
-    description:
-      "This is to certify that the person named herein is currently unemployed.",
-    body:
-      "This is to certify that {fullName}, born on {dateOfBirth}, a resident of {address}, is currently unemployed and is actively looking for employment, job opportunities and livelihood.\n\n" +
-      "This certification is issued upon the request of the above-named person for {purpose} and for whatever legal purpose it may serve.\n\n" +
-      "Issued this {dateIssuedDay} day of {dateIssuedMonth}, {dateIssuedYear} at Barangay Rabon, Rosario, La Union.",
-    fields: [
-      { key: "fullName", label: "Full Name" },
-      { key: "dateOfBirth", label: "Date of Birth", format: "date" },
-      { key: "address", label: "Address" },
-      { key: "purpose", label: "Purpose" },
       { key: "dateIssued", label: "Date Issued", format: "date" },
     ],
   },
@@ -333,6 +274,8 @@ export const documentLayouts: DocumentLayout[] = [
 // layout for document generation, so history keeps working.
 const LEGACY_DOCUMENT_ALIASES: Record<string, string> = {
   barangayClearance: "barangayCertificate",
+  barangayCertificate: "barangayCertification",
+
 };
 
 export const getDocumentLayout = (document: string): DocumentLayout | undefined =>

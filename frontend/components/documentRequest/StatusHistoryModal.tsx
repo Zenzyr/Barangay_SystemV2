@@ -56,7 +56,7 @@ export default function StatusHistoryModal({ open, onOpenChange, document: doc }
                     Status History
                   </DialogTitle>
                   <DialogDescription className="text-sm text-gray-500">
-                    {DOCUMENT_NAMES[doc.document] || doc.document} · {doc.resident?.name || "Unknown"}
+                    {DOCUMENT_NAMES[doc.document] || doc.document} · {doc.resident?.name || doc.fullName || "Unknown"}
                   </DialogDescription>
                 </div>
               </div>

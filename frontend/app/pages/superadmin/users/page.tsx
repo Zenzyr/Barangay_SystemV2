@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/select";
 import { successAlert, errorAlert } from "@/app/utils/alert";
 import { Search, Users, UserCheck, ShieldCheck, Loader2, AlertTriangle, ScanSearch } from "lucide-react";
+import { BackButton } from "@/components/ui/BackButton";
+
 
 interface ApiError {
   response?: { data?: string | { message?: string } };
@@ -146,6 +148,8 @@ function UsersContent() {
 
   return (
     <div className="w-full min-h-dvh p-4 sm:p-6 space-y-6">
+      <BackButton />
+
       {/* ── Header ── */}
       <div>
         <div className="flex items-center gap-3">

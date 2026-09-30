@@ -42,8 +42,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 
                 <Sidebar />
                
-                <main className="w-full min-w-0">
-                    <div className="mb-[80px] md:mb-[0px]"> </div>
+                <main className="w-full min-w-0 pt-20 md:pt-0">
                     {children}
                 </main>
           </SidebarProvider>

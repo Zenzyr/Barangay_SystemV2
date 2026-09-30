@@ -383,7 +383,7 @@ export function AnalyticsCommunity({ rangeLabel = "All time" }: { rangeLabel?: s
           <Skeleton className="h-16 w-full" />
         ) : (
           <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="rounded-xl bg-gray-50 border border-slate-100 p-3">
                 <p className="text-lg font-bold text-gray-900">{signals.data?.totalRegisteredResidents}</p>
                 <p className="text-xs text-gray-500">Registered Login Residents</p>
@@ -391,10 +391,6 @@ export function AnalyticsCommunity({ rangeLabel = "All time" }: { rangeLabel?: s
               <div className="rounded-xl bg-rose-50 border border-rose-100 p-3">
                 <p className="text-lg font-bold text-rose-700">{signals.data?.indigencyRequests}</p>
                 <p className="text-xs text-gray-500">Indigency Certificate Requests ({signals.data?.indigencyRequestRate}%)</p>
-              </div>
-              <div className="rounded-xl bg-amber-50 border border-amber-100 p-3">
-                <p className="text-lg font-bold text-amber-700">{signals.data?.unemploymentCertRequests}</p>
-                <p className="text-xs text-gray-500">Unemployment Certificate Requests ({signals.data?.unemploymentCertRequestRate}%)</p>
               </div>
             </div>
             <p className="text-[11px] text-gray-400 mt-3 italic">{signals.data?.note}</p>

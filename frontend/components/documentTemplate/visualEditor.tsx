@@ -49,14 +49,8 @@ import {
 import { AlertTriangle, ArrowLeft, Eye, FileText, Loader2 } from "lucide-react";
 
 export const DOCUMENT_TYPE_OPTIONS = [
-  { value: "barangayCertificate", label: "Barangay Certificate" },
   { value: "certificateOfResidency", label: "Certificate of Residency" },
   { value: "certificateOfIndigency", label: "Certificate of Indigency" },
-  {
-    value: "certificateOfGoodMoralCharacter",
-    label: "Certificate of Good Moral Character",
-  },
-  { value: "certificateOfUnemployment", label: "Certificate of Unemployment" },
   { value: "barangayBusinessClearance", label: "Barangay Business Clearance" },
   { value: "certificateOfAttestation", label: "Certificate of Attestation" },
   {

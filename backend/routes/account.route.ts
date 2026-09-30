@@ -15,12 +15,20 @@ const superAdminOnly = [authenticateJWT, requireRoles(ROLES.SUPER_ADMIN)];
 route.post("/book", authenticateJWT, handler(AccountController.bookWork))
 route.post("/ai", handler(AccountController.aiChatBot))
 route.post("/ai-suggestion", handler(AccountController.aiSuggestions))
+// Pre-registration email-ownership flow. Public: the applicant has no
+// account yet. OTPs are hashed, expiring, attempt-limited and rate-limited.
+route.post("/send-email-otp", handler(AccountController.sendEmailOtp))
+route.post("/resend-email-otp", handler(AccountController.resendEmailOtp))
+route.post("/verify-email-otp", handler(AccountController.verifyEmailOtp))
 // AI context is system configuration: staff may read it (decision support);
 // only super admin may edit it.
 route.get("/ai-context", ...staffOnly, handler(AccountController.getAiContext))
 route.put("/ai-context", ...superAdminOnly, handler(AccountController.upsertAiContext))
 
 route.post("/", uploadIdImages, handler(AccountController.register))
+// Staff-only resident creation: secretary meets the resident in person and
+// records a fully-verified account (no OTP / ID-document verification needed).
+route.post("/admin/create", ...staffOnly, handler(AccountController.createResidentAdmin))
 // Pre-registration identity check (UX only — register() re-validates).
 route.post("/check-duplicate", handler(AccountController.checkDuplicate))
 // Read-only possible-duplicate report for administrator review.

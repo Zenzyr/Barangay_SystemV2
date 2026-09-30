@@ -7,6 +7,7 @@ export interface accountInterfaceInput {
 
     gender?: string,
     dateOfBirth?: string,
+    age?: string,
     civilStatus?: string,
     purok?: string,
     voterStatus?: string,
@@ -16,6 +17,8 @@ export interface accountInterfaceInput {
     password: string,
     status :  string,
     role?: "resident" | "secretary" | "super_admin",
+    emailVerified?: boolean,
+    emailVerifiedAt?: Date,
     identityHash?: string,
     possibleDuplicate?: {
         status?: string,

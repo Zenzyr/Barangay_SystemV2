@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -33,16 +33,18 @@ export default function Page() {
   );
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (store.settings) {
+  const settings = store.settings;
+  const [resolvedSettings, setResolvedSettings] = useState(settings);
+  if (settings !== resolvedSettings) {
+    setResolvedSettings(settings);
+    if (settings) {
       const current =
-        store.settings.externalRecipients &&
-        store.settings.externalRecipients.length > 0
-          ? store.settings.externalRecipients
+        settings.externalRecipients && settings.externalRecipients.length > 0
+          ? settings.externalRecipients
           : EMPTY_EXTERNAL_RECIPIENTS;
       setRecipients(current.map((r) => ({ ...r })));
     }
-  }, [store.settings]);
+  }
 
   const update = (idx: number, key: keyof externalRecipient, value: string) =>
     setRecipients((list) =>
@@ -78,8 +80,9 @@ export default function Page() {
       store.setSettings(updated);
       queryClient.invalidateQueries({ queryKey: ["settings"] });
       successAlert("External recipients updated.");
-    } catch (e: any) {
-      errorAlert(e?.response?.data?.message || "Failed to update settings.");
+    } catch (e) {
+      const err = e as { response?: { data?: { message?: string } } } | null;
+      errorAlert(err?.response?.data?.message || "Failed to update settings.");
     } finally {
       setSaving(false);
     }

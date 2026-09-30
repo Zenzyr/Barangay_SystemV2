@@ -17,7 +17,7 @@ const AuditLogSchema = new Schema<{
     actorId: { type: String, default: '' },
     action: { type: String, required: true, maxlength: 100 },
     // Purposely a free string so the history endpoint can filter uniformly.
-    entity: { type: String, enum: ['official', 'barangaySettings', 'account'] },
+    entity: { type: String, enum: ['official', 'barangaySettings', 'account', 'decisionSupport', 'residentCensus', 'analyticsSnapshot'] },
     entityId: { type: String, default: '' },
     entityLabel: { type: String, default: '' },
     field: { type: String, default: '' },

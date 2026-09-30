@@ -4,12 +4,39 @@ import { ResidentCensusService } from "../services/residentCensus.service";
 import { residentCensusInterfaceInput } from "../types/residentCensus.type";
 import { isObjectId, isName, isNonEmptyString } from "../utils/validation";
 import { matchPerson } from "../utils/duplicateCheck";
+import {
+  normalizeCensusSex,
+  normalizeEducation,
+  normalizeOccupation,
+  normalizePensioner,
+  normalizeYesNoFlag,
+  normalizeCellphone,
+  normalizeAge,
+} from "../utils/residentDataStandardization";
+
+/** Applies the same canonicalization used by import & sync to secretary-added
+ *  or secretary-edited census values, so records stay consistent regardless
+ *  of which screen wrote them. Only fields present on `input` are touched. */
+function normalizeCensusInput(input: Record<string, any>) {
+  if (input.sex !== undefined) input.sex = normalizeCensusSex(input.sex);
+  if (input.education !== undefined) input.education = normalizeEducation(input.education);
+  if (input.occupation !== undefined) input.occupation = normalizeOccupation(input.occupation);
+  if (input.pensioner !== undefined) input.pensioner = normalizePensioner(input.pensioner);
+  if (input.cellphone !== undefined) input.cellphone = normalizeCellphone(input.cellphone);
+  for (const flag of ["is4Ps", "soloParent", "isSenior", "hpnMaintenance", "isPWD"]) {
+    if (input[flag] !== undefined) input[flag] = normalizeYesNoFlag(input[flag]);
+  }
+  if (input.age !== undefined && input.birthday !== undefined) {
+    input.age = normalizeAge(input.age, input.birthday);
+  }
+  return input;
+}
 
 export class ResidentCensusController {
 
   static create = async (request: AuthRequest, response: Response) => {
     try {
-      const data: residentCensusInterfaceInput = request.body;
+      const data: residentCensusInterfaceInput = normalizeCensusInput(request.body) as residentCensusInterfaceInput;
 
       if (!isName(data.name)) {
         response.status(400).send("A valid resident name is required");
@@ -60,9 +87,11 @@ export class ResidentCensusController {
 
   static getAll = async (request: AuthRequest, response: Response) => {
     try {
-      const { purok, search } = request.query;
+      const { purok, search, archived } = request.query;
       const filter: Record<string, any> = {};
 
+      // Archived records are hidden by default; pass archived=true to see them.
+      filter.isArchived = archived === "true" ? true : { $ne: true };
       if (purok) filter.purok = purok;
       if (search) {
         filter.$or = [
@@ -105,7 +134,7 @@ export class ResidentCensusController {
         response.status(400).send("Invalid resident census id");
         return;
       }
-      const data: Partial<residentCensusInterfaceInput> = request.body;
+      const data: Partial<residentCensusInterfaceInput> = normalizeCensusInput(request.body);
       if (data.age !== undefined) {
         const ageOk =
           data.age === "N/A" ||
@@ -164,15 +193,37 @@ export class ResidentCensusController {
         response.status(400).send("Invalid resident census id");
         return;
       }
-      const record = await ResidentCensusService.delete(id);
+      // Soft delete for the UI: the record is archived, not removed, so it
+      // stays viewable in the Archived tab and can be restored.
+      const record = await ResidentCensusService.archive(id);
       if (!record) {
         response.status(404).send("Resident census record not found");
         return;
       }
-      response.send({ message: "Resident census record deleted successfully" });
+      response.send({ message: "Resident census record archived successfully", archived: true });
     } catch (error) {
       console.error(error);
-      response.status(500).send("Failed to delete resident census record");
+      response.status(500).send("Failed to archive resident census record");
+    }
+  };
+
+  /** Bring an archived resident census record back into the active list. */
+  static restore = async (request: AuthRequest, response: Response) => {
+    try {
+      const { id } = request.params;
+      if (!isObjectId(id)) {
+        response.status(400).send("Invalid resident census id");
+        return;
+      }
+      const record = await ResidentCensusService.restore(id);
+      if (!record) {
+        response.status(404).send("Resident census record not found");
+        return;
+      }
+      response.send({ message: "Resident census record restored successfully", archived: false });
+    } catch (error) {
+      console.error(error);
+      response.status(500).send("Failed to restore resident census record");
     }
   };
 }

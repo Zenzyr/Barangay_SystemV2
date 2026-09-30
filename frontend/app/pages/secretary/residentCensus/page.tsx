@@ -49,7 +49,14 @@ import {
   Upload,
   FileSpreadsheet,
   X,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  Archive,
+  RotateCcw,
 } from "lucide-react";
+import { BackButton } from "@/components/ui/BackButton";
+
 
 // ─── Types ────────────────────────────────────────────────────────
 interface ResidentCensusRecord {
@@ -70,6 +77,7 @@ interface ResidentCensusRecord {
   pensioner: string;
   isPWD: string;
   cellphone: string;
+  accountId?: string;
 }
 
 interface ImportResult {
@@ -171,6 +179,21 @@ const EMPTY_FORM: Omit<ResidentCensusRecord, "_id"> = {
   cellphone: "N/A",
 };
 
+function getPageItems(total: number, current: number): (number | "...")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const raw = Array.from(new Set([1, total, current - 1, current, current + 1]))
+    .filter((p) => p >= 1 && p <= total)
+    .sort((a, b) => a - b);
+  const out: (number | "...")[] = [];
+  let prev = 0;
+  for (const p of raw) {
+    if (p - prev > 1) out.push("...");
+    out.push(p);
+    prev = p;
+  }
+  return out;
+}
+
 function Badge({ children, tone }: { children: React.ReactNode; tone: "amber" | "violet" | "emerald" | "sky" }) {
   const tones = {
     amber: "bg-amber-50 text-amber-700 border-amber-200",
@@ -185,11 +208,187 @@ function Badge({ children, tone }: { children: React.ReactNode; tone: "amber" | 
   );
 }
 
+// ─── Linked account profile (fetched when a census record has an account) ──
+interface CensusAccountProfile {
+  _id: string;
+  name: string;
+  email: string;
+  contact?: string;
+  gender?: string;
+  dateOfBirth?: string;
+  age?: string;
+  civilStatus?: string;
+  voterStatus?: string;
+  purok?: string;
+  houseHoldNumber?: string;
+  address?: string;
+  profile?: string;
+  idType?: string;
+  status?: string;
+  role?: string;
+  skills?: { skill: string; experience: number; proficiency: string }[];
+}
+
+function ViewProfileModal({
+  record,
+  onClose,
+}: {
+  record: ResidentCensusRecord | null;
+  onClose: () => void;
+}) {
+  const { data: account, isLoading: loadingAccount } = useQuery<CensusAccountProfile>({
+    queryKey: ["account-profile", record?.accountId],
+    queryFn: async () => {
+      const res = await axiosInstance.get(`/account/${record!.accountId}`);
+      return res.data;
+    },
+    enabled: !!record?.accountId,
+  });
+
+  const profileRows: [label: string, value: string][] = record
+    ? [
+        ["Name", record.name],
+        ["Sex", record.sex],
+        ["Age", String(record.age)],
+        ["Birthday", record.birthday],
+        ["Occupation", record.occupation],
+        ["Education", record.education],
+        ["Purok", record.purok],
+        ["Household Number", record.householdNumber],
+        ["Cellphone", record.cellphone],
+        ["Family Planning", record.familyPlanning],
+        ["Pensioner", record.pensioner],
+      ]
+    : [];
+
+  const flagRows: [label: string, value: string][] = record
+    ? [
+        ["4Ps Beneficiary", record.is4Ps],
+        ["Solo Parent", record.soloParent],
+        ["Senior Citizen", record.isSenior],
+        ["HPN Maintenance", record.hpnMaintenance],
+        ["PWD", record.isPWD],
+      ]
+    : [];
+
+  return (
+    <Dialog open={!!record} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        {record && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-3">
+                <div className="size-9 rounded-xl bg-gradient-to-br from-sky-100 to-emerald-100 text-sky-600 flex items-center justify-center">
+                  {account?.profile ? (
+                    <img src={account.profile} alt="" className="size-9 rounded-xl object-cover" />
+                  ) : (
+                    <UserRound className="size-4" />
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate">{record.name}</p>
+                  <p className="text-[11px] font-normal text-gray-400">
+                    Resident Census Profile
+                  </p>
+                </div>
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-5 py-2">
+              {record.accountId && (
+                <div className="rounded-xl border border-sky-100 bg-sky-50/50 p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="text-xs font-semibold text-sky-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <UserRound className="size-3.5" /> Linked Online Account
+                    </p>
+                    {account?.status && (
+                      <Badge tone={account.status === "approved" ? "emerald" : "amber"}>
+                        {account.status}
+                      </Badge>
+                    )}
+                  </div>
+                  {loadingAccount ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-1/2" />
+                      <Skeleton className="h-4 w-1/3" />
+                    </div>
+                  ) : account ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                      <div><p className="text-xs text-gray-400">Email</p><p className="text-gray-700 truncate">{account.email}</p></div>
+                      <div><p className="text-xs text-gray-400">Contact</p><p className="text-gray-700">{account.contact || "—"}</p></div>
+                      <div><p className="text-xs text-gray-400">Civil Status</p><p className="text-gray-700">{account.civilStatus || "—"}</p></div>
+                      <div><p className="text-xs text-gray-400">Voter Status</p><p className="text-gray-700">{account.voterStatus || "—"}</p></div>
+                      {account.address && (
+                        <div className="sm:col-span-2"><p className="text-xs text-gray-400">Address</p><p className="text-gray-700">{account.address}</p></div>
+                      )}
+                      {account.idType && (
+                        <div><p className="text-xs text-gray-400">ID Type</p><p className="text-gray-700">{account.idType.replace("_", " ")}</p></div>
+                      )}
+                      {account.skills && account.skills.length > 0 && (
+                        <div className="sm:col-span-2">
+                          <p className="text-xs text-gray-400 mb-1">Service Skills</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {account.skills.map((s, i) => (
+                              <span key={i} className="text-[11px] rounded-full bg-sky-100 text-sky-700 px-2 py-0.5 font-medium">
+                                {s.skill}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">Linked account not found.</p>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Census Details</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                  {profileRows.map(([label, value]) => (
+                    <div key={label}>
+                      <p className="text-xs text-gray-400">{label}</p>
+                      <p className="text-gray-700">{value || "—"}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Flags</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                  {flagRows.map(([label, value]) => (
+                    <div key={label} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2">
+                      <p className="text-xs text-gray-500">{label}</p>
+                      {value === "YES" ? (
+                        <Badge tone="emerald">YES</Badge>
+                      ) : (
+                        <span className="text-xs text-gray-300">{value || "—"}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={onClose}>Close</Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function ResidentCensusPage() {
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
   const [purokFilter, setPurokFilter] = useState<string>("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -198,6 +397,9 @@ export default function ResidentCensusPage() {
   const [importText, setImportText] = useState("");
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [viewing, setViewing] = useState<ResidentCensusRecord | null>(null);
+  // Archived view shows soft-deleted records so they can be restored.
+  const [showArchived, setShowArchived] = useState(false);
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const importRows = useMemo(() => {
@@ -237,9 +439,11 @@ export default function ResidentCensusPage() {
 
   // ── Fetch census data ───────────────────────────────────────────
   const { data: records, isLoading } = useQuery<ResidentCensusRecord[]>({
-    queryKey: ["resident-census"],
+    queryKey: ["resident-census", showArchived],
     queryFn: async () => {
-      const res = await axiosInstance.get("/resident-census");
+      const res = await axiosInstance.get("/resident-census", {
+        params: showArchived ? { archived: "true" } : {},
+      });
       return res.data;
     },
   });
@@ -262,6 +466,12 @@ export default function ResidentCensusPage() {
     });
   }, [all, purokFilter, search]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pagedRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const startOffset = filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endOffset = Math.min(currentPage * pageSize, filtered.length);
+
   const stats = useMemo(() => {
     const households = new Set(all.map((r) => r.householdNumber));
     return {
@@ -278,11 +488,26 @@ export default function ResidentCensusPage() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => axiosInstance.delete(`/resident-census/${id}`),
     onSuccess: () => {
-      successAlert("Record deleted");
+      successAlert("Record archived");
       queryClient.invalidateQueries({ queryKey: ["resident-census"] });
     },
-    onError: () => errorAlert("Failed to delete record"),
+    onError: () => errorAlert("Failed to archive record"),
   });
+
+  const restoreMutation = useMutation({
+    mutationFn: async (id: string) => axiosInstance.put(`/resident-census/${id}/restore`),
+    onSuccess: () => {
+      successAlert("Record restored to census");
+      queryClient.invalidateQueries({ queryKey: ["resident-census"] });
+    },
+    onError: () => errorAlert("Failed to restore record"),
+  });
+
+  const handleRestore = (id: string, name: string) => {
+    confirmAlert(`Restore "${name}" to the active census?`, "Restore", () => {
+      restoreMutation.mutate(id);
+    });
+  };
 
   const openAddModal = () => {
     setEditingId(null);
@@ -340,13 +565,19 @@ export default function ResidentCensusPage() {
   };
 
   const handleDelete = (id: string, name: string) => {
-    confirmAlert(`Delete record for "${name}"? This cannot be undone.`, "Delete", () => {
-      deleteMutation.mutate(id);
-    });
+    confirmAlert(
+      `Archive record for "${name}"? It will be hidden from the census but can be restored from the Archived tab.`,
+      "Archive",
+      () => {
+        deleteMutation.mutate(id);
+      }
+    );
   };
 
   return (
     <div className="w-full min-h-dvh p-4 sm:p-6 space-y-6">
+      <BackButton />
+
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -361,6 +592,24 @@ export default function ResidentCensusPage() {
           </div>
         </div>
      <div className="flex items-center justify-center gap-2">
+        <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+          <button
+            type="button"
+            onClick={() => { setShowArchived(false); setPage(1); }}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${!showArchived ? "bg-sky-600 text-white" : "text-gray-500 hover:text-gray-800"}`}
+          >
+            <Users className="size-3.5" />
+            Active
+          </button>
+          <button
+            type="button"
+            onClick={() => { setShowArchived(true); setPage(1); }}
+            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${showArchived ? "bg-slate-800 text-white" : "text-gray-500 hover:text-gray-800"}`}
+          >
+            <Archive className="size-3.5" />
+            Archived
+          </button>
+        </div>
          <Button onClick={openAddModal} className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white shadow-lg shadow-sky-200/50 gap-1.5">
           <Plus className="size-4" />
           Add Record
@@ -398,11 +647,11 @@ export default function ResidentCensusPage() {
           <Input
             placeholder="Search by name or household number..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="pl-10 h-10 bg-white"
           />
         </div>
-        <Select value={purokFilter} onValueChange={setPurokFilter}>
+        <Select value={purokFilter} onValueChange={(v) => { setPurokFilter(v); setPage(1); }}>
           <SelectTrigger className="w-full sm:w-48 h-10 bg-white">
             <SelectValue placeholder="Filter by purok" />
           </SelectTrigger>
@@ -453,7 +702,7 @@ export default function ResidentCensusPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((r) => (
+                pagedRows.map((r) => (
                   <TableRow key={r._id} className="hover:bg-slate-50/60 transition-colors">
                     <TableCell className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{r.name}</TableCell>
                     <TableCell className="px-4 py-3 text-gray-600">{r.sex}</TableCell>
@@ -481,17 +730,37 @@ export default function ResidentCensusPage() {
                     <TableCell className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <button
-                          onClick={() => openEditModal(r)}
-                          className="size-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-sky-600 hover:bg-sky-50 transition-colors"
+                          onClick={() => setViewing(r)}
+                          className="size-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                          title="View Profile"
                         >
-                          <Pencil className="size-3.5" />
+                          <Eye className="size-3.5" />
                         </button>
-                        <button
-                          onClick={() => handleDelete(r._id, r.name)}
-                          className="size-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
+                        {showArchived ? (
+                          <button
+                            onClick={() => handleRestore(r._id, r.name)}
+                            className="size-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                            title="Restore to active census"
+                          >
+                            <RotateCcw className="size-3.5" />
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => openEditModal(r)}
+                              className="size-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-sky-600 hover:bg-sky-50 transition-colors"
+                            >
+                              <Pencil className="size-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(r._id, r.name)}
+                              className="size-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                              title="Archive record"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -501,8 +770,43 @@ export default function ResidentCensusPage() {
           </Table>
         </div>
         {!isLoading && filtered.length > 0 && (
-          <div className="px-4 py-2.5 border-t border-slate-100 text-xs text-gray-400">
-            Showing {filtered.length} of {all.length} records
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t border-slate-100">
+            <p className="text-xs text-gray-400">
+              Showing <span className="font-medium text-gray-600">{startOffset}–{endOffset}</span> of <span className="font-medium text-gray-600">{filtered.length}</span> records
+            </p>
+            <div className="flex items-center gap-2">
+              <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
+                <SelectTrigger className="h-8 w-[92px] text-xs bg-white">
+                  <SelectValue placeholder="Per page" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[10, 25, 50, 100].map((n) => (
+                    <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" className="h-8 px-2" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>
+                <ChevronLeft className="size-4" />
+              </Button>
+              {getPageItems(totalPages, currentPage).map((p, i) =>
+                p === "..." ? (
+                  <span key={`gap-${i}`} className="px-0.5 text-xs text-gray-400">…</span>
+                ) : (
+                  <Button
+                    key={p}
+                    variant={p === currentPage ? "default" : "outline"}
+                    size="sm"
+                    className={`h-8 min-w-8 px-2 text-xs ${p === currentPage ? "bg-sky-600 hover:bg-sky-700 text-white" : ""}`}
+                    onClick={() => setPage(p)}
+                  >
+                    {p}
+                  </Button>
+                )
+              )}
+              <Button variant="outline" size="sm" className="h-8 px-2" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}>
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
           </div>
         )}
       </div>
@@ -679,6 +983,9 @@ export default function ResidentCensusPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── View Profile Modal ── */}
+      <ViewProfileModal record={viewing} onClose={() => setViewing(null)} />
     </div>
   );
 }

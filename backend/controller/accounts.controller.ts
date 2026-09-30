@@ -1,4 +1,5 @@
 import { PurokService } from "../services/purok.service";
+import { randomBytes } from "crypto";
 import { Response } from "express";
 import { AuthRequest } from "../types/request.type";
 import { accountInterfaceInput } from "../types/accounts.type";
@@ -13,6 +14,20 @@ import { formattedDate } from "../utils/customFunc";
 import { sendNotification, sendSms } from "../utils/sms";
 import { smsTemplates } from "../utils/smsTemplates";
 import { sendEmail } from "../utils/email";
+import { EmailVerificationService } from "../services/emailVerification.service";
+import {
+  generateEmailOtp,
+  hashEmailOtp,
+  compareEmailOtp,
+  emailDomainError,
+  emailOtpEmailHtml,
+  EMAIL_OTP_TTL_MINUTES,
+  EMAIL_OTP_MAX_ATTEMPTS,
+  EMAIL_OTP_RESEND_COOLDOWN_SECONDS,
+  EMAIL_OTP_BLOCK_MINUTES,
+  EMAIL_VERIFICATION_TOKEN_TTL,
+} from "../utils/emailVerification";
+import { calculateAge } from "../utils/age";
 import {
   generateResetCode,
   hashResetCode,
@@ -38,7 +53,7 @@ import { SystemInfoService } from "../services/systemInfo.service";
 
 import { WorkService } from "../services/work.service";
 import { AuditLogService } from "../services/auditLog.service";
-import { ROLES, ROLE_LIST } from "../utils/roles";
+import { ROLES, ROLE_LIST, isStaffRole } from "../utils/roles";
 import {
   assessPersonRegistration,
   buildDuplicateReport,
@@ -66,6 +81,131 @@ dotenv.config();
 
 const secret = process.env.JWT_SECRET || "";
 const GENERIC_LOGIN_MSG = "Invalid email or password";
+const EMAIL_VERIFY_PURPOSE = "email-verification";
+
+// Issues a signed, short-lived token proving the applicant correctly entered
+// an OTP for THIS exact address. registration (register) requires it.
+function signEmailVerificationToken(email: string): string {
+  return jwt.sign(
+    { email, purpose: EMAIL_VERIFY_PURPOSE },
+    secret,
+    { expiresIn: EMAIL_VERIFICATION_TOKEN_TTL }
+  );
+}
+
+// Validates the email-ownership token against the email being registered.
+function verifyEmailVerificationToken(
+  token: string,
+  expectedEmail: string
+): boolean {
+  if (!token || !expectedEmail) return false;
+  try {
+    const decoded = jwt.verify(token, secret) as {
+      email?: string;
+      purpose?: string;
+    };
+    return (
+      decoded.purpose === EMAIL_VERIFY_PURPOSE &&
+      decoded.email === expectedEmail
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Shared core of sendEmailOtp / resendEmailOtp: enforces expiry-independent
+ * rate limits, generates a NEW hashed code, and emails it. Never logs or
+ * echoes the OTP. Never treats a valid-looking email as verified.
+ */
+async function dispatchEmailOtp(
+  email: string,
+  response: Response
+): Promise<void> {
+  const normalized = email.trim().toLowerCase();
+
+  // The address must not already belong to an account.
+  const existing = await AccountService.checkEmailIfExist(normalized);
+  if (existing) {
+    response.status(409).send(EMAIL_IN_USE_MSG);
+    return;
+  }
+
+  const now = Date.now();
+  let record = await EmailVerificationService.getByEmail(normalized);
+
+  // Too many failed attempts → temporary hard block (also covers resend).
+  if (record?.blockedUntil && now < new Date(record.blockedUntil).getTime()) {
+    const minutes = Math.ceil(
+      (new Date(record.blockedUntil).getTime() - now) / 60000
+    );
+    response.status(429).send(
+      `Too many failed attempts. Please try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`
+    );
+    return;
+  }
+
+  // Resend cooldown — one code per address per window.
+  if (record?.resendCooldownUntil && now < new Date(record.resendCooldownUntil).getTime()) {
+    const seconds = Math.max(
+      1,
+      Math.ceil((new Date(record.resendCooldownUntil).getTime() - now) / 1000)
+    );
+    response.status(429).send(
+      `A verification code was just sent. Please wait ${seconds} second${seconds === 1 ? "" : "s"} before requesting another.`
+    );
+    return;
+  }
+
+  const code = generateEmailOtp();
+  const codeHash = await hashEmailOtp(code);
+  const expiresAt = new Date(now + EMAIL_OTP_TTL_MINUTES * 60 * 1000);
+  const cooldownUntil = new Date(now + EMAIL_OTP_RESEND_COOLDOWN_SECONDS * 1000);
+
+  await EmailVerificationService.upsertOtp(
+    normalized,
+    codeHash,
+    expiresAt,
+    cooldownUntil
+  );
+
+  const sent = await sendEmail(
+    normalized,
+    "Verify Your Email Address",
+    emailOtpEmailHtml(normalized, code)
+  );
+  if (!sent) {
+    console.error("[EMAIL-OTP] Delivery failed for", normalized);
+    response
+      .status(500)
+      .send("We could not send the verification email right now. Please try again later.");
+    return;
+  }
+
+  response.send({
+    message: "A verification code has been sent to your email.",
+    resendCooldownSeconds: EMAIL_OTP_RESEND_COOLDOWN_SECONDS,
+  });
+}
+
+// ── Welcome emails for staff-created resident accounts ──────────────
+function accountWelcomeEmailHtml(name: string, tempPassword: string): string {
+  return [
+    `<p>Hi ${name},</p>`,
+    "<p>Your barangay resident account has been created by the barangay office. You can now log in to the resident portal.</p>",
+    `<p>Your temporary password is: <b>${tempPassword}</b></p>`,
+    "<p>Please sign in and change your password right away to keep your account secure.</p>",
+    "<p>Thank you,<br/>Barangay Office</p>",
+  ].join("");
+}
+
+function accountApprovedEmailHtml(name: string): string {
+  return [
+    `<p>Hi ${name},</p>`,
+    "<p>Your barangay resident account has been created and approved by the barangay office. You can now log in to the resident portal.</p>",
+    "<p>Thank you,<br/>Barangay Office</p>",
+  ].join("");
+}
 
 export class AccountController {
   static register = async (request: AuthRequest, response: Response) => {
@@ -112,6 +252,12 @@ export class AccountController {
         return response.status(400).send("A valid email address is required");
       if (!withinLength(email, MAX_EMAIL_LENGTH))
         return response.status(400).send("Email is too long");
+      // Structural domain check on top of the format regex (labels, TLD,
+      // no consecutive dots). Ownership is proven by the OTP below, never
+      // by this shape check alone.
+      const emailDomainCheck = emailDomainError(email);
+      if (emailDomainCheck)
+        return response.status(400).send(emailDomainCheck);
 
       if (!isPhilippineMobile(contact))
         return response
@@ -225,9 +371,25 @@ export class AccountController {
           );
       }
 
+      // ── Confirm this exact email was ownership-verified with an OTP ──
+      // A structurally-valid email is NOT enough — the applicant must have
+      // received an OTP at this address and submitted it correctly, which
+      // produced a signed token bound to the email. No token (or a token for
+      // a different address) means no verified email.
+      const emailToken = String(body.emailToken || "");
+      if (!verifyEmailVerificationToken(emailToken, email)) {
+        return response
+          .status(400)
+          .send(
+            "Please verify your email address with the verification code before creating your account.",
+          );
+      }
+
       const accountData: accountInterfaceInput =
         request.body as accountInterfaceInput;
       const hashedPassword = await bcrypt.hash(password, 10);
+
+      const age = calculateAge(dateOfBirth);
 
       // Public registration can ONLY ever create a resident account.
       // secretary / super_admin are assigned exclusively through the
@@ -249,6 +411,7 @@ export class AccountController {
         email,
         gender,
         dateOfBirth,
+        age,
         civilStatus,
         purok,
         voterStatus,
@@ -257,6 +420,8 @@ export class AccountController {
         password: hashedPassword,
         status: "pending",
         role: "resident",
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
         idImg: { idFront: "", idBack: "", idSelfie: "" },
         skills: [],
         reviews: [],
@@ -328,6 +493,201 @@ export class AccountController {
         return response.status(409).send(EMAIL_IN_USE_MSG);
       }
       return response.status(500).send("Failed to register account");
+    }
+  };
+
+  /**
+   * Staff-only resident creation (secretary / super admin).
+   *
+   * The clerk meets the person face-to-face, confirms identity against their
+   * ID and records their details — so no OTP, no Gemini ID-document check and
+   * no later account-verification step are needed. The account is created
+   * already "approved". Every field mirrors the public sign-up form.
+   *
+   * The duplicate/identity protections still apply exactly as in register():
+   * email reuse → 409; a confident same-person match (name + DOB + phone across
+   * accounts and the census) → blocked with an explanation. Uncertain matches
+   * are flagged for the administrator's review instead of blocking the clerk.
+   * Every created resident is synced into the resident census.
+   */
+  static createResidentAdmin = async (request: AuthRequest, response: Response) => {
+    try {
+      const body = (request.body || {}) as Record<string, unknown>;
+      const email = String(body.email || "")
+        .trim()
+        .toLowerCase();
+      const name = String(body.name || "").trim();
+      const address = String(body.address || "").trim();
+      const contact = String(body.contact || "").trim();
+      const gender = String(body.gender || "").trim();
+      const dateOfBirth = String(body.dateOfBirth || "").trim();
+      const civilStatus = String(body.civilStatus || "").trim();
+      const purok = String(body.purok || "").trim();
+      const voterStatus = String(body.voterStatus || "").trim();
+      const houseHoldNumber = String(body.houseHoldNumber || "").trim();
+      const password = String(body.password || "");
+
+      // Verify purok is active
+      const activePuroks = await PurokService.getAll({ status: "active" });
+      if (!activePuroks.some((p: any) => p.name === purok)) {
+        return response.status(400).send("Invalid purok selected");
+      }
+
+      // ── Field validation (same rules as the sign-up form) ─────
+      if (!isNonEmptyString(name))
+        return response.status(400).send("Full name is required");
+      if (!isName(name))
+        return response
+          .status(400)
+          .send(
+            "Name can only contain letters, spaces, periods, hyphens and apostrophes",
+          );
+      if (!withinLength(name, MAX_NAME_LENGTH))
+        return response
+          .status(400)
+          .send(`Name must be at most ${MAX_NAME_LENGTH} characters`);
+
+      if (!isEmail(email))
+        return response.status(400).send("A valid email address is required");
+      if (!withinLength(email, MAX_EMAIL_LENGTH))
+        return response.status(400).send("Email is too long");
+      const emailDomainCheck = emailDomainError(email);
+      if (emailDomainCheck)
+        return response.status(400).send(emailDomainCheck);
+
+      if (!isPhilippineMobile(contact))
+        return response
+          .status(400)
+          .send(
+            "A valid 11-digit Philippine mobile number is required (e.g. 09171234567)",
+          );
+
+      if (!isNonEmptyString(address))
+        return response.status(400).send("Address is required");
+      if (!withinLength(address, MAX_ADDRESS_LENGTH))
+        return response
+          .status(400)
+          .send(`Address must be at most ${MAX_ADDRESS_LENGTH} characters`);
+
+      // A clerk-typed password is accepted; when omitted a secure temporary
+      // one is generated and sent to the resident in the welcome email.
+      const finalPassword = password || randomBytes(6).toString("hex");
+      const passwordError = passwordStrengthError(finalPassword);
+      if (passwordError) return response.status(400).send(passwordError);
+
+      const requiredEnums: Record<string, readonly string[]> = {
+        gender: ["Male", "Female", "Other"],
+        civilStatus: ["Single", "Married", "Widowed", "Separated", "Divorced"],
+        purok: ["Purok 1", "Purok 2", "Purok 3", "Purok 4"],
+        voterStatus: ["Registered", "Not Registered"],
+      };
+      for (const [field, allowed] of Object.entries(requiredEnums)) {
+        const value = String(body[field] || "").trim();
+        if (!allowed.includes(value)) {
+          return response.status(400).send(`Invalid value for ${field}`);
+        }
+      }
+
+      // ── Duplicate email check ────────────────────────────────
+      const existing = await AccountService.checkEmailIfExist(email);
+      if (existing) {
+        return response.status(409).send(EMAIL_IN_USE_MSG);
+      }
+
+      // ── ONE PERSON = ONE ACCOUNT (same as register) ─────────
+      const assessment = await assessPersonRegistration({
+        name,
+        dateOfBirth,
+        gender,
+        contact,
+      });
+      if (assessment.status === "blocked") {
+        const message =
+          assessment.reason === DUPLICATE_NAME_REASON
+            ? DUPLICATE_NAME_MSG
+            : DUPLICATE_PERSON_MSG;
+        return response.status(409).send(message);
+      }
+
+      const hashedPassword = await bcrypt.hash(finalPassword, 10);
+      const age = calculateAge(dateOfBirth);
+      const identityHash = computeIdentityHash(name, dateOfBirth);
+
+      const account = await AccountService.create({
+        profile: String(body.profile || ""),
+        name,
+        address,
+        contact,
+        email,
+        gender,
+        dateOfBirth,
+        age,
+        civilStatus,
+        purok,
+        voterStatus,
+        houseHoldNumber,
+        password: hashedPassword,
+        status: "approved",
+        role: "resident",
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+        idImg: { idFront: "", idBack: "", idSelfie: "" },
+        skills: [],
+        reviews: [],
+        legalConsent: { privacyPolicy: true, termsOfService: true },
+
+        ...(identityHash ? { identityHash } : {}),
+        ...(assessment.status === "flagged" && assessment.reason
+          ? {
+              possibleDuplicate: {
+                status: "review",
+                reason: assessment.reason,
+                records: (assessment.records || []).map((r) => ({
+                  type: r.kind,
+                  id: r.id,
+                  name: r.name,
+                })),
+              },
+            }
+          : {}),
+      });
+
+      // ── Auto-sync into the census (idempotent) ──────────────
+      await ResidentCensusService.upsertFromAccount(account).catch((err) =>
+        console.error("[CENSUS-SYNC ERROR]", err),
+      );
+
+      // ── Welcome email with the temporary password ─────────────
+      // The account is real either way; a failed email is logged, never a
+      // reason to roll back the registration.
+      try {
+        const welcomeHtml = password
+          ? accountApprovedEmailHtml(name)
+          : accountWelcomeEmailHtml(name, finalPassword);
+        await sendEmail(
+          account.email,
+          "Your Barangay Resident Account",
+          welcomeHtml,
+        );
+      } catch (emailError) {
+        console.error(
+          "[ADMIN-CREATE-RESIDENT] welcome email failed for account " +
+            account._id,
+          emailError,
+        );
+      }
+
+      return response.status(201).json({ userId: account._id });
+    } catch (error: any) {
+      console.error("[ADMIN CREATE RESIDENT ERROR]", error);
+      if (error?.code === 11000) {
+        const keyValues = Object.keys(error?.keyValue || {});
+        if (keyValues.includes("identityHash")) {
+          return response.status(409).send(DUPLICATE_PERSON_MSG);
+        }
+        return response.status(409).send(EMAIL_IN_USE_MSG);
+      }
+      return response.status(500).send("Failed to create resident");
     }
   };
 
@@ -1183,10 +1543,18 @@ export class AccountController {
 
 
 
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+      const genAI = new GoogleGenerativeAI(
+        process.env.CHATBOT_API_KEY ||
+          process.env.GEMINI_API_KEY ||
+          process.env.GOOGLE_API_KEY ||
+          "",
+      );
 
       const model = genAI.getGenerativeModel({
-        model: process.env.GEMINI_MODEL as string,
+        model:
+          (process.env.CHATBOT_MODEL as string) ||
+          (process.env.GEMINI_MODEL as string) ||
+          "gemini-3.6-flash",
       });
 
       const prompt = `
@@ -1231,10 +1599,18 @@ export class AccountController {
     try {
       const residentsInfo = await AccountService.getAccountsForAI();
 
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+      const genAI = new GoogleGenerativeAI(
+        process.env.CHATBOT_API_KEY ||
+          process.env.GEMINI_API_KEY ||
+          process.env.GOOGLE_API_KEY ||
+          "",
+      );
 
       const model = genAI.getGenerativeModel({
-        model: process.env.GEMINI_MODEL as string,
+        model:
+          (process.env.CHATBOT_MODEL as string) ||
+          (process.env.GEMINI_MODEL as string) ||
+          "gemini-3.6-flash",
       });
 
       const prompt = `
@@ -1316,6 +1692,153 @@ export class AccountController {
     }
   };
 
+  static sendEmailOtp = async (request: AuthRequest, response: Response) => {
+    try {
+      const { email } = request.body || {};
+
+      if (typeof email !== "string" || !email.trim()) {
+        response.status(400).send("An email address is required");
+        return;
+      }
+      const domainError = emailDomainError(email);
+      if (domainError) {
+        response.status(400).send(domainError);
+        return;
+      }
+      // Registration accepts only the same shape, so reuse isEmail as the
+      // base structural gate before the stricter domain check above.
+      if (!isEmail(email)) {
+        response.status(400).send("A valid email address is required");
+        return;
+      }
+
+      await dispatchEmailOtp(email, response);
+    } catch (error) {
+      console.error("[SEND-EMAIL-OTP ERROR]", error);
+      response.status(500).send("Could not send the verification code");
+    }
+  };
+
+  static resendEmailOtp = async (request: AuthRequest, response: Response) => {
+    try {
+      const { email } = request.body || {};
+
+      if (typeof email !== "string" || !email.trim()) {
+        response.status(400).send("An email address is required");
+        return;
+      }
+      const domainError = emailDomainError(email);
+      if (domainError) {
+        response.status(400).send(domainError);
+        return;
+      }
+      if (!isEmail(email)) {
+        response.status(400).send("A valid email address is required");
+        return;
+      }
+
+      await dispatchEmailOtp(email, response);
+    } catch (error) {
+      console.error("[RESEND-EMAIL-OTP ERROR]", error);
+      response.status(500).send("Could not resend the verification code");
+    }
+  };
+
+  static verifyEmailOtp = async (request: AuthRequest, response: Response) => {
+    try {
+      const { email, otp } = request.body || {};
+
+      if (emailDomainError(email) || !isEmail(email)) {
+        response.status(400).send("A valid email address is required");
+        return;
+      }
+      const normalized = String(email).trim().toLowerCase();
+
+      if (typeof otp !== "string" || !otp.trim()) {
+        response.status(400).send("Please enter the verification code");
+        return;
+      }
+
+      const record = await EmailVerificationService.getByEmail(normalized);
+
+      if (!record || !record.otpHash || !record.otpExpiresAt) {
+        response
+          .status(400)
+          .send("No verification code was found. Please request a new one.");
+        return;
+      }
+
+      const now = new Date();
+
+      // Temporary hard block after repeated failures.
+      if (record.blockedUntil && now < new Date(record.blockedUntil)) {
+        const minutes = Math.ceil(
+          (new Date(record.blockedUntil).getTime() - now.getTime()) / 60000
+        );
+        response.status(429).send(
+          `Too many failed attempts. Please try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`
+        );
+        return;
+      }
+
+      // Reached the attempt ceiling → lock the address down.
+      if ((record.attempts || 0) >= EMAIL_OTP_MAX_ATTEMPTS) {
+        const blockedUntil = new Date(
+          Date.now() + EMAIL_OTP_BLOCK_MINUTES * 60 * 1000
+        );
+        await EmailVerificationService.blockEmail(normalized, blockedUntil);
+        response.status(429).send(
+          `Too many failed attempts. Please try again in ${EMAIL_OTP_BLOCK_MINUTES} minutes.`
+        );
+        return;
+      }
+
+      if (now > new Date(record.otpExpiresAt)) {
+        response
+          .status(400)
+          .send("This code has expired. Please request a new one.");
+        return;
+      }
+
+      const isMatch = await compareEmailOtp(otp.trim(), record.otpHash);
+
+      if (!isMatch) {
+        const attempts = (record.attempts || 0) + 1;
+        let blockedUntil: Date | undefined;
+        if (attempts >= EMAIL_OTP_MAX_ATTEMPTS) {
+          blockedUntil = new Date(
+            Date.now() + EMAIL_OTP_BLOCK_MINUTES * 60 * 1000
+          );
+          await EmailVerificationService.blockEmail(normalized, blockedUntil);
+          response.status(429).send(
+            `Incorrect verification code. Too many failed attempts — please try again in ${EMAIL_OTP_BLOCK_MINUTES} minutes.`
+          );
+          return;
+        }
+        await EmailVerificationService.incrementAttempt(
+          normalized,
+          attempts
+        );
+        response.status(400).send(
+          `Incorrect verification code. ${EMAIL_OTP_MAX_ATTEMPTS - attempts} attempt${EMAIL_OTP_MAX_ATTEMPTS - attempts === 1 ? "" : "s"} remaining.`
+        );
+        return;
+      }
+
+      await EmailVerificationService.markVerified(normalized);
+
+      response.send({
+        verified: true,
+        emailToken: signEmailVerificationToken(normalized),
+      });
+    } catch (error) {
+      console.error("[VERIFY-EMAIL-OTP ERROR]", error);
+      response
+        .status(500)
+        .send("Could not verify the code. Please try again.");
+    }
+  };
+
   static login = async (request: AuthRequest, response: Response) => {
     try {
       const { email, password } = request.body || {};
@@ -1342,6 +1865,22 @@ export class AccountController {
 
       if (!isMatch) {
         response.status(401).send(GENERIC_LOGIN_MSG);
+        return;
+      }
+
+      // Accounts explicitly marked as email-unverified cannot sign in.
+      // (Accounts created before email verification existed are left
+      // untouched — `undefined` does not block them.)
+      // Secretary and super_admin accounts are exempt — their roles are
+      // assigned by a trusted super admin, so email ownership proof is
+      // not required for staff to log in.
+      const accountRole = account.role || "resident";
+      if (account.emailVerified === false && !isStaffRole(accountRole)) {
+        response
+          .status(403)
+          .send(
+            "Your email address has not been verified. Please verify your email before signing in.",
+          );
         return;
       }
 

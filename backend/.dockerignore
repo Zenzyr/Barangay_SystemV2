@@ -1,0 +1,12 @@
+node_modules
+dist
+.env
+.env.*
+uploads
+backups
+temp_file.tsx
+*.log
+.git
+.vscode
+__tests__
+jest.config.js

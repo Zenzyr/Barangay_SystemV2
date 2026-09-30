@@ -71,6 +71,19 @@ const BLOCKED_EMAIL_DOMAINS = new Set([
   "dummy.com",
 ]);
 
+// Computes full calendar years between a birth date and today.
+function calculateAge(dob: string): number | null {
+  const birth = new Date(dob);
+  if (isNaN(birth.getTime())) return null;
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age -= 1;
+  }
+  return age;
+}
+
 const validators: {
   [K in keyof FormValues]: (value: string, values: FormValues) => string;
 } = {
@@ -432,6 +445,130 @@ export default function SignUpPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [consent, setConsent] = useState(false);
 
+  // ─── Email ownership verification (server-side OTP) ──────────
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [otpError, setOtpError] = useState("");
+  const [otpCooldown, setOtpCooldown] = useState(0);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [emailToken, setEmailToken] = useState<string | null>(null);
+  const [verifiedEmail, setVerifiedEmail] = useState("");
+
+  // Resend cooldown countdown: decrement once per second.
+  useEffect(() => {
+    if (otpCooldown <= 0) return;
+    const t = setTimeout(() => setOtpCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [otpCooldown]);
+
+  const resetEmailVerification = () => {
+    setOtp("");
+    setOtpSent(false);
+    setOtpError("");
+    setOtpCooldown(0);
+    setEmailVerified(false);
+    setEmailToken(null);
+    setVerifiedEmail("");
+  };
+
+  const parseOtpErrorMessage = (err: unknown): string => {
+    const res = err as { response?: { status?: number; data?: unknown } };
+    if (typeof res?.response?.data === "string") return res.response.data;
+    return "Could not complete email verification. Please try again.";
+  };
+
+  const handleSendOtp = async () => {
+    const emailError = validators.email(email, formValues);
+    if (emailError) {
+      setErrors((prev) => ({ ...prev, email: emailError }));
+      setTouched((prev) => ({ ...prev, email: true }));
+      errorAlert(emailError);
+      return;
+    }
+    setSendingOtp(true);
+    setOtpError("");
+    try {
+      const { data } = await axiosInstance.post("/account/send-email-otp", {
+        email: email.trim(),
+      });
+      setOtpSent(true);
+      setOtp("");
+      if (typeof data?.resendCooldownSeconds === "number") {
+        setOtpCooldown(data.resendCooldownSeconds);
+      } else {
+        setOtpCooldown(60);
+      }
+      successAlert("Verification code sent to your email.");
+    } catch (err) {
+      const message = parseOtpErrorMessage(err);
+      setOtpError(message);
+      errorAlert(message);
+      const match = message.match(/wait (\d+) seconds?/);
+      if (match) setOtpCooldown(Number(match[1]));
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setSendingOtp(true);
+    setOtpError("");
+    try {
+      const { data } = await axiosInstance.post("/account/resend-email-otp", {
+        email: email.trim(),
+      });
+      setOtpSent(true);
+      setOtp("");
+      if (typeof data?.resendCooldownSeconds === "number") {
+        setOtpCooldown(data.resendCooldownSeconds);
+      } else {
+        setOtpCooldown(60);
+      }
+      successAlert("A new verification code has been sent to your email.");
+    } catch (err) {
+      const message = parseOtpErrorMessage(err);
+      setOtpError(message);
+      errorAlert(message);
+      const match = message.match(/wait (\d+) seconds?/);
+      if (match) setOtpCooldown(Number(match[1]));
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otp.trim()) {
+      setOtpError("Please enter the verification code.");
+      errorAlert("Please enter the verification code.");
+      return;
+    }
+    setVerifyingOtp(true);
+    setOtpError("");
+    try {
+      const { data } = await axiosInstance.post("/account/verify-email-otp", {
+        email: email.trim(),
+        otp: otp.trim(),
+      });
+      if (data?.verified && data?.emailToken) {
+        setEmailToken(data.emailToken);
+        setVerifiedEmail(email.trim().toLowerCase());
+        setEmailVerified(true);
+        setOtp("");
+        setOtpSent(false);
+        setOtpCooldown(0);
+        successAlert("Email verified!");
+      }
+    } catch (err) {
+      const message = parseOtpErrorMessage(err);
+      setOtpError(message);
+      errorAlert(message);
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
   // New profile fields
   const [gender, setGender] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
@@ -661,6 +798,15 @@ export default function SignUpPage() {
       return;
     }
 
+    // Email ownership is proven by a server-issued OTP, never by the client
+    // formatting check. No token = unverified email = no registration.
+    if (!emailVerified || !emailToken) {
+      errorAlert(
+        "Please verify your email address first — enter the verification code we sent you, then continue."
+      );
+      return;
+    }
+
     // Disable the submit button immediately so a fast double-click can't
     // fire this handler twice while the duplicate precheck is in flight.
     setLoading(true);
@@ -724,6 +870,7 @@ export default function SignUpPage() {
       formData.append("houseHoldNumber", censusAutoFill?.householdNumber && !houseHoldNumber.trim() ? censusAutoFill.householdNumber : houseHoldNumber.trim());
       formData.append("idType", idType);
       formData.append("verificationToken", idVerificationToken);
+      formData.append("emailToken", emailToken);
       formData.append("profile", "/assets/profile.jpg");
       formData.append("idFront", idFront);
       formData.append("idBack", idBack);
@@ -782,7 +929,7 @@ export default function SignUpPage() {
       </nav>
 
       {/* Main Content */}
-      <div className="relative max-w-3xl mx-auto px-4 py-8 sm:py-12">
+      <div className="relative max-w-3xl mx-auto px-4 py-8 sm:py-12 overflow-x-hidden">
         <div className="pointer-events-none absolute -top-20 -left-20 size-72 rounded-full bg-sky-200/40 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-20 -right-20 size-72 rounded-full bg-emerald-200/40 blur-3xl" />
 
@@ -812,8 +959,8 @@ export default function SignUpPage() {
                 <div className="size-2 rounded-full bg-gradient-to-r from-sky-400 to-emerald-400" />
                 Personal Information
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+                <div className="space-y-1.5 min-w-0">
                   <Label htmlFor="name" className="text-sm font-medium text-gray-700">
                     Full Name
                   </Label>
@@ -849,6 +996,13 @@ export default function SignUpPage() {
                       onChange={(e) => {
                         const value = e.target.value;
                         setEmail(value);
+                        // A different address invalidates any completed
+                        // verification — proof is bound to the old email.
+                        if (
+                          value.trim().toLowerCase() !== verifiedEmail
+                        ) {
+                          resetEmailVerification();
+                        }
                         if (touched.email) {
                           validateField("email", { ...formValues, email: value });
                         }
@@ -864,9 +1018,83 @@ export default function SignUpPage() {
                   <FieldError message={touched.email ? errors.email : undefined} />
                 </div>
 
-               
+                {/* ── Email ownership verification (OTP) ── */}
+                <div className="sm:col-span-2 rounded-xl border border-sky-100 bg-sky-50/40 p-3 sm:p-4 space-y-3">
+                  {emailVerified ? (
+                    <div className="flex items-center gap-2 text-sm text-emerald-700">
+                      <CheckCircle2 className="size-4 shrink-0" />
+                      <span className="font-medium">Email verified:</span>
+                      <span className="truncate">{verifiedEmail}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <p className="text-xs font-medium text-sky-700">
+                          Verify your email address
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          We&apos;ll send a 6-digit code to{" "}
+                          <span className="font-medium text-gray-700">
+                            {email.trim() || "your email"}
+                          </span>
+                          . You must verify it before you can create your account.
+                        </p>
+                      </div>
 
-                 <div className="space-y-1.5">
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={otpSent ? handleResendOtp : handleSendOtp}
+                          disabled={sendingOtp || otpCooldown > 0}
+                          className="shrink-0"
+                        >
+                          {sendingOtp ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : otpCooldown > 0 ? (
+                            `Resend in ${otpCooldown}s`
+                          ) : otpSent ? (
+                            "Resend Code"
+                          ) : (
+                            "Send Code"
+                          )}
+                        </Button>
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          maxLength={6}
+                          placeholder="Enter 6-digit code"
+                          value={otp}
+                          disabled={!otpSent || verifyingOtp}
+                          onChange={(e) =>
+                            setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
+                          }
+                          className="h-9 flex-1 bg-white"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleVerifyOtp}
+                          disabled={!otpSent || verifyingOtp || !otp.trim()}
+                          className="shrink-0 bg-sky-600 hover:bg-sky-700 text-white"
+                        >
+                          {verifyingOtp ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <>
+                              <CheckCircle2 className="size-3.5" />
+                              Verify
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      <FieldError message={otpError} />
+                    </>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
                     <Label htmlFor="contact" className="text-sm font-medium text-gray-700">
                         Contact
                     </Label>
@@ -1041,6 +1269,11 @@ export default function SignUpPage() {
                     />
                   </div>
                   <FieldError message={touched.dateOfBirth ? errors.dateOfBirth : undefined} />
+                  {dateOfBirth && !errors.dateOfBirth && calculateAge(dateOfBirth) !== null && (
+                    <p className="text-xs font-medium text-emerald-600">
+                      Age: {calculateAge(dateOfBirth)} years
+                    </p>
+                  )}
                 </div>
 
                 {/* Civil Status */}

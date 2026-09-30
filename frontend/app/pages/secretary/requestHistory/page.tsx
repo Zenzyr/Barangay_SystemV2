@@ -26,15 +26,13 @@ import { errorAlert } from "@/app/utils/alert";
 import {
   Search,
   FileText,
-  CheckCircle2,
   CalendarDays,
   Inbox,
   UserRound,
   Wallet,
   Eye,
-  Download,
+  Printer,
   History,
-  FileOutput,
 } from "lucide-react";
 
 export default function RequestHistoryPage() {
@@ -44,14 +42,18 @@ export default function RequestHistoryPage() {
   const [histDoc, setHistDoc] = useState<documentRequestInterface | null>(null);
   const [histModalOpen, setHistModalOpen] = useState(false);
 
-  // ── Fetch completed requests including archived (soft-deleted) ones ──
+  // ── Fetch completed/released requests incl. archived (soft-deleted) ──
   const { data: documents, isLoading } = useQuery<documentRequestInterface[]>({
     queryKey: ["document-requests", "secretary", "history"],
     queryFn: async () => {
       const res = await axiosInstance.get("/document-request", {
-        params: { status: "completed", includeArchived: "true" },
+        params: { includeArchived: "true" },
       });
-      return res.data;
+      // "released" is the current terminal status; "completed" is the legacy
+      // equivalent — both belong to the request history.
+      return res.data.filter((d: documentRequestInterface) =>
+        d.status === "released" || d.status === "completed"
+      );
     },
   });
 
@@ -61,7 +63,7 @@ export default function RequestHistoryPage() {
     const q = search.toLowerCase();
     return documents?.filter((doc) => {
       const docName = DOCUMENT_NAMES[doc.document] || doc.document;
-      const residentName = doc.resident?.name?.toLowerCase() || "";
+      const residentName = (doc.resident?.name || doc.fullName || "")?.toLowerCase() || "";
       const residentEmail = doc.resident?.email?.toLowerCase() || "";
       return (
         docName.toLowerCase().includes(q) ||
@@ -71,7 +73,14 @@ export default function RequestHistoryPage() {
     });
   }, [documents, search]);
 
-  const completedCfg = STATUS_CONFIG.completed;
+  const printPDF = async (doc: documentRequestInterface) => {
+    try {
+      const { printDocumentPDF } = await import("@/app/utils/generateDocument");
+      await printDocumentPDF(doc);
+    } catch {
+      errorAlert("Failed to print the document. Please try again.");
+    }
+  };
 
   return (
     <div className="w-full min-h-dvh p-4 sm:p-6 space-y-6">
@@ -86,14 +95,14 @@ export default function RequestHistoryPage() {
               Request History
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              View all completed and archived document requests
+              View all released and archived document requests
             </p>
           </div>
         </div>
         <div className="flex items-center gap-3 text-sm text-gray-500 bg-sky-50 rounded-xl px-4 py-2 border border-sky-100">
           <FileText className="size-4 text-sky-500" />
           <span>
-            Completed: <strong className="text-sky-700">{documents?.length || 0}</strong>
+            Released: <strong className="text-sky-700">{documents?.length || 0}</strong>
           </span>
         </div>
       </div>
@@ -142,8 +151,8 @@ export default function RequestHistoryPage() {
                       <div className="size-12 rounded-full bg-slate-100 text-slate-300 flex items-center justify-center">
                         <Inbox className="size-6" />
                       </div>
-                      <p className="text-sm font-medium">No completed requests yet</p>
-                      <p className="text-xs">Completed document requests will appear here</p>
+                      <p className="text-sm font-medium">No released requests yet</p>
+                      <p className="text-xs">Released document requests will appear here</p>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -167,7 +176,7 @@ export default function RequestHistoryPage() {
                           <UserRound className="size-3.5 text-sky-600" />
                         </div>
                         <span className="truncate max-w-[140px]">
-                          {doc.resident?.name || "Unknown"}
+                          {doc.resident?.name || doc.fullName || "Unknown"}
                         </span>
                       </div>
                     </TableCell>
@@ -184,10 +193,16 @@ export default function RequestHistoryPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${completedCfg.bg} ${completedCfg.text} ${completedCfg.border} border`}>
-                        <CheckCircle2 className="size-3" />
-                        Completed
-                      </span>
+                      {(() => {
+                        const cfg = STATUS_CONFIG[doc.status] || STATUS_CONFIG.released;
+                        const StatusIcon = cfg.icon;
+                        return (
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.text} ${cfg.border} border`}>
+                            <StatusIcon className="size-3" />
+                            {cfg.label}
+                          </span>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
@@ -224,30 +239,10 @@ export default function RequestHistoryPage() {
                               },
                             },
                             {
-                              key: "pdf",
-                              label: "Download PDF",
-                              icon: Download,
-                              onClick: async () => {
-                                try {
-                                  const { generateDocumentPDFFromDOCX } = await import("@/app/utils/generateDocument");
-                                  await generateDocumentPDFFromDOCX(doc);
-                                } catch {
-                                  errorAlert("Failed to generate the PDF. Please try again.");
-                                }
-                              },
-                            },
-                            {
-                              key: "docx",
-                              label: "Download DOCX",
-                              icon: FileOutput,
-                              onClick: async () => {
-                                try {
-                                  const { generateDocumentDOCX } = await import("@/app/utils/generateDocument");
-                                  await generateDocumentDOCX(doc);
-                                } catch {
-                                  errorAlert("Failed to generate the DOCX. Please try again.");
-                                }
-                              },
+                              key: "print",
+                              label: "Print Document",
+                              icon: Printer,
+                              onClick: () => printPDF(doc),
                             },
                             {
                               key: "history",

@@ -65,7 +65,7 @@ export default function DuplicateRequestDialog({ open, onOpenChange, document: e
               <div className="rounded-xl bg-gray-50 border border-gray-100 p-3 space-y-2 text-xs text-gray-600">
                 <p className="flex items-center gap-2">
                   <UserRound className="size-3.5 text-sky-500 shrink-0" />
-                  <span className="truncate">{existing.resident?.name || "Unknown"}</span>
+                  <span className="truncate">{existing.resident?.name || existing.fullName || "Unknown"}</span>
                 </p>
                 <p className="flex items-center gap-2">
                   <FileText className="size-3.5 text-sky-500 shrink-0" />

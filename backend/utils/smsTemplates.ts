@@ -4,8 +4,6 @@ const DOCUMENT_NAMES: Record<string, string> = {
   barangayClearance: "Barangay Clearance",
   certificateOfResidency: "Certificate of Residency",
   certificateOfIndigency: "Certificate of Indigency",
-  certificateOfGoodMoralCharacter: "Certificate of Good Moral Character",
-  certificateOfUnemployment: "Certificate of Unemployment",
   barangayBusinessClearance: "Barangay Business Clearance",
   certificateOfAttestation: "Certificate of Attestation",
   certificationOfTreesCutting: "Certification of Trees Cutting",
@@ -33,8 +31,13 @@ export const smsTemplates = {
     switch (status) {
       case "processing":
         return `Hi ${who}, your request for ${label} is now being processed.`;
+      case "ready":
       case "to claim":
         return `Hi ${who}, your ${label} is ready for pickup at the barangay hall. Please bring a valid ID.`;
+      case "released":
+        return `Hi ${who}, your ${label} has been released to you. Thank you for picking it up!`;
+      case "cancelled":
+        return `Hi ${who}, your request for ${label} has been cancelled. Visit the barangay hall if this was a mistake.`;
       case "completed":
         return `Hi ${who}, your request for ${label} has been marked completed. Thank you!`;
       default:
