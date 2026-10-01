@@ -2,8 +2,18 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getTemplates, deleteTemplate, duplicateTemplate, seedTemplates, fetchTemplatePreviewPdf, type DocumentTemplate } from "@/app/utils/documentTemplateService";
-import { Plus, Search, Edit, Eye, Copy, Trash2, Sparkles, RefreshCcw, X, FileType } from "lucide-react";
+import {
+  getTemplates,
+  deleteTemplate,
+  duplicateTemplate,
+  seedTemplates,
+  fetchTemplatePreviewPdf,
+  getPendingPriceApprovals,
+  approveTemplatePrice,
+  rejectTemplatePrice,
+  type DocumentTemplate,
+} from "@/app/utils/documentTemplateService";
+import { Plus, Search, Edit, Eye, Copy, Trash2, Sparkles, RefreshCcw, X, FileType, Gavel, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,6 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { successAlert, errorAlert, confirmAlert } from "@/app/utils/alert";
 import { DOCUMENT_NAMES } from "@/app/utils/documentRequestOptions";
+import useUserStore from "@/app/store/useUserStore";
 
 import { BackButton } from "@/components/ui/BackButton";
 const STATUS_STYLES: Record<string, string> = {
@@ -34,8 +45,91 @@ const money = (n: number | undefined, currency?: string) =>
     ? "—"
     : `${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency || "PHP"}`;
 
+function PriceApprovalsPanel() {
+  const queryClient = useQueryClient();
+  const { data: pending = [], isLoading } = useQuery({
+    queryKey: ["document-template-pending-approvals"],
+    queryFn: getPendingPriceApprovals,
+  });
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["document-template-pending-approvals"] });
+    queryClient.invalidateQueries({ queryKey: ["document-templates"] });
+  };
+
+  const approveMutation = useMutation({
+    mutationFn: approveTemplatePrice,
+    onSuccess: () => {
+      successAlert("Price change approved and now active.");
+      invalidate();
+    },
+    onError: () => errorAlert("Failed to approve price change."),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: rejectTemplatePrice,
+    onSuccess: () => {
+      successAlert("Price change rejected. The active price is unchanged.");
+      invalidate();
+    },
+    onError: () => errorAlert("Failed to reject price change."),
+  });
+
+  if (isLoading) {
+    return <Skeleton className="h-20 w-full mb-6" />;
+  }
+  if (!pending.length) return null;
+
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 mb-6 space-y-3">
+      <p className="flex items-center gap-2 text-sm font-semibold text-amber-800">
+        <Gavel className="size-4" />
+        Pending Price Approvals ({pending.length})
+      </p>
+      {pending.map((t) => {
+        const proposer = typeof t.pendingFeeProposedBy === "object" ? t.pendingFeeProposedBy?.name : undefined;
+        const busy = approveMutation.isPending || rejectMutation.isPending;
+        return (
+          <div key={t._id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white border border-amber-100 p-3">
+            <div className="min-w-0">
+              <p className="font-medium text-slate-800 truncate">{t.name}</p>
+              <p className="text-xs text-slate-500">
+                {money(t.fee, t.currency)} → <span className="font-semibold text-amber-700">{money(t.pendingFee, t.currency)}</span>
+                {proposer ? ` · proposed by ${proposer}` : ""}
+                {t.pendingFeeProposedAt ? ` · ${new Date(t.pendingFeeProposedAt).toLocaleString()}` : ""}
+              </p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs border-rose-200 text-rose-600 hover:bg-rose-50"
+                disabled={busy}
+                onClick={() => rejectMutation.mutate(t._id)}
+              >
+                <XCircle className="size-3" />
+                Reject
+              </Button>
+              <Button
+                size="sm"
+                className="h-8 text-xs bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
+                disabled={busy}
+                onClick={() => approveMutation.mutate(t._id)}
+              >
+                {busy ? <Loader2 className="size-3 animate-spin" /> : <CheckCircle2 className="size-3" />}
+                Approve
+              </Button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Page() {
   const queryClient = useQueryClient();
+  const { user } = useUserStore();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [preview, setPreview] = useState<{ id: string; name: string; url: string } | null>(null);
@@ -136,6 +230,8 @@ export default function Page() {
         </div>
       </div>
 
+      {user?.role === "super_admin" && <PriceApprovalsPanel />}
+
       <div className="flex flex-wrap items-center gap-3 mb-5">
         <div className="relative w-full max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -210,6 +306,11 @@ export default function Page() {
                     <span className="font-semibold text-slate-900 bg-slate-50 px-2 py-0.5 rounded border">
                       {money(template.fee, template.currency)}
                     </span>
+                    {template.priceApprovalStatus === "pending" && (
+                      <span className="font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        Pending: {money(template.pendingFee ?? 0, template.currency)}
+                      </span>
+                    )}
                     <span>
                       {PAGE_SIZES[template.page.size] || template.page.size}
                       <span className="mx-1.5 opacity-50">·</span>

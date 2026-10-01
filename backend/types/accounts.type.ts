@@ -1,6 +1,7 @@
 export interface accountInterfaceInput {
     profile?: string,
     name: string,
+    nickname?: string,
     address?: string,
     contact?: string,
     email: string,
@@ -17,6 +18,10 @@ export interface accountInterfaceInput {
     password: string,
     status :  string,
     role?: "resident" | "secretary" | "super_admin",
+    isSuspended?: boolean,
+    suspendedAt?: Date,
+    suspendedBy?: string,
+    suspensionReason?: string,
     emailVerified?: boolean,
     emailVerifiedAt?: Date,
     identityHash?: string,

@@ -64,6 +64,21 @@ export const authenticateJWT = async (request: AuthRequest, response: Response, 
       return;
     }
 
+    if (accountDoc.isSuspended) {
+      const path = request.originalUrl.split("?")[0];
+      const allowedWhileSuspended =
+        (request.method === "POST" && path === "/suspension-appeal") ||
+        (request.method === "GET" && path === "/suspension-appeal/mine");
+      if (!allowedWhileSuspended) {
+        response.status(403).json({
+          message: "Your account has been suspended. You may submit an appeal for review.",
+          suspended: true,
+          suspensionReason: accountDoc.suspensionReason || "",
+        });
+        return;
+      }
+    }
+
     const account: accountInterface = {
       _id: accountDoc._id.toString(),
       profile: accountDoc.profile ?? "",

@@ -44,6 +44,10 @@ export interface DocumentTemplate {
   status: "active" | "inactive";
   isDefault: boolean;
   version: number;
+  pendingFee?: number;
+  pendingFeeProposedBy?: { _id: string; name: string; email: string } | string;
+  pendingFeeProposedAt?: string;
+  priceApprovalStatus?: "none" | "pending" | "approved" | "rejected";
   page: {
     size: "A4" | "LETTER";
     orientation: "portrait" | "landscape";
@@ -97,6 +101,21 @@ export const duplicateTemplate = async (id: string): Promise<DocumentTemplate> =
 
 export const seedTemplates = async (): Promise<{ created: string[] }> => {
   const { data } = await axiosInstance.post("/document-templates/seed");
+  return data;
+};
+
+export const getPendingPriceApprovals = async (): Promise<DocumentTemplate[]> => {
+  const { data } = await axiosInstance.get("/document-templates/pending-approvals");
+  return data;
+};
+
+export const approveTemplatePrice = async (id: string): Promise<DocumentTemplate> => {
+  const { data } = await axiosInstance.patch(`/document-templates/${id}/price/approve`);
+  return data;
+};
+
+export const rejectTemplatePrice = async (id: string): Promise<DocumentTemplate> => {
+  const { data } = await axiosInstance.patch(`/document-templates/${id}/price/reject`);
   return data;
 };
 

@@ -43,6 +43,7 @@ interface Skill {
 interface Account {
   _id: string;
   name: string;
+  nickname?: string;
   address: string;
   email: string;
   contact: string;
@@ -123,7 +124,7 @@ export default function ProfilePage() {
   // Update info mutation
   const updateInfoMutation = useMutation({
     mutationFn: async (data: {
-      name: string;
+      nickname: string;
       address: string;
       contact: string;
       gender: string;
@@ -290,6 +291,9 @@ export default function ProfilePage() {
                     <h2 className="text-xl font-semibold text-gray-900">
                       {profile.name}
                     </h2>
+                    {profile.nickname && (
+                      <p className="text-sm text-gray-500">&ldquo;{profile.nickname}&rdquo;</p>
+                    )}
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 mt-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                       <BadgeCheck className="size-3" />
                       {profile.status}
@@ -547,6 +551,7 @@ export default function ProfilePage() {
         open={editModalOpen}
         onOpenChange={setEditModalOpen}
         currentName={profile?.name || ""}
+        currentNickname={profile?.nickname || ""}
         currentAddress={profile?.address || ""}
         currentContact={profile?.contact || ""}
         currentGender={profile?.gender || ""}

@@ -11,6 +11,7 @@ import {
   FileText,
   Inbox,
   ShieldCheck,
+  ShieldAlert,
   X,
 } from "lucide-react";
 
@@ -57,6 +58,16 @@ const TYPE_CONFIG: Record<
     icon: ShieldCheck,
     bg: "bg-teal-100",
     text: "text-teal-600",
+  },
+  security: {
+    icon: ShieldAlert,
+    bg: "bg-rose-100",
+    text: "text-rose-600",
+  },
+  documentTemplate: {
+    icon: FileText,
+    bg: "bg-amber-100",
+    text: "text-amber-600",
   },
 };
 

@@ -47,6 +47,8 @@ import {
   verifyIdVerificationToken,
 } from "../utils/idVerificationToken";
 import { NotificationService } from "../services/notification.service";
+import { LoginAttemptService } from "../services/loginAttempt.service";
+import { LOGIN_MAX_ATTEMPTS, LOGIN_LOCK_MINUTES, loginLockedEmailHtml } from "../utils/loginSecurity";
 import { ResidentCensusService } from "../services/residentCensus.service";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SystemInfoService } from "../services/systemInfo.service";
@@ -65,12 +67,14 @@ import {
 } from "../utils/duplicateCheck";
 import {
   isEmail,
+  isGmailAddress,
   isName,
   isNonEmptyString,
   isObjectId,
   isPhilippineMobile,
   normalizePhMobile,
   withinLength,
+  householdNumberError,
   MAX_NAME_LENGTH,
   MAX_ADDRESS_LENGTH,
   MAX_EMAIL_LENGTH,
@@ -219,6 +223,7 @@ export class AccountController {
       const address = String(body.address || "").trim();
       const contact = String(body.contact || "").trim();
       const password = String(body.password || "");
+      const confirmPassword = String(body.confirmPassword || "");
       const gender = String(body.gender || "").trim();
       const dateOfBirth = String(body.dateOfBirth || "").trim();
       const civilStatus = String(body.civilStatus || "").trim();
@@ -258,6 +263,10 @@ export class AccountController {
       const emailDomainCheck = emailDomainError(email);
       if (emailDomainCheck)
         return response.status(400).send(emailDomainCheck);
+      if (!isGmailAddress(email))
+        return response
+          .status(400)
+          .send("Only Gmail addresses (@gmail.com) are accepted");
 
       if (!isPhilippineMobile(contact))
         return response
@@ -275,6 +284,11 @@ export class AccountController {
 
       const passwordError = passwordStrengthError(password);
       if (passwordError) return response.status(400).send(passwordError);
+      if (password !== confirmPassword)
+        return response.status(400).send("Passwords do not match");
+
+      const householdError = householdNumberError(houseHoldNumber);
+      if (householdError) return response.status(400).send(householdError);
 
       const requiredEnums: Record<string, readonly string[]> = {
         gender: ["Male", "Female", "Other"],
@@ -554,6 +568,10 @@ export class AccountController {
       const emailDomainCheck = emailDomainError(email);
       if (emailDomainCheck)
         return response.status(400).send(emailDomainCheck);
+      if (!isGmailAddress(email))
+        return response
+          .status(400)
+          .send("Only Gmail addresses (@gmail.com) are accepted");
 
       if (!isPhilippineMobile(contact))
         return response
@@ -574,6 +592,9 @@ export class AccountController {
       const finalPassword = password || randomBytes(6).toString("hex");
       const passwordError = passwordStrengthError(finalPassword);
       if (passwordError) return response.status(400).send(passwordError);
+
+      const householdError = householdNumberError(houseHoldNumber);
+      if (householdError) return response.status(400).send(householdError);
 
       const requiredEnums: Record<string, readonly string[]> = {
         gender: ["Male", "Female", "Other"],
@@ -1022,6 +1043,136 @@ export class AccountController {
     }
   };
 
+  // Suspends an account for suspicious/undesirable activity. Blocks every
+  // protected route (see authenticateJWT) except the resident's own appeal
+  // submission. Self-suspension and suspending another super_admin are
+  // disallowed, mirroring the "last super admin" protections on updateRole.
+  static suspend = async (request: AuthRequest, response: Response) => {
+    try {
+      const { id } = request.params;
+      const reason = String(request.body?.reason || "").trim();
+
+      if (!isObjectId(id)) {
+        response.status(400).send("Invalid account id");
+        return;
+      }
+      if (!isNonEmptyString(reason)) {
+        response.status(400).send("A suspension reason is required");
+        return;
+      }
+      if (request.account?._id === id) {
+        response.status(400).send("You cannot suspend your own account");
+        return;
+      }
+
+      const account = await AccountService.get(id);
+      if (!account) {
+        response.status(404).send("Account not found");
+        return;
+      }
+      if (account.role === ROLES.SUPER_ADMIN) {
+        response.status(400).send("Super admin accounts cannot be suspended here");
+        return;
+      }
+      if (account.isSuspended) {
+        response.status(400).send("Account is already suspended");
+        return;
+      }
+
+      await AccountService.update(id, {
+        isSuspended: true,
+        suspendedAt: new Date(),
+        suspendedBy: request.account?.name || "Super Admin",
+        suspensionReason: reason,
+      });
+
+      AuditLogService.create({
+        actor: request.account?.name ?? "System",
+        actorId: request.account?._id?.toString?.() ?? "",
+        action: "suspend",
+        entity: "account",
+        entityId: account._id.toString(),
+        entityLabel: account.name,
+        field: "isSuspended",
+        previousValue: false,
+        newValue: true,
+      }).catch(() => null);
+
+      NotificationService.create({
+        accountId: account._id.toString(),
+        title: "Account suspended",
+        message: `Your account was suspended by barangay staff. Reason: ${reason}`,
+        type: "security",
+      }).catch(() => null);
+
+      sendEmail(
+        account.email,
+        "Your Barangay Rabon account has been suspended",
+        `<div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; color: #1f2937;">
+          <h2>Account Suspended</h2>
+          <p>Your account was suspended by barangay staff.</p>
+          <p><strong>Reason:</strong> ${reason.replace(/[<>&]/g, "")}</p>
+          <p>If you believe this is a mistake, sign in to submit an appeal for review.</p>
+        </div>`,
+      ).catch(() => null);
+
+      response.send({ message: "Account suspended" });
+    } catch (error) {
+      console.error("[SUSPEND ERROR]", error);
+      response.status(500).send("Failed to suspend account");
+    }
+  };
+
+  static unsuspend = async (request: AuthRequest, response: Response) => {
+    try {
+      const { id } = request.params;
+      if (!isObjectId(id)) {
+        response.status(400).send("Invalid account id");
+        return;
+      }
+
+      const account = await AccountService.get(id);
+      if (!account) {
+        response.status(404).send("Account not found");
+        return;
+      }
+      if (!account.isSuspended) {
+        response.status(400).send("Account is not suspended");
+        return;
+      }
+
+      await AccountService.update(id, {
+        isSuspended: false,
+        suspendedBy: "",
+        suspensionReason: "",
+      });
+
+      AuditLogService.create({
+        actor: request.account?.name ?? "System",
+        actorId: request.account?._id?.toString?.() ?? "",
+        action: "unsuspend",
+        entity: "account",
+        entityId: account._id.toString(),
+        entityLabel: account.name,
+        field: "isSuspended",
+        previousValue: true,
+        newValue: false,
+      }).catch(() => null);
+
+      NotificationService.create({
+        accountId: account._id.toString(),
+        title: "Account reinstated",
+        message: "Your account suspension has been lifted. You can now sign in normally.",
+        type: "security",
+      }).catch(() => null);
+
+      response.send({ message: "Account unsuspended" });
+    } catch (error) {
+      console.error("[UNSUSPEND ERROR]", error);
+      response.status(500).send("Failed to unsuspend account");
+    }
+  };
+
   static resubmitImages = async (request: AuthRequest, response: Response) => {
     try {
       const { id } = request.params;
@@ -1117,22 +1268,54 @@ export class AccountController {
         response.status(400).send("Invalid account id");
         return;
       }
+      const cleanServiceTypes = Array.isArray(serviceTypes)
+        ? serviceTypes.map((s: unknown) => String(s || "").trim()).filter(Boolean)
+        : [];
       if (!skill || experience === undefined || !proficiency) {
         response
           .status(400)
           .send("All fields are required: skill, experience, proficiency");
         return;
       }
-      if (typeof Number(experience) !== "number" || Number(experience) < 0) {
-        response.status(400).send("Experience must be a non-negative number");
+      if (cleanServiceTypes.length === 0) {
+        response.status(400).send("At least one service type is required");
+        return;
+      }
+      const experienceNumber = Number(experience);
+      if (
+        !Number.isFinite(experienceNumber) ||
+        !Number.isInteger(experienceNumber) ||
+        experienceNumber < 0 ||
+        experienceNumber > 20
+      ) {
+        response
+          .status(400)
+          .send("Experience must be a whole number between 0 and 20 years");
+        return;
+      }
+
+      const existingAccount = await AccountService.get(id);
+      if (!existingAccount) {
+        response.status(404).send("Account not found");
+        return;
+      }
+      const skillNameTrimmed = String(skill).trim();
+      const alreadyHasSkill = (existingAccount.skills || []).some(
+        (s: { skill: string }) =>
+          s.skill.trim().toLowerCase() === skillNameTrimmed.toLowerCase(),
+      );
+      if (alreadyHasSkill) {
+        response
+          .status(409)
+          .send("You already have this skill. Remove it first to change it.");
         return;
       }
 
       const account = await AccountService.addSkill(id, {
-        skill,
-        experience: Number(experience),
+        skill: skillNameTrimmed,
+        experience: experienceNumber,
         proficiency,
-        serviceTypes: Array.isArray(serviceTypes) ? serviceTypes : [],
+        serviceTypes: cleanServiceTypes,
       });
 
       if (!account) {
@@ -1224,6 +1407,7 @@ export class AccountController {
       const { id } = request.params;
       const {
         name,
+        nickname,
         address,
         contact,
         gender,
@@ -1240,6 +1424,7 @@ export class AccountController {
       }
       if (
         !name &&
+        !nickname &&
         !address &&
         !contact &&
         !gender &&
@@ -1252,12 +1437,42 @@ export class AccountController {
         response.status(400).send("No fields to update");
         return;
       }
+
+      const existingAccount = await AccountService.get(id);
+      if (!existingAccount) {
+        response.status(404).send("Account not found");
+        return;
+      }
+
+      // Residents may not change their official name through this endpoint
+      // — only staff-maintained workflows may. Residents may still set a
+      // nickname. This is enforced server-side regardless of what the
+      // frontend hides.
+      if (
+        request.account?.role === "resident" &&
+        name &&
+        name !== existingAccount.name
+      ) {
+        response
+          .status(403)
+          .send(
+            "Your official name cannot be changed here. Contact barangay staff to update it.",
+          );
+        return;
+      }
+
       if (name && (!isName(name) || !withinLength(name, MAX_NAME_LENGTH))) {
         response
           .status(400)
           .send(
             "Name can only contain letters, spaces, periods, hyphens and apostrophes",
           );
+        return;
+      }
+      if (nickname && !withinLength(nickname, MAX_NAME_LENGTH)) {
+        response
+          .status(400)
+          .send(`Nickname must be at most ${MAX_NAME_LENGTH} characters`);
         return;
       }
       if (contact && !isPhilippineMobile(contact)) {
@@ -1268,9 +1483,20 @@ export class AccountController {
           );
         return;
       }
+      if (houseHoldNumber) {
+        const householdError = householdNumberError(
+          houseHoldNumber,
+          existingAccount.houseHoldNumber,
+        );
+        if (householdError) {
+          response.status(400).send(householdError);
+          return;
+        }
+      }
 
       const updateData: Record<string, string> = {};
       if (name) updateData.name = name;
+      if (nickname !== undefined) updateData.nickname = nickname;
       if (address) updateData.address = address;
       if (contact) updateData.contact = contact;
       if (gender) updateData.gender = gender;
@@ -1852,21 +2078,75 @@ export class AccountController {
         return;
       }
 
-      const account = await AccountService.checkEmailIfExist(
-        String(email).trim().toLowerCase(),
-      );
+      const normalizedEmail = String(email).trim().toLowerCase();
 
-      if (!account) {
-        response.status(401).send(GENERIC_LOGIN_MSG);
+      // Lockout is checked BEFORE the account lookup, and keyed by email
+      // regardless of whether an account exists, so a locked-out response
+      // never reveals account existence.
+      const preStatus = await LoginAttemptService.getStatus(normalizedEmail);
+      if (preStatus.locked) {
+        response.status(429).send({
+          message: `Too many failed attempts. Please try again in a few minutes.`,
+          locked: true,
+          lockedUntil: preStatus.lockedUntil,
+        });
         return;
       }
 
-      const isMatch = await bcrypt.compare(password, account.password);
+      const account = await AccountService.checkEmailIfExist(normalizedEmail);
+      const isMatch = account ? await bcrypt.compare(password, account.password) : false;
 
-      if (!isMatch) {
-        response.status(401).send(GENERIC_LOGIN_MSG);
+      if (!account || !isMatch) {
+        const result = await LoginAttemptService.registerFailure(normalizedEmail);
+
+        // Notify the account owner once per lockout event (not per attempt)
+        // so this can't be used to spam the inbox, and only when the
+        // account actually exists (nothing to notify otherwise).
+        if (result.justLocked && account) {
+          const when = formattedDate();
+          const ip = String(request.ip || request.socket?.remoteAddress || "unknown");
+          const userAgent = String(request.headers["user-agent"] || "unknown");
+
+          NotificationService.create({
+            accountId: account._id.toString(),
+            title: "Suspicious login activity",
+            message: `We locked your account for ${LOGIN_LOCK_MINUTES} minutes after ${LOGIN_MAX_ATTEMPTS} failed sign-in attempts at ${when}.`,
+            type: "security",
+          }).catch(() => null);
+
+          sendEmail(
+            account.email,
+            "Suspicious login attempts on your account",
+            loginLockedEmailHtml({
+              name: account.name,
+              attempts: LOGIN_MAX_ATTEMPTS,
+              when,
+              ip,
+              userAgent,
+            })
+          ).catch(() => null);
+
+          AuditLogService.create({
+            actor: account.name,
+            actorId: account._id.toString(),
+            action: "login_locked",
+            entity: "account",
+            entityId: account._id.toString(),
+            entityLabel: account.name,
+          }).catch(() => null);
+        }
+
+        response.status(401).send({
+          message: GENERIC_LOGIN_MSG,
+          attemptsRemaining: result.attemptsRemaining,
+          locked: result.locked,
+          lockedUntil: result.lockedUntil,
+        });
         return;
       }
+
+      // Correct credentials — clear any prior failed-attempt history.
+      await LoginAttemptService.reset(normalizedEmail);
 
       // Accounts explicitly marked as email-unverified cannot sign in.
       // (Accounts created before email verification existed are left
@@ -1886,16 +2166,33 @@ export class AccountController {
 
       const token = jwt.sign({ id: account._id }, secret, { expiresIn: "3d" });
 
+      const { password: _accountPassword, ...accountSafe } = account.toObject();
+
       response.send({
         token,
         account: {
-          ...account.toObject(),
+          ...accountSafe,
           role: account.role || "resident",
         },
       });
     } catch (error) {
       console.error("[LOGIN ERROR]", error);
       response.status(500).send("Login failed");
+    }
+  };
+
+  static loginStatus = async (request: AuthRequest, response: Response) => {
+    try {
+      const email = String(request.query.email || "");
+      if (!isEmail(email)) {
+        response.status(400).send(GENERIC_LOGIN_MSG);
+        return;
+      }
+      const status = await LoginAttemptService.getStatus(email);
+      response.send(status);
+    } catch (error) {
+      console.error("[LOGIN STATUS ERROR]", error);
+      response.status(500).send("Failed to check login status");
     }
   };
 

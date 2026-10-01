@@ -12,6 +12,27 @@ export const isEmail = (value: unknown): value is string => {
   return emailRegex.test(value.trim());
 };
 
+export const isGmailAddress = (value: unknown): value is string => {
+  if (!isNonEmptyString(value)) return false;
+  return /^[^\s@]+@gmail\.com$/i.test(value.trim());
+};
+
+export const householdNumberError = (
+  value: unknown,
+  previousValue?: unknown,
+): string | null => {
+  if (!isNonEmptyString(value)) return "Household number is required";
+  const trimmed = value.trim();
+  if (typeof previousValue === "string" && previousValue.trim() === trimmed) {
+    return null;
+  }
+  if (trimmed.toUpperCase() === "N/A") return null;
+  if (!/^HH-(20|1\d|[1-9])$/i.test(trimmed)) {
+    return "Household number must be in the format HH-1 to HH-20";
+  }
+  return null;
+};
+
 // Philippine mobile number: 09XXXXXXXXX (11 digits) or 639XXXXXXXXX
 export const isPhilippineMobile = (value: unknown): value is string => {
   if (!isNonEmptyString(value)) return false;
@@ -95,10 +116,13 @@ export const passwordStrengthError = (password: string): string | null => {
   if (typeof password !== "string" || !password) return "Password is required";
   if (password.length < 8) return "Password must be at least 8 characters";
   if (password.length > 128) return "Password must be at most 128 characters";
-  if (!/[A-Z]/.test(password)) return "Password must include an uppercase letter (A-Z)";
-  if (!/[a-z]/.test(password)) return "Password must include a lowercase letter (a-z)";
+  if (!/[A-Z]/.test(password))
+    return "Password must include an uppercase letter (A-Z)";
+  if (!/[a-z]/.test(password))
+    return "Password must include a lowercase letter (a-z)";
   if (!/[0-9]/.test(password)) return "Password must include a number (0-9)";
-  if (!/[^A-Za-z0-9]/.test(password)) return "Password must include a special character";
+  if (!/[^A-Za-z0-9]/.test(password))
+    return "Password must include a special character";
   return null;
 };
 
@@ -112,7 +136,8 @@ export const mongooseValidationMessage = (error: any): string => {
       return error.errors[firstKey].message;
     }
   }
-  if (error.code === 11000) return "A record with the same value already exists";
+  if (error.code === 11000)
+    return "A record with the same value already exists";
   if (error.name === "CastError") return "Invalid identifier format";
   return "Invalid data";
 };

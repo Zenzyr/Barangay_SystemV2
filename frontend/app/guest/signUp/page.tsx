@@ -105,6 +105,9 @@ const validators: {
     if (domain && BLOCKED_EMAIL_DOMAINS.has(domain)) {
       return "Please use a real, active email address";
     }
+    if (!/^[^\s@]+@gmail\.com$/i.test(email)) {
+      return "Only Gmail addresses (@gmail.com) are accepted";
+    }
     return "";
   },
   contact: (v) => {
@@ -147,7 +150,13 @@ const validators: {
   civilStatus: (v) => (!v ? "Please select a civil status" : ""),
   purok: (v) => (!v ? "Please select a purok" : ""),
   voterStatus: (v) => (!v ? "Please select a voter status" : ""),
-  houseHoldNumber: (v) => (!v.trim() ? "Household number is required" : ""),
+  houseHoldNumber: (v) => {
+    if (!v.trim()) return "Household number is required";
+    if (!/^HH-(20|1\d|[1-9])$/i.test(v.trim())) {
+      return "Format must be HH-1 to HH-20 (e.g. HH-5)";
+    }
+    return "";
+  },
   idType: (v) => (!v ? "Please select the type of ID you are uploading" : ""),
 };
 
@@ -860,6 +869,7 @@ export default function SignUpPage() {
       formData.append("address", address.trim());
       formData.append("email", email.trim());
       formData.append("password", password);
+      formData.append("confirmPassword", confirmPassword);
       formData.append("status", "pending");
       formData.append("contact", censusAutoFill?.cellphone && !contact.trim() ? censusAutoFill.cellphone : contact);
       formData.append("gender", censusAutoFill?.sex && !gender ? censusAutoFill.sex : gender);
@@ -1163,6 +1173,7 @@ export default function SignUpPage() {
                         }
                       }}
                       onBlur={handleBlur("password")}
+                      onCopy={(e) => e.preventDefault()}
                       className={`pl-10 pr-10 h-10 transition-all ${
                         touched.password && errors.password
                           ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
@@ -1194,6 +1205,10 @@ export default function SignUpPage() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       onBlur={handleBlur("confirmPassword")}
+                      onPaste={(e) => e.preventDefault()}
+                      onDrop={(e) => e.preventDefault()}
+                      onContextMenu={(e) => e.preventDefault()}
+                      autoComplete="new-password"
                       className={`pl-10 pr-10 h-10 transition-all ${
                         touched.confirmPassword && errors.confirmPassword
                           ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
@@ -1209,6 +1224,7 @@ export default function SignUpPage() {
                     </button>
                   </div>
                   <FieldError message={touched.confirmPassword ? errors.confirmPassword : undefined} />
+                  <p className="text-xs text-gray-400">Please type your password again — pasting is disabled here.</p>
                 </div>
               </div>
             </div>
@@ -1372,7 +1388,7 @@ export default function SignUpPage() {
                     <input
                       id="houseHoldNumber"
                       type="text"
-                      placeholder="e.g. HH-001"
+                      placeholder="e.g. HH-5 (max HH-20)"
                       value={houseHoldNumber}
                       onChange={(e) => setHouseHoldNumber(e.target.value)}
                       onBlur={handleBlur("houseHoldNumber")}

@@ -32,6 +32,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Users,
   Search,
@@ -52,8 +53,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  EyeOff,
   Archive,
   RotateCcw,
+  Mail,
+  Lock,
+  UserPlus,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/BackButton";
 
@@ -392,6 +397,37 @@ export default function ResidentCensusPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [editingOriginalHousehold, setEditingOriginalHousehold] = useState<string | null>(null);
+
+  // Account-creation sub-section of the Add Resident modal (new records only).
+  const [createAccount, setCreateAccount] = useState(false);
+  const [accountEmail, setAccountEmail] = useState("");
+  const [accountPassword, setAccountPassword] = useState("");
+  const [accountConfirmPassword, setAccountConfirmPassword] = useState("");
+  const [showAccountPassword, setShowAccountPassword] = useState(false);
+  const [accountAddress, setAccountAddress] = useState("");
+  const [accountGender, setAccountGender] = useState("");
+  const [accountCivilStatus, setAccountCivilStatus] = useState("");
+  const [accountVoterStatus, setAccountVoterStatus] = useState("");
+  const [accountPurok, setAccountPurok] = useState("");
+
+  const { data: activePuroks = [] } = useQuery<{ name: string }[]>({
+    queryKey: ["active-puroks"],
+    queryFn: async () => (await axiosInstance.get("barangay/puroks?status=active")).data,
+  });
+
+  const resetAccountFields = () => {
+    setCreateAccount(false);
+    setAccountEmail("");
+    setAccountPassword("");
+    setAccountConfirmPassword("");
+    setShowAccountPassword(false);
+    setAccountAddress("");
+    setAccountGender("");
+    setAccountCivilStatus("");
+    setAccountVoterStatus("");
+    setAccountPurok("");
+  };
   const [saving, setSaving] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState("");
@@ -512,6 +548,8 @@ export default function ResidentCensusPage() {
   const openAddModal = () => {
     setEditingId(null);
     setForm(EMPTY_FORM);
+    setEditingOriginalHousehold(null);
+    resetAccountFields();
     setModalOpen(true);
   };
 
@@ -519,6 +557,8 @@ export default function ResidentCensusPage() {
     setEditingId(record._id);
     const { _id, ...rest } = record;
     setForm(rest);
+    setEditingOriginalHousehold(record.householdNumber);
+    resetAccountFields();
     setModalOpen(true);
   };
 
@@ -546,19 +586,97 @@ export default function ResidentCensusPage() {
       errorAlert("Purok is required");
       return;
     }
+    const householdTrimmed = form.householdNumber.trim();
+    const householdChanged = !editingId || householdTrimmed !== (editingOriginalHousehold ?? "").trim();
+    if (householdChanged) {
+      if (!householdTrimmed) {
+        errorAlert("Household number is required");
+        return;
+      }
+      if (
+        householdTrimmed.toUpperCase() !== "N/A" &&
+        !/^HH-(20|1\d|[1-9])$/i.test(householdTrimmed)
+      ) {
+        errorAlert("Household number must be in the format HH-1 to HH-20");
+        return;
+      }
+    }
+
+    if (createAccount && !editingId) {
+      if (!/^[^\s@]+@gmail\.com$/i.test(accountEmail.trim())) {
+        errorAlert("Only Gmail addresses (@gmail.com) are accepted");
+        return;
+      }
+      if (
+        accountPassword.length < 8 ||
+        !/[A-Z]/.test(accountPassword) ||
+        !/[a-z]/.test(accountPassword) ||
+        !/[0-9]/.test(accountPassword) ||
+        !/[^A-Za-z0-9]/.test(accountPassword)
+      ) {
+        errorAlert("Password must be at least 8 characters with uppercase, lowercase, a number, and a special character");
+        return;
+      }
+      if (accountPassword !== accountConfirmPassword) {
+        errorAlert("Passwords do not match");
+        return;
+      }
+      if (!accountAddress.trim()) {
+        errorAlert("Address is required to create a login account");
+        return;
+      }
+      if (!accountGender) {
+        errorAlert("Gender is required to create a login account");
+        return;
+      }
+      if (!accountCivilStatus) {
+        errorAlert("Civil status is required to create a login account");
+        return;
+      }
+      if (!accountVoterStatus) {
+        errorAlert("Voter status is required to create a login account");
+        return;
+      }
+      if (!accountPurok) {
+        errorAlert("Purok is required to create a login account");
+        return;
+      }
+      if (!/^09\d{9}$/.test(form.cellphone.trim())) {
+        errorAlert("A valid 11-digit mobile number (e.g. 09171234567) is required to create a login account");
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       if (editingId) {
         await axiosInstance.put(`/resident-census/${editingId}`, form);
         successAlert("Record updated");
+      } else if (createAccount) {
+        await axiosInstance.post("/account/admin/create", {
+          name: form.name,
+          email: accountEmail.trim(),
+          password: accountPassword,
+          contact: form.cellphone.trim(),
+          address: accountAddress.trim(),
+          gender: accountGender,
+          dateOfBirth: form.birthday,
+          civilStatus: accountCivilStatus,
+          purok: accountPurok,
+          voterStatus: accountVoterStatus,
+          houseHoldNumber: form.householdNumber,
+        });
+        successAlert("Resident and login account created. A welcome email was sent.");
       } else {
         await axiosInstance.post("/resident-census", form);
         successAlert("Record added");
       }
       queryClient.invalidateQueries({ queryKey: ["resident-census"] });
       setModalOpen(false);
-    } catch {
-      errorAlert("Failed to save record");
+    } catch (err) {
+      const apiError = err as { response?: { data?: unknown } };
+      const message = apiError?.response?.data;
+      errorAlert(typeof message === "string" ? message : "Failed to save record");
     } finally {
       setSaving(false);
     }
@@ -871,7 +989,11 @@ export default function ResidentCensusPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Household Number</Label>
-              <Input value={form.householdNumber} onChange={(e) => setForm({ ...form, householdNumber: e.target.value })} />
+              <Input
+                value={form.householdNumber}
+                onChange={(e) => setForm({ ...form, householdNumber: e.target.value })}
+                placeholder="e.g. HH-5 (max HH-20) or N/A"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Cellphone</Label>
@@ -909,10 +1031,131 @@ export default function ResidentCensusPage() {
             ))}
           </div>
 
+          {!editingId && (
+            <div className="border-t border-slate-100 pt-4 mt-2 space-y-4">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <Checkbox
+                  checked={createAccount}
+                  onCheckedChange={(v) => setCreateAccount(v === true)}
+                />
+                <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                  <UserPlus className="size-4 text-sky-600" />
+                  Also create a login account for this resident
+                </span>
+              </label>
+
+              {createAccount && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl border border-sky-100 bg-sky-50/40 p-4">
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label>Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+                      <Input
+                        className="pl-10"
+                        placeholder="resident@gmail.com"
+                        value={accountEmail}
+                        onChange={(e) => setAccountEmail(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Password</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400 z-10" />
+                      <Input
+                        className="pl-10 pr-10"
+                        type={showAccountPassword ? "text" : "password"}
+                        value={accountPassword}
+                        onChange={(e) => setAccountPassword(e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowAccountPassword((s) => !s)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showAccountPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Confirm Password</Label>
+                    <Input
+                      type={showAccountPassword ? "text" : "password"}
+                      value={accountConfirmPassword}
+                      onChange={(e) => setAccountConfirmPassword(e.target.value)}
+                      onPaste={(e) => e.preventDefault()}
+                    />
+                  </div>
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label>Address</Label>
+                    <Input value={accountAddress} onChange={(e) => setAccountAddress(e.target.value)} placeholder="Full address" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Gender</Label>
+                    <Select value={accountGender} onValueChange={setAccountGender}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="Select gender" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Male">Male</SelectItem>
+                        <SelectItem value="Female">Female</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Civil Status</Label>
+                    <Select value={accountCivilStatus} onValueChange={setAccountCivilStatus}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="Select civil status" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Single">Single</SelectItem>
+                        <SelectItem value="Married">Married</SelectItem>
+                        <SelectItem value="Widowed">Widowed</SelectItem>
+                        <SelectItem value="Separated">Separated</SelectItem>
+                        <SelectItem value="Divorced">Divorced</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Voter Status</Label>
+                    <Select value={accountVoterStatus} onValueChange={setAccountVoterStatus}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="Select voter status" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Registered">Registered</SelectItem>
+                        <SelectItem value="Not Registered">Not Registered</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Purok (account)</Label>
+                    <Select value={accountPurok} onValueChange={setAccountPurok}>
+                      <SelectTrigger className="w-full"><SelectValue placeholder="Select purok" /></SelectTrigger>
+                      <SelectContent>
+                        {activePuroks.map((p) => (
+                          <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <p className="text-xs text-gray-500 sm:col-span-2">
+                    The resident&apos;s full name, cellphone, birthday, and household number above are reused for the account.
+                    The cellphone must be a valid 11-digit number (e.g. 09171234567) for the account to be created.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
             <Button onClick={handleSave} disabled={saving} className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white shadow-lg shadow-sky-200/50">
-              {saving ? <Loader2 className="size-4 animate-spin" /> : editingId ? "Save Changes" : "Add Record"}
+              {saving ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : editingId ? (
+                "Save Changes"
+              ) : createAccount ? (
+                "Create Resident & Account"
+              ) : (
+                "Add Record"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

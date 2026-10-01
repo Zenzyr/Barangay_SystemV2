@@ -7,7 +7,10 @@ import {
 import { DocumentTemplateRenderer } from "../services/documentTemplateRenderer.service";
 import { isObjectId } from "../utils/validation";
 import { validateTiptapDoc } from "../utils/tiptapDoc";
-import { isStaffRole } from "../utils/roles";
+import { isStaffRole, ROLES } from "../utils/roles";
+import { AuditLogService } from "../services/auditLog.service";
+import { NotificationService } from "../services/notification.service";
+import { AccountService } from "../services/acccount.service";
 
 const previewSample = () => ({
   _id: "000000000000000000000001",
@@ -138,16 +141,89 @@ export class DocumentTemplateController {
         response.status(400).send("Invalid document template id");
         return;
       }
+
+      const existing = await DocumentTemplateService.get(id);
+      if (!existing) {
+        response.status(404).send("Document template not found");
+        return;
+      }
+
+      const body: Record<string, any> = { ...(request.body || {}) };
+      const role = request.account?.role;
+      const incomingFee =
+        body.fee !== undefined && body.fee !== null
+          ? Number(body.fee)
+          : undefined;
+      const feeChanged =
+        incomingFee !== undefined && incomingFee !== Number(existing.fee);
+
+      const secretaryProposingPrice = feeChanged && role === ROLES.SECRETARY;
+      if (secretaryProposingPrice) {
+        body.fee = existing.fee;
+      }
+
       const template = await DocumentTemplateService.update(
         id,
-        request.body || {},
+        body,
         request.account?._id,
       );
       if (!template) {
         response.status(404).send("Document template not found");
         return;
       }
-      response.send(template);
+
+      let finalTemplate = template;
+      if (secretaryProposingPrice) {
+        finalTemplate =
+          (await DocumentTemplateService.proposePriceChange(
+            id,
+            incomingFee!,
+            request.account?._id,
+          )) || template;
+
+        AuditLogService.create({
+          actor: request.account?.name ?? "System",
+          actorId: request.account?._id ?? "",
+          action: "price_proposed",
+          entity: "documentTemplate",
+          entityId: id,
+          entityLabel: existing.name,
+          field: "fee",
+          previousValue: existing.fee,
+          newValue: incomingFee,
+        }).catch(() => null);
+
+        const superAdmins = await AccountService.getAll({
+          role: ROLES.SUPER_ADMIN,
+        });
+        for (const admin of superAdmins) {
+          NotificationService.create({
+            accountId: admin._id.toString(),
+            title: "Price change pending approval",
+            message: `${request.account?.name || "A secretary"} proposed a new price for "${existing.name}" (₱${existing.fee} → ₱${incomingFee}).`,
+            type: "documentTemplate",
+          }).catch(() => null);
+        }
+      } else if (feeChanged) {
+        if (existing.priceApprovalStatus === "pending") {
+          finalTemplate =
+            (await DocumentTemplateService.clearPendingPrice(id, "none")) ||
+            template;
+        }
+        AuditLogService.create({
+          actor: request.account?.name ?? "System",
+          actorId: request.account?._id ?? "",
+          action: "price_update",
+          entity: "documentTemplate",
+          entityId: id,
+          entityLabel: existing.name,
+          field: "fee",
+          previousValue: existing.fee,
+          newValue: incomingFee,
+        }).catch(() => null);
+      }
+
+      response.send(finalTemplate);
     } catch (error) {
       if (error instanceof TemplateInputError) {
         response.status(error.status).send(error.message);
@@ -155,6 +231,116 @@ export class DocumentTemplateController {
       }
       console.error("[DOC-TEMPLATES UPDATE ERROR]", error);
       response.status(500).send("Failed to update document template");
+    }
+  };
+
+  static getPendingApprovals = async (
+    _request: AuthRequest,
+    response: Response,
+  ) => {
+    try {
+      const templates = await DocumentTemplateService.getPendingApprovals();
+      response.send(templates);
+    } catch (error) {
+      console.error("[DOC-TEMPLATES PENDING ERROR]", error);
+      response.status(500).send("Failed to fetch pending price approvals");
+    }
+  };
+
+  static approvePrice = async (request: AuthRequest, response: Response) => {
+    try {
+      const { id } = request.params;
+      if (!isObjectId(id)) {
+        response.status(400).send("Invalid document template id");
+        return;
+      }
+      const existing = await DocumentTemplateService.get(id);
+      if (!existing) {
+        response.status(404).send("Document template not found");
+        return;
+      }
+      if (existing.priceApprovalStatus !== "pending") {
+        response.status(400).send("This template has no pending price change");
+        return;
+      }
+      const previousFee = existing.fee;
+      const updated = await DocumentTemplateService.approvePendingPrice(id);
+
+      AuditLogService.create({
+        actor: request.account?.name ?? "System",
+        actorId: request.account?._id ?? "",
+        action: "price_approved",
+        entity: "documentTemplate",
+        entityId: id,
+        entityLabel: existing.name,
+        field: "fee",
+        previousValue: previousFee,
+        newValue: updated?.fee,
+      }).catch(() => null);
+
+      if (existing.pendingFeeProposedBy) {
+        NotificationService.create({
+          accountId: existing.pendingFeeProposedBy.toString(),
+          title: "Price change approved",
+          message: `Your proposed price for "${existing.name}" was approved and is now active.`,
+          type: "documentTemplate",
+        }).catch(() => null);
+      }
+
+      response.send(updated);
+    } catch (error) {
+      console.error("[DOC-TEMPLATES APPROVE PRICE ERROR]", error);
+      response.status(500).send("Failed to approve price change");
+    }
+  };
+
+  static rejectPrice = async (request: AuthRequest, response: Response) => {
+    try {
+      const { id } = request.params;
+      if (!isObjectId(id)) {
+        response.status(400).send("Invalid document template id");
+        return;
+      }
+      const existing = await DocumentTemplateService.get(id);
+      if (!existing) {
+        response.status(404).send("Document template not found");
+        return;
+      }
+      if (existing.priceApprovalStatus !== "pending") {
+        response.status(400).send("This template has no pending price change");
+        return;
+      }
+      const rejectedFee = existing.pendingFee;
+      const updated = await DocumentTemplateService.clearPendingPrice(
+        id,
+        "rejected",
+      );
+
+      AuditLogService.create({
+        actor: request.account?.name ?? "System",
+        actorId: request.account?._id ?? "",
+        action: "price_rejected",
+        entity: "documentTemplate",
+        entityId: id,
+        entityLabel: existing.name,
+        field: "fee",
+        previousValue: rejectedFee,
+        newValue: existing.fee,
+      }).catch(() => null);
+
+      if (existing.pendingFeeProposedBy) {
+        NotificationService.create({
+          accountId: existing.pendingFeeProposedBy.toString(),
+          title: "Price change rejected",
+          message: `Your proposed price for "${existing.name}" was rejected. The current price remains ₱${existing.fee}.`,
+          type: "documentTemplate",
+        }).catch(() => null);
+      }
+
+      response.send(updated);
+    } catch (error) {
+      console.error("[DOC-TEMPLATES REJECT PRICE ERROR]", error);
+      response.status(500).send("Failed to reject price change");
     }
   };
 
@@ -325,7 +511,9 @@ export class DocumentTemplateController {
         return;
       }
       const account = request.account;
-      const residentId = String((doc as any).resident?._id || (doc as any).resident || "");
+      const residentId = String(
+        (doc as any).resident?._id || (doc as any).resident || "",
+      );
       if (!isStaffRole(account?.role) && account?._id !== residentId) {
         response.status(403).send("You can only render your own requests");
         return;
@@ -334,12 +522,17 @@ export class DocumentTemplateController {
         (doc as any).document,
       );
       if (!template) {
-        response.status(404).send("No PDF template bound to this document type");
+        response
+          .status(404)
+          .send("No PDF template bound to this document type");
         return;
       }
-      const pdf = await DocumentTemplateRenderer.renderPDF(String(template._id), {
-        data: doc,
-      });
+      const pdf = await DocumentTemplateRenderer.renderPDF(
+        String(template._id),
+        {
+          data: doc,
+        },
+      );
       response.setHeader("Content-Type", "application/pdf");
       response.setHeader(
         "Content-Disposition",

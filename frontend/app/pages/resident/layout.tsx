@@ -8,6 +8,7 @@ import { SidebarResident } from "@/components/ui/sidebar_resident";
 import { NotificationBell } from "@/components/ui/notificationBell";
 import ResidentPending from "@/components/ui/residentPending";
 import ResidentRejected from "@/components/ui/residentRejected";
+import AccountSuspended from "@/components/ui/accountSuspended";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
 
@@ -33,6 +34,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     // Show nothing or a loading state until hydrated
     if (!_hasHydrated || !user) return null;
 
+    if(user?.isSuspended) return <AccountSuspended />
     if(user?.status == "pending" ) return <ResidentPending />
     if(user?.status == "rejected" ) return <ResidentRejected />
 

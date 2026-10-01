@@ -10,6 +10,7 @@ import { isObjectId } from "../utils/validation";
 import { convertDocxToPdf } from "../utils/docxToPdf";
 import { isStaffRole } from "../utils/roles";
 import { verifyPayMongoPayment } from "../services/payment.service";
+import { AccountService } from "../services/acccount.service";
 
 const DOC_STATUSES = ["pending", "processing", "ready", "released", "cancelled", "to claim", "completed", "rejected"];
 
@@ -75,6 +76,13 @@ export class DocumentRequestController {
       if (documentData.resident && !isObjectId(documentData.resident)) {
         response.status(400).send("A valid resident is required");
         return;
+      }
+      if (documentData.resident) {
+        const residentAccount = await AccountService.get(documentData.resident);
+        if (!residentAccount) {
+          response.status(400).send("The selected resident could not be found");
+          return;
+        }
       }
       if (!documentData.resident && !String(documentData.fullName || "").trim()) {
         response.status(400).send("A full name is required for walk-in requests");

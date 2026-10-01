@@ -20,6 +20,7 @@ import backupRoute from "./backup.route";
 import decisionSupportRoute from "./decisionSupport.route";
 import analyticsSnapshotRoute from "./analyticsSnapshot.route";
 import eventRoute from "./event.route";
+import suspensionAppealRoute from "./suspensionAppeal.route";
 
 const routes = Router();
 
@@ -49,5 +50,6 @@ routes.use("/backup", backupRoute);
 routes.use("/decision-support", decisionSupportRoute);
 routes.use("/analytics-snapshots", analyticsSnapshotRoute);
 routes.use("/events", eventRoute);
+routes.use("/suspension-appeal", suspensionAppealRoute);
 
 export default routes;
