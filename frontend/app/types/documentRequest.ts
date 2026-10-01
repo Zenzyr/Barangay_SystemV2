@@ -2,6 +2,7 @@ import { accountInterface } from "./account.type";
 
 export interface documentRequestInterfaceInput {
     resident?: string | null,
+    census?: string | null,
     document: string,
     status : string,
     isPaid : boolean,
@@ -95,4 +96,15 @@ export interface documentRequestInterface {
     statusHistory?: statusHistoryEntry[];
     createdAt?: string;
     updatedAt?: string;
+    price?: number;
+    feeAtRequest?: number;
+    census?: string | null;
+    paymentMethod?: "over-the-counter" | "online";
+    paymentChannel?: string;
+    amountPaid?: number;
+    amountTendered?: number;
+    changeGiven?: number;
+    paidAt?: string;
+    receiptNumber?: string;
+    paymentReference?: string;
 }

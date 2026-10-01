@@ -7,6 +7,11 @@ export interface workInterfaceInput {
       service : string,
       description : string,
       date : string,
+      skill? : string,
+      scheduledDate? : string,
+      scheduleStartTime? : string,
+      scheduleEndTime? : string,
+      scheduleSlot? : string,
 }
 
 export interface workInterface {
@@ -17,5 +22,9 @@ export interface workInterface {
       service : string,
       description : string,
       date : string,
-   
+      skill? : string,
+      scheduledDate? : string,
+      scheduleStartTime? : string,
+      scheduleEndTime? : string,
+      scheduleSlot? : string,
 }

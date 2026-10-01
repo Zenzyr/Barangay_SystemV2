@@ -79,11 +79,24 @@ export interface smsSettingsInterface {
   notifyOnPayment: boolean;
 }
 
+export interface workScheduleSlotConfig {
+  startTime: string;
+  endTime: string;
+}
+
+export interface workScheduleSettingsInterface {
+  slots: workScheduleSlotConfig[];
+  slotCapacity: number;
+  bookingWindowDays: number;
+  workingDays: number[];
+}
+
 export interface barangaySettingsInterfaceInput {
   barangay: barangayInfoInterface;
   documents: documentSettingsInterface;
   externalRecipients: externalRecipientInterface[];
   sms: smsSettingsInterface;
+  workSchedule?: workScheduleSettingsInterface;
 }
 
 export interface barangaySettingsInterface extends barangaySettingsInterfaceInput {
@@ -98,6 +111,18 @@ export const DEFAULT_SMS_SETTINGS: smsSettingsInterface = {
   notifyOnRequest: true,
   notifyOnStatus: true,
   notifyOnPayment: true,
+};
+
+export const DEFAULT_WORK_SCHEDULE: workScheduleSettingsInterface = {
+  slots: [
+    { startTime: "09:00", endTime: "10:00" },
+    { startTime: "10:00", endTime: "11:00" },
+    { startTime: "13:00", endTime: "14:00" },
+    { startTime: "14:00", endTime: "15:00" },
+  ],
+  slotCapacity: 1,
+  bookingWindowDays: 30,
+  workingDays: [1, 2, 3, 4, 5, 6],
 };
 
 export const DEFAULT_EXTERNAL_RECIPIENTS: externalRecipientInterface[] = [
@@ -130,4 +155,9 @@ export const DEFAULT_BARANGAY_SETTINGS: barangaySettingsInterfaceInput = {
   },
   externalRecipients: [...DEFAULT_EXTERNAL_RECIPIENTS],
   sms: { ...DEFAULT_SMS_SETTINGS },
+  workSchedule: {
+    ...DEFAULT_WORK_SCHEDULE,
+    slots: DEFAULT_WORK_SCHEDULE.slots.map((s) => ({ ...s })),
+    workingDays: [...DEFAULT_WORK_SCHEDULE.workingDays],
+  },
 };

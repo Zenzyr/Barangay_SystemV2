@@ -6,6 +6,7 @@ import { AccountService } from "../services/acccount.service";
 import { UserActivityService } from "../services/userActivity.service";
 import { formattedDate } from "../utils/customFunc";
 import { isObjectId, isNonEmptyString, MAX_DESCRIPTION_LENGTH } from "../utils/validation";
+import { ScheduleError, WorkScheduleService, formatSlotLabel } from "../services/workSchedule.service";
 
 export class ServiceRequestController {
 
@@ -17,7 +18,7 @@ export class ServiceRequestController {
         return;
       }
 
-      const { provider, skill, serviceType, description, preferredDate, preferredTime, location, budget, notes } = request.body;
+      const { provider, skill, serviceType, description, scheduledDate, startTime, location, budget, notes } = request.body;
 
       if (!isObjectId(provider)) {
         response.status(400).send("A valid provider is required");
@@ -31,8 +32,21 @@ export class ServiceRequestController {
         response.status(400).send(`Description is required and must be at most ${MAX_DESCRIPTION_LENGTH} characters`);
         return;
       }
-      if (budget !== undefined && budget !== null && budget !== "" && (typeof Number(budget) !== "number" || Number(budget) < 0)) {
+      if (budget !== undefined && budget !== null && budget !== "" && (!Number.isFinite(Number(budget)) || Number(budget) < 0)) {
         response.status(400).send("Budget must be a non-negative number");
+        return;
+      }
+
+      if (skill.length > 100 || serviceType.trim().length > 100 || location.trim().length > 255) {
+        response.status(400).send("Skill, service type, or location is too long");
+        return;
+      }
+      if (notes !== undefined && notes !== null && String(notes).length > 500) {
+        response.status(400).send("Notes must be at most 500 characters");
+        return;
+      }
+      if (!scheduledDate || !startTime) {
+        response.status(400).send("Please select a schedule date and an available time slot");
         return;
       }
 
@@ -52,19 +66,46 @@ export class ServiceRequestController {
         return;
       }
 
-      const serviceRequest = await ServiceRequestService.create({
-        client: client._id.toString(),
-        provider,
-        skill,
-        serviceType,
-        description,
-        preferredDate,
-        preferredTime,
-        location,
-        budget,
-        notes,
-        status: "PENDING",
-      });
+      const offeredSkill = providerAccount.skills?.find((s: any) => s.skill === skill);
+      if (!offeredSkill) {
+        response.status(400).send("This provider does not offer the selected skill");
+        return;
+      }
+
+      let slot;
+      try {
+        slot = await WorkScheduleService.reserve(provider, scheduledDate, startTime);
+      } catch (error) {
+        if (error instanceof ScheduleError) {
+          response.status(error.status).send(error.message);
+          return;
+        }
+        throw error;
+      }
+
+      let serviceRequest;
+      try {
+        serviceRequest = await ServiceRequestService.create({
+          client: client._id.toString(),
+          provider,
+          skill,
+          serviceType,
+          description: description.trim(),
+          preferredDate: slot.date,
+          preferredTime: formatSlotLabel(slot.startTime, slot.endTime),
+          location,
+          budget,
+          notes,
+          status: "PENDING",
+          scheduledDate: slot.date,
+          scheduleStartTime: slot.startTime,
+          scheduleEndTime: slot.endTime,
+          scheduleSlot: slot._id.toString(),
+        });
+      } catch (error) {
+        await WorkScheduleService.release(slot._id);
+        throw error;
+      }
 
       await UserActivityService.create({
         accountId: client._id.toString(),
@@ -206,7 +247,14 @@ export class ServiceRequestController {
         return;
       }
 
-      await ServiceRequestService.updateStatus(id, "REJECTED");
+      const rejected = await ServiceRequestService.updateStatusIf(id, "PENDING", "REJECTED");
+      if (!rejected) {
+        response.status(409).send("This request was already updated. Please reload and try again.");
+        return;
+      }
+      if ((serviceRequest as any).scheduleSlot) {
+        await WorkScheduleService.release((serviceRequest as any).scheduleSlot);
+      }
 
       response.send({ message: "Request rejected" });
     } catch (error) {

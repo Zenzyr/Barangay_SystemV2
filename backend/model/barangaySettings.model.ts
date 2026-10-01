@@ -1,5 +1,5 @@
 import mongoose, { Schema } from 'mongoose';
-import { DEFAULT_BARANGAY_SETTINGS, barangaySettingsInterfaceInput } from '../types/barangaySettings.type';
+import { DEFAULT_BARANGAY_SETTINGS, DEFAULT_WORK_SCHEDULE, barangaySettingsInterfaceInput } from '../types/barangaySettings.type';
 
 const barangayInfoSubSchema = new Schema(
   {
@@ -54,12 +54,31 @@ const smsSettingsSubSchema = new Schema(
   { _id: false }
 );
 
+const workScheduleSlotSubSchema = new Schema(
+  {
+    startTime: { type: String, required: true, match: /^([01]\d|2[0-3]):[0-5]\d$/ },
+    endTime: { type: String, required: true, match: /^([01]\d|2[0-3]):[0-5]\d$/ },
+  },
+  { _id: false }
+);
+
+const workScheduleSubSchema = new Schema(
+  {
+    slots: { type: [workScheduleSlotSubSchema], default: DEFAULT_WORK_SCHEDULE.slots },
+    slotCapacity: { type: Number, min: 1, max: 50, default: DEFAULT_WORK_SCHEDULE.slotCapacity },
+    bookingWindowDays: { type: Number, min: 1, max: 180, default: DEFAULT_WORK_SCHEDULE.bookingWindowDays },
+    workingDays: { type: [Number], default: DEFAULT_WORK_SCHEDULE.workingDays },
+  },
+  { _id: false }
+);
+
 const BarangaySettingsSchema = new Schema<barangaySettingsInterfaceInput & { _id: mongoose.Types.ObjectId }>(
   {
     barangay: { type: barangayInfoSubSchema, default: DEFAULT_BARANGAY_SETTINGS.barangay },
     documents: { type: documentSettingsSubSchema, default: DEFAULT_BARANGAY_SETTINGS.documents },
     externalRecipients: { type: [externalRecipientSubSchema], default: DEFAULT_BARANGAY_SETTINGS.externalRecipients },
     sms: { type: smsSettingsSubSchema, default: DEFAULT_BARANGAY_SETTINGS.sms },
+    workSchedule: { type: workScheduleSubSchema, default: DEFAULT_BARANGAY_SETTINGS.workSchedule },
   },
   { timestamps: true }
 );

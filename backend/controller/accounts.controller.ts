@@ -54,6 +54,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SystemInfoService } from "../services/systemInfo.service";
 
 import { WorkService } from "../services/work.service";
+import { ScheduleError, WorkScheduleService } from "../services/workSchedule.service";
 import { AuditLogService } from "../services/auditLog.service";
 import { ROLES, ROLE_LIST, isStaffRole } from "../utils/roles";
 import {
@@ -79,6 +80,7 @@ import {
   MAX_ADDRESS_LENGTH,
   MAX_EMAIL_LENGTH,
   passwordStrengthError,
+  MAX_DESCRIPTION_LENGTH,
 } from "../utils/validation";
 
 dotenv.config();
@@ -1696,9 +1698,15 @@ export class AccountController {
 
   static bookWork = async (request: AuthRequest, response: Response) => {
     try {
-      const { client, worker, skill, service, description } = request.body;
+      const { client, worker, skill, service, description, scheduledDate, startTime } = request.body;
 
-      if (!isObjectId(client) || !isObjectId(worker)) {
+      const account = request.account;
+      if (!account) {
+        response.status(401).send("User not authenticated");
+        return;
+      }
+
+      if (!isObjectId(worker) || (client !== undefined && !isObjectId(client))) {
         response
           .status(400)
           .send(
@@ -1706,17 +1714,38 @@ export class AccountController {
           );
         return;
       }
-      if (!skill || !service || !description) {
+      const clientId = account._id.toString();
+      if (client !== undefined && client !== clientId) {
+        response.status(403).send("You can only book services for yourself");
+        return;
+      }
+      if (worker === clientId) {
+        response.status(400).send("You cannot book your own service");
+        return;
+      }
+      if (!skill || !service || !description || !String(description).trim()) {
         response
           .status(400)
           .send(
             "All fields are required: client, worker, skill, service, description",
           );
+        return;
+      }
+      if (String(description).trim().length > MAX_DESCRIPTION_LENGTH) {
+        response.status(400).send(`Description must be at most ${MAX_DESCRIPTION_LENGTH} characters`);
+        return;
+      }
+      if (String(skill).length > 100 || String(service).trim().length > 100) {
+        response.status(400).send("Skill and service must be at most 100 characters");
+        return;
+      }
+      if (!scheduledDate || !startTime) {
+        response.status(400).send("Please select a schedule date and an available time slot");
         return;
       }
 
       const workerAccount = await AccountService.get(worker);
-      if (!workerAccount) {
+      if (!workerAccount || workerAccount.status !== "approved") {
         response.status(404).send("Worker not found");
         return;
       }
@@ -1744,16 +1773,36 @@ export class AccountController {
         return;
       }
 
-      const work = await WorkService.create({
-        client,
-        worker,
-        status: "pending",
-        service: `${skill} - ${service}`,
-        description,
-        date: formattedDate(),
-      });
+      let slot;
+      try {
+        slot = await WorkScheduleService.reserve(worker, scheduledDate, startTime);
+      } catch (error) {
+        if (error instanceof ScheduleError) {
+          response.status(error.status).send(error.message);
+          return;
+        }
+        throw error;
+      }
 
-      response.send(work);
+      try {
+        const work = await WorkService.create({
+          client: clientId,
+          worker,
+          status: "pending",
+          service: `${skill} - ${service}`,
+          skill,
+          description: String(description).trim(),
+          date: formattedDate(),
+          scheduledDate: slot.date,
+          scheduleStartTime: slot.startTime,
+          scheduleEndTime: slot.endTime,
+          scheduleSlot: slot._id.toString(),
+        });
+        response.send(work);
+      } catch (error) {
+        await WorkScheduleService.release(slot._id);
+        throw error;
+      }
     } catch (error) {
       response.status(500).send("Failed to book service");
     }

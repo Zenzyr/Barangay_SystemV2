@@ -25,6 +25,10 @@ export class ServiceRequestService {
       .sort({ createdAt: -1 });
   }
 
+  static async updateStatusIf(id: string, currentStatus: ServiceRequestStatus, status: ServiceRequestStatus) {
+    return await ServiceRequestModel.findOneAndUpdate({ _id: id, status: currentStatus }, { status }, { new: true });
+  }
+
   static async updateStatus(id: string, status: ServiceRequestStatus) {
     return await ServiceRequestModel.findByIdAndUpdate(id, { status }, { new: true });
   }

@@ -95,4 +95,65 @@ export class DocumentRequestService {
       { new: true }
     ).populate("resident", "-password");
   }
+
+  static buildReceiptNumber(id: string, paidAt: Date = new Date()): string {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const stamp = `${paidAt.getFullYear()}${pad(paidAt.getMonth() + 1)}${pad(paidAt.getDate())}`;
+    return `BRGY-${stamp}-${String(id).slice(-6).toUpperCase()}`;
+  }
+
+  static async recordPayment(
+    id: string,
+    details: {
+      paymentMethod: "over-the-counter" | "online";
+      paymentChannel: string;
+      amountPaid: number;
+      amountTendered?: number;
+      changeGiven?: number;
+      paidAt?: Date;
+      paymentReference?: string;
+      paymentProcessedBy?: string;
+    }
+  ) {
+    const paidAt = details.paidAt ?? new Date();
+    const set: Record<string, any> = {
+      isPaid: true,
+      paymentMethod: details.paymentMethod,
+      paymentChannel: details.paymentChannel,
+      amountPaid: details.amountPaid,
+      paidAt,
+      receiptNumber: DocumentRequestService.buildReceiptNumber(id, paidAt),
+    };
+    if (details.amountTendered !== undefined) set.amountTendered = details.amountTendered;
+    if (details.changeGiven !== undefined) set.changeGiven = details.changeGiven;
+    if (details.paymentReference) set.paymentReference = details.paymentReference;
+    if (details.paymentProcessedBy) set.paymentProcessedBy = details.paymentProcessedBy;
+
+    return await DocumentRequestModel.findOneAndUpdate(
+      { _id: id, isPaid: { $ne: true } },
+      { $set: set },
+      { new: true }
+    ).populate("resident", "-password");
+  }
+
+  static async clearPayment(id: string) {
+    return await DocumentRequestModel.findByIdAndUpdate(
+      id,
+      {
+        $set: { isPaid: false },
+        $unset: {
+          paymentMethod: 1,
+          paymentChannel: 1,
+          amountPaid: 1,
+          amountTendered: 1,
+          changeGiven: 1,
+          paidAt: 1,
+          receiptNumber: 1,
+          paymentReference: 1,
+          paymentProcessedBy: 1,
+        },
+      },
+      { new: true }
+    ).populate("resident", "-password");
+  }
 }

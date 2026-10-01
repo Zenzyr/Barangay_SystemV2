@@ -12,6 +12,10 @@ export interface serviceRequestInterfaceInput {
   budget?: number;
   notes?: string;
   status?: ServiceRequestStatus;
+  scheduledDate?: string;
+  scheduleStartTime?: string;
+  scheduleEndTime?: string;
+  scheduleSlot?: string;
 }
 
 export interface serviceRequestInterface extends serviceRequestInterfaceInput {
