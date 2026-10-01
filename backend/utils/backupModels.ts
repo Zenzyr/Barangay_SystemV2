@@ -14,6 +14,7 @@ import PurokModel from '../model/purok.model';
 import RecommendationRuleModel from '../model/recommendationRule.model';
 import ResidentCensusModel from '../model/residentCensus.model';
 import ReviewModel from '../model/review.model';
+import ScheduleSlotModel from '../model/scheduleSlot.model';
 import ServiceRequestModel from '../model/serviceRequest.model';
 import SystemInfoModel from '../model/systemInfo.model';
 import UserActivityModel from '../model/userActivity';
@@ -41,6 +42,7 @@ export const BACKUP_MODELS: BackupModelEntry[] = [
   { name: 'RecommendationRule', model: RecommendationRuleModel },
   { name: 'ResidentCensus', model: ResidentCensusModel },
   { name: 'Review', model: ReviewModel },
+  { name: 'ScheduleSlot', model: ScheduleSlotModel },
   { name: 'ServiceRequest', model: ServiceRequestModel },
   { name: 'SystemInfos', model: SystemInfoModel },
   { name: 'UserActivity', model: UserActivityModel },

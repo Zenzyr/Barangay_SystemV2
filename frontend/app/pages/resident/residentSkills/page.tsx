@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import axiosInstance from "@/app/utils/axios";
 import useUserStore from "@/app/store/useUserStore";
@@ -21,9 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { successAlert, errorAlert } from "@/app/utils/alert";
-import RequestServiceModal from "@/components/ui/requestServiceModal";
-import BookServiceModal from "@/components/ui/bookServiceModal";
+import { CreateWorkRequestModal } from "@/components/workRequest/CreateWorkRequestModal";
 import {
   Search,
   Briefcase,
@@ -42,22 +40,6 @@ import {
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────
-interface ApiError {
-  response?: { data?: unknown };
-  message?: string;
-}
-
-interface ServiceRequestPayload {
-  skill: string;
-  serviceType: string;
-  description: string;
-  preferredDate: string;
-  preferredTime: string;
-  location: string;
-  budget: number;
-  notes: string;
-}
-
 interface Skill {
   _id: string;
   skill: string;
@@ -179,7 +161,6 @@ function ResidentCardSkeleton() {
 
 // ─── Main Page ────────────────────────────────────────────────────
 export default function ResidentSkillsPage() {
-  const queryClient = useQueryClient();
   const { user } = useUserStore();
 
   // Filters
@@ -194,53 +175,12 @@ export default function ResidentSkillsPage() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileResident, setProfileResident] = useState<Resident | null>(null);
 
-  // Request service modal
-  const [requestOpen, setRequestOpen] = useState(false);
-  const [requestResident, setRequestResident] = useState<Resident | null>(null);
-
-  // Book service modal
-  const [bookOpen, setBookOpen] = useState(false);
-  const [bookResident, setBookResident] = useState<Resident | null>(null);
+  const [workOpen, setWorkOpen] = useState(false);
+  const [workResident, setWorkResident] = useState<Resident | null>(null);
 
   const { data: residents, isLoading } = useQuery<Resident[]>({
     queryKey: ["residents", "skills"],
     queryFn: async () => (await axiosInstance.get("/account/residents/skills")).data,
-  });
-
-  const requestMutation = useMutation({
-    mutationFn: async (payload: ServiceRequestPayload) => {
-      await axiosInstance.post("/service-requests", { ...payload, provider: requestResident?._id });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["service-requests"] });
-      successAlert("Service request sent! You'll be notified once the provider responds.");
-    },
-    onError: (err: ApiError) => {
-      const message = err?.response?.data || "Failed to send service request";
-      errorAlert(typeof message === "string" ? message : "Failed to send service request");
-      throw err;
-    },
-  });
-
-  const bookMutation = useMutation({
-    mutationFn: async ({ skill, service, description }: { skill: string; service: string; description: string }) => {
-      await axiosInstance.post("/account/book", {
-        client: user?._id,
-        worker: bookResident?._id,
-        skill,
-        service,
-        description,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["works"] });
-      successAlert("Service booked! The worker will confirm your booking.");
-    },
-    onError: (err: ApiError) => {
-      const message = err?.response?.data || "Failed to book service";
-      errorAlert(typeof message === "string" ? message : "Failed to book service");
-      throw err;
-    },
   });
 
   const allSkillNames = useMemo(() => {
@@ -296,15 +236,9 @@ export default function ResidentSkillsPage() {
     setProfileOpen(true);
   };
 
-  const openRequest = (resident: Resident) => {
-    setRequestResident(resident);
-    setRequestOpen(true);
-    setProfileOpen(false);
-  };
-
-  const openBook = (resident: Resident) => {
-    setBookResident(resident);
-    setBookOpen(true);
+  const openWorkRequest = (resident: Resident) => {
+    setWorkResident(resident);
+    setWorkOpen(true);
     setProfileOpen(false);
   };
 
@@ -323,7 +257,7 @@ export default function ResidentSkillsPage() {
             <p className="text-sm text-gray-500 mt-0.5">Find and request services from skilled residents in the barangay</p>
           </div>
         </div>
-        <Link href="/pages/resident/serviceRequests">
+        <Link href="/pages/resident/workRequest">
           <Button variant="outline" className="h-9 text-sm border-gray-200 gap-1.5">
             <ListChecks className="size-4" />
             My Requests
@@ -422,8 +356,7 @@ export default function ResidentSkillsPage() {
               resident={resident}
               isOwnProfile={user?._id === resident._id}
               onViewProfile={() => openProfile(resident)}
-              onRequestService={() => openRequest(resident)}
-              onBookService={() => openBook(resident)}
+              onRequestWork={() => openWorkRequest(resident)}
             />
           ))}
         </div>
@@ -517,12 +450,12 @@ export default function ResidentSkillsPage() {
 
               {user?._id !== profileResident._id && (
                 <Button
-                  onClick={() => openRequest(profileResident)}
+                  onClick={() => openWorkRequest(profileResident)}
                   disabled={(profileResident.availability || "AVAILABLE") !== "AVAILABLE"}
                   className="w-full mt-5 h-10 bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-medium disabled:opacity-50"
                 >
                   <Send className="size-4" />
-                  {(profileResident.availability || "AVAILABLE") === "AVAILABLE" ? "Request Service" : "Currently Unavailable"}
+                  {(profileResident.availability || "AVAILABLE") === "AVAILABLE" ? "Request Work" : "Currently Unavailable"}
                 </Button>
               )}
             </>
@@ -530,30 +463,12 @@ export default function ResidentSkillsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Request Service Modal */}
-      {requestResident && (
-        <RequestServiceModal
-          open={requestOpen}
-          onOpenChange={setRequestOpen}
-          providerName={requestResident.name}
-          providerSkills={requestResident.skills || []}
+      {workResident && (
+        <CreateWorkRequestModal
+          open={workOpen}
+          onOpenChange={setWorkOpen}
+          provider={{ _id: workResident._id, name: workResident.name, skills: workResident.skills || [] }}
           defaultLocation={user?.address}
-          onSubmit={async (data) => {
-            await requestMutation.mutateAsync(data);
-          }}
-        />
-      )}
-
-      {/* Book Service Modal */}
-      {bookResident && (
-        <BookServiceModal
-          open={bookOpen}
-          onOpenChange={setBookOpen}
-          residentName={bookResident.name}
-          residentSkills={bookResident.skills || []}
-          onBook={async (data) => {
-            await bookMutation.mutateAsync(data);
-          }}
         />
       )}
     </div>
@@ -565,14 +480,12 @@ function ResidentCard({
   resident,
   isOwnProfile,
   onViewProfile,
-  onRequestService,
-  onBookService,
+  onRequestWork,
 }: {
   resident: Resident;
   isOwnProfile: boolean;
   onViewProfile: () => void;
-  onRequestService: () => void;
-  onBookService: () => void;
+  onRequestWork: () => void;
 }) {
   const displaySkills = resident.skills?.slice(0, 2);
   const hasMoreSkills = (resident.skills?.length || 0) > 2;
@@ -644,29 +557,18 @@ function ResidentCard({
         )}
 
         {!isOwnProfile && (
-          <div className="mt-3 space-y-2">
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={onViewProfile} className="flex-1 h-9 text-xs border-gray-200">
-                View Profile
-              </Button>
-              <Button
-                size="sm"
-                onClick={onRequestService}
-                disabled={!canRequest}
-                className="flex-1 h-9 text-xs bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {canRequest ? "Request Service" : AVAILABILITY_CONFIG[resident.availability || "AVAILABLE"].label}
-              </Button>
-            </div>
+          <div className="mt-3 flex gap-2">
+            <Button variant="outline" size="sm" onClick={onViewProfile} className="flex-1 h-9 text-xs border-gray-200">
+              View Profile
+            </Button>
             <Button
               size="sm"
-              variant="outline"
-              onClick={onBookService}
+              onClick={onRequestWork}
               disabled={!canRequest}
-              className="w-full h-9 text-xs border-sky-200 text-sky-700 hover:bg-sky-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-1 h-9 text-xs bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <CalendarCheck className="size-3.5" />
-              Book Service
+              {canRequest ? "Request Work" : AVAILABILITY_CONFIG[resident.availability || "AVAILABLE"].label}
             </Button>
           </div>
         )}

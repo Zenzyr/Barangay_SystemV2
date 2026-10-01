@@ -4,32 +4,20 @@ import { useSearchParams } from "next/navigation";
 import axiosInstance from "@/app/utils/axios";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, Suspense } from "react";
-import { CheckCircle, Download, ArrowRight, Printer } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { CheckCircle, ArrowRight, Loader2 } from "lucide-react";
 import { successAlert, errorAlert } from "@/app/utils/alert";
+import { ReceiptPanel } from "@/components/transactions/ReceiptPanel";
 
 // ─── Constants ───────────────────────────────────────────────────
 const BARANGAY_NAME = "Barangay Rabon";
-const BARANGAY_ADDRESS = "Brgy. Rabon, Philippines";
-const BARANGAY_CONTACT = "Tel: (02) 1234-5678";
-const VAT_RATE = 0.12;
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
-  }).format(amount);
-}
 
 function PaymentSuccessContent() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const receiptRef = useRef<HTMLDivElement>(null);
 
   const sender = searchParams.get("sender");
   const documentId = searchParams.get("documentId");
   const amount = searchParams.get("amount");
-  const refId = searchParams.get("refId");
 
   // ── Payment mutation ─────────────────────────────────────────
   const paymentMutation = useMutation({
@@ -52,6 +40,7 @@ function PaymentSuccessContent() {
       successAlert("Payment processed successfully!");
       // Invalidate the document-requests query to force a fresh fetch
       queryClient.invalidateQueries({ queryKey: ["document-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
     },
     onError: (err: unknown) => {
       const e = err as { response?: { data?: unknown }; message?: unknown } | null;
@@ -63,7 +52,6 @@ function PaymentSuccessContent() {
 
   const { mutate: processPayment } = paymentMutation;
   const hasCalledRef = useRef(false);
-  const now = new Date();
 
   useEffect(() => {
     // Only need sender, documentId, amount to trigger
@@ -72,62 +60,6 @@ function PaymentSuccessContent() {
       processPayment();
     }
   }, [sender, documentId, amount, processPayment]);
-
-  const date = now.toLocaleDateString("en-PH", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-  const day = now.toLocaleDateString("en-PH", { weekday: "long" });
-  const time = now.toLocaleTimeString("en-PH", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
-
-  const baseAmount = Number(amount || 0);
-  const tax = baseAmount * VAT_RATE;
-  const subTotal = baseAmount - tax;
-  const total = baseAmount;
-
-  // ── Print receipt ────────────────────────────────────────────
-  const handlePrint = () => {
-    if (!receiptRef.current) return;
-    const receiptHtml = receiptRef.current.innerHTML;
-
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "absolute";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "none";
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (!doc) return;
-
-    doc.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Receipt</title>
-        <style>
-          @page { margin: 0; }
-          body { margin: 0; padding: 20px; font-family: 'Courier New', monospace; background: #f5f0eb; display: flex; justify-content: center; }
-          .receipt { width: 320px; background: #fffdf7; padding: 24px 20px; }
-          @media print { body { background: white; padding: 0; } .receipt { box-shadow: none; } }
-        </style>
-      </head>
-      <body><div class="receipt">${receiptHtml}</div></body>
-      </html>
-    `);
-    doc.close();
-
-    iframe.onload = () => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      setTimeout(() => document.body.removeChild(iframe), 1000);
-    };
-  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-sky-50 via-white to-emerald-50 px-4 py-8 relative overflow-hidden">
@@ -204,122 +136,19 @@ function PaymentSuccessContent() {
 
         {/* ── Paper Receipt ── */}
         <div>
-          <div className="flex justify-end mb-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handlePrint}
-              className="h-8 text-xs border-sky-200 text-sky-600 hover:bg-sky-50 gap-1.5"
-            >
-              <Printer className="size-3.5" />
-              Print
-            </Button>
-          </div>
-
-          <div
-            ref={receiptRef}
-            className="bg-[#fffdf7] border border-[#e8dcc8] shadow-lg mx-auto"
-            style={{ width: "340px", fontFamily: "'Courier New', 'Courier', monospace" }}
-            id="receipt"
-          >
-            {/* Top perforation */}
-            <div className="border-b border-dashed border-[#d4c5a9] mx-4" />
-
-            {/* Header */}
-            <div className="px-5 pt-5 pb-2 text-center">
-              <div className="mx-auto mb-2 size-10 border border-[#d4c5a9] overflow-hidden bg-white">
-                <img src="/assets/logo.jpg" alt="Logo" className="w-full h-full object-cover" />
-              </div>
-              <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wider">{BARANGAY_NAME}</h2>
-              <p className="text-[10px] text-gray-500 mt-0.5">{BARANGAY_ADDRESS}</p>
-              <p className="text-[10px] text-gray-500">{BARANGAY_CONTACT}</p>
-              <div className="mt-3 pt-2 border-t border-dashed border-[#d4c5a9]">
-                <p className="text-[11px] font-bold text-gray-800 uppercase tracking-[0.2em]">Official Receipt</p>
-              </div>
+          {paymentMutation.isPending || (paymentMutation.isIdle && sender && documentId && amount) ? (
+            <div className="h-full min-h-[320px] bg-white border border-sky-100 flex flex-col items-center justify-center gap-2 text-sm text-slate-500">
+              <Loader2 className="size-5 animate-spin text-sky-500" />
+              Confirming your payment...
             </div>
-
-            {/* Receipt Info */}
-            <div className="px-5 py-2 space-y-1 text-[11px] text-gray-700">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Receipt No:</span>
-                <span className="font-semibold text-gray-900">
-                  BRGY-{now.getFullYear()}{String(now.getMonth() + 1).padStart(2, "0")}{String(now.getDate()).padStart(2, "0")}-
-                  {(documentId || "").slice(-6).toUpperCase()}
-                </span>
-              </div>
-              <div className="flex justify-between"><span className="text-gray-500">Date:</span><span>{date}</span></div>
-              <div className="flex justify-between"><span className="text-gray-500">Time:</span><span>{time}</span></div>
+          ) : paymentMutation.isError || paymentMutation.isIdle ? (
+            <div className="h-full min-h-[320px] bg-white border border-rose-100 flex flex-col items-center justify-center gap-2 text-center px-6">
+              <p className="text-sm font-medium text-rose-600">We could not confirm this payment yet.</p>
+              <p className="text-xs text-slate-500">Your receipt will appear in My Transactions once the payment is verified.</p>
             </div>
-
-            <div className="border-t border-dashed border-[#d4c5a9] mx-4" />
-
-            {/* Payer */}
-            <div className="px-5 py-2 text-[11px] text-gray-700">
-              <span className="text-gray-500">Payer:</span>
-              <p className="font-semibold text-gray-900">{sender || "N/A"}</p>
-            </div>
-
-            <div className="border-t border-dashed border-[#d4c5a9] mx-4" />
-
-            {/* Items */}
-            <div className="px-5 py-2">
-              <div className="flex justify-between text-[11px] font-bold text-gray-800 uppercase tracking-wider mb-1.5">
-                <span>Description</span>
-                <span>Amount</span>
-              </div>
-              <div className="flex justify-between text-[11px] text-gray-700">
-                <span>Document Request - #{documentId?.slice(-6).toUpperCase() || "N/A"}</span>
-                <span>{formatCurrency(total)}</span>
-              </div>
-            </div>
-
-            <div className="border-t border-dashed border-[#d4c5a9] mx-4" />
-
-            {/* Totals */}
-            <div className="px-5 py-2 space-y-1 text-[11px]">
-              <div className="flex justify-between text-gray-600">
-                <span>Subtotal (excl. VAT)</span>
-                <span>{formatCurrency(subTotal)}</span>
-              </div>
-              <div className="flex justify-between text-gray-600">
-                <span>VAT (12%)</span>
-                <span>{formatCurrency(tax)}</span>
-              </div>
-              <div className="border-t border-dashed border-[#d4c5a9] pt-1 flex justify-between font-bold text-gray-900 text-sm">
-                <span>TOTAL</span>
-                <span>{formatCurrency(total)}</span>
-              </div>
-            </div>
-
-            <div className="border-t border-dashed border-[#d4c5a9] mx-4" />
-
-            {/* Payment Details */}
-            <div className="px-5 py-2 space-y-1 text-[11px]">
-              <div className="flex justify-between text-gray-600">
-                <span>Reference No.</span>
-                <span>{refId || "\u2014"}</span>
-              </div>
-              <div className="flex justify-between text-gray-600">
-                <span>Payment Method</span>
-                <span>Online Payment</span>
-              </div>
-            </div>
-
-            <div className="border-t border-dashed border-[#d4c5a9] mx-4" />
-
-            {/* Footer */}
-            <div className="px-5 py-4 text-center space-y-1">
-              <p className="text-[11px] font-semibold text-gray-800">Maraming Salamat!</p>
-              <p className="text-[9px] text-gray-400 italic">&quot;Sa bayanihan, tayo ay magtatagumpay.&quot;</p>
-              <p className="text-[9px] text-gray-400 mt-2">This serves as your official receipt.</p>
-              <p className="text-[9px] text-gray-400">Keep this for your records.</p>
-              <p className="tracking-widest text-[10px] text-gray-500 mt-2">*** THANK YOU ***</p>
-            </div>
-
-            {/* Bottom perforation */}
-            <div className="border-b border-dashed border-[#d4c5a9] mx-4" />
-            <div className="h-3" />
-          </div>
+          ) : (
+            <ReceiptPanel requestId={documentId} />
+          )}
         </div>
       </div>
     </div>

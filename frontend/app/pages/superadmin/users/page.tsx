@@ -12,10 +12,20 @@ import { useState, useMemo, Suspense } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import axiosInstance from "@/app/utils/axios";
+import useUserStore from "@/app/store/useUserStore";
 import { accountInterface } from "@/app/types/account.type";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -23,8 +33,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { successAlert, errorAlert } from "@/app/utils/alert";
-import { Search, Users, UserCheck, ShieldCheck, Loader2, AlertTriangle, ScanSearch } from "lucide-react";
+import { successAlert, errorAlert, confirmAlert } from "@/app/utils/alert";
+import {
+  Search,
+  Users,
+  UserCheck,
+  ShieldCheck,
+  ShieldOff,
+  ShieldAlert,
+  Loader2,
+  AlertTriangle,
+  ScanSearch,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  Gavel,
+} from "lucide-react";
 import { BackButton } from "@/components/ui/BackButton";
 
 
@@ -64,17 +88,38 @@ const TABS = [
   { value: "secretaries", label: "Secretaries" },
   { value: "super_admins", label: "Super Admins" },
   { value: "duplicates", label: "Duplicates" },
+  { value: "appeals", label: "Suspension Appeals" },
 ] as const;
+
+interface Appeal {
+  _id: string;
+  accountId: string;
+  reason: string;
+  status: "pending" | "under_review" | "approved" | "rejected";
+  decisionNote?: string;
+  createdAt: string;
+  account: { _id: string; name: string; email: string; suspensionReason?: string } | null;
+}
+
+const APPEAL_STATUS_BADGES: Record<Appeal["status"], string> = {
+  pending: "bg-amber-50 text-amber-700 ring-amber-100",
+  under_review: "bg-sky-50 text-sky-700 ring-sky-100",
+  approved: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+  rejected: "bg-rose-50 text-rose-700 ring-rose-100",
+};
 
 function UsersContent() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const tab = searchParams.get("tab") || "all";
   const focus = searchParams.get("focus");
+  const { user: currentUser } = useUserStore();
 
   const [search, setSearch] = useState("");
   const [pendingRoles, setPendingRoles] = useState<Record<string, string>>({});
   const [mutatingId, setMutatingId] = useState<string | null>(null);
+  const [suspendTarget, setSuspendTarget] = useState<accountInterface | null>(null);
+  const [suspendReason, setSuspendReason] = useState("");
 
   const { data: accounts = [], isLoading } = useQuery<accountInterface[]>({
     queryKey: ["accounts"],
@@ -86,6 +131,12 @@ function UsersContent() {
     queryFn: async () =>
       (await axiosInstance.get("/account/duplicates/report")).data,
     enabled: tab === "duplicates",
+  });
+
+  const appealsQuery = useQuery<Appeal[]>({
+    queryKey: ["suspension-appeals"],
+    queryFn: async () => (await axiosInstance.get("/suspension-appeal")).data,
+    enabled: tab === "appeals",
   });
 
   const filtered = useMemo(() => {
@@ -146,6 +197,61 @@ function UsersContent() {
     }
   };
 
+  const submitSuspend = async () => {
+    if (!suspendTarget || !suspendReason.trim()) return;
+    setMutatingId(suspendTarget._id);
+    try {
+      await axiosInstance.patch(`/account/${suspendTarget._id}/suspend`, {
+        reason: suspendReason.trim(),
+      });
+      successAlert("Account suspended");
+      setSuspendTarget(null);
+      setSuspendReason("");
+      refresh();
+    } catch (err) {
+      const data = (err as ApiError)?.response?.data;
+      const message = typeof data === "string" ? data : (data as { message?: string })?.message;
+      errorAlert(message || "Failed to suspend account");
+    } finally {
+      setMutatingId(null);
+    }
+  };
+
+  const unsuspend = (id: string, name: string) => {
+    confirmAlert(`Lift the suspension on "${name}"?`, "Unsuspend", async () => {
+      setMutatingId(id);
+      try {
+        await axiosInstance.patch(`/account/${id}/unsuspend`);
+        successAlert("Account unsuspended");
+        refresh();
+      } catch (err) {
+        const data = (err as ApiError)?.response?.data;
+        errorAlert(typeof data === "string" ? data : "Failed to unsuspend account");
+      } finally {
+        setMutatingId(null);
+      }
+    });
+  };
+
+  const reviewAppeal = async (
+    id: string,
+    status: "approved" | "rejected",
+    decisionNote?: string
+  ) => {
+    setMutatingId(id);
+    try {
+      await axiosInstance.patch(`/suspension-appeal/${id}`, { status, decisionNote });
+      successAlert(status === "approved" ? "Appeal approved — access restored" : "Appeal rejected");
+      queryClient.invalidateQueries({ queryKey: ["suspension-appeals"] });
+      refresh();
+    } catch (err) {
+      const data = (err as ApiError)?.response?.data;
+      errorAlert(typeof data === "string" ? data : "Failed to review appeal");
+    } finally {
+      setMutatingId(null);
+    }
+  };
+
   return (
     <div className="w-full min-h-dvh p-4 sm:p-6 space-y-6">
       <BackButton />
@@ -198,6 +304,13 @@ function UsersContent() {
         <DuplicateReportView
           entries={reportQuery.data?.entries}
           loading={reportQuery.isLoading}
+        />
+      ) : tab === "appeals" ? (
+        <AppealsView
+          appeals={appealsQuery.data}
+          loading={appealsQuery.isLoading}
+          mutatingId={mutatingId}
+          onReview={reviewAppeal}
         />
       ) : (
       <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
@@ -284,34 +397,73 @@ function UsersContent() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${STATUS_BADGES[a.status] || "bg-slate-50 text-slate-600 ring-slate-200"}`}>
-                          {a.status}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${STATUS_BADGES[a.status] || "bg-slate-50 text-slate-600 ring-slate-200"}`}>
+                            {a.status}
+                          </span>
+                          {a.isSuspended && (
+                            <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 bg-rose-50 text-rose-700 ring-rose-200">
+                              <ShieldAlert className="size-3" />
+                              Suspended
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-right whitespace-nowrap">
-                        {a.status === "pending" ? (
-                          <div className="flex justify-end gap-1.5">
-                            <Button
-                              size="sm"
-                              className="h-8 text-xs bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
-                              disabled={busy}
-                              onClick={() => changeStatus(a._id, "approved")}
-                            >
-                              Approve
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 text-xs border-rose-200 text-rose-600 hover:bg-rose-50"
-                              disabled={busy}
-                              onClick={() => changeStatus(a._id, "rejected")}
-                            >
-                              Reject
-                            </Button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
+                        <div className="flex justify-end gap-1.5">
+                          {a.status === "pending" && (
+                            <>
+                              <Button
+                                size="sm"
+                                className="h-8 text-xs bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
+                                disabled={busy}
+                                onClick={() => changeStatus(a._id, "approved")}
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-xs border-rose-200 text-rose-600 hover:bg-rose-50"
+                                disabled={busy}
+                                onClick={() => changeStatus(a._id, "rejected")}
+                              >
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                          {a.role !== "super_admin" && a._id !== currentUser?._id && (
+                            a.isSuspended ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-xs border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                disabled={busy}
+                                onClick={() => unsuspend(a._id, a.name)}
+                              >
+                                {busy ? <Loader2 className="size-3 animate-spin" /> : <ShieldCheck className="size-3" />}
+                                Unsuspend
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-xs border-rose-200 text-rose-600 hover:bg-rose-50"
+                                disabled={busy}
+                                onClick={() => {
+                                  setSuspendTarget(a);
+                                  setSuspendReason("");
+                                }}
+                              >
+                                <ShieldOff className="size-3" />
+                                Suspend
+                              </Button>
+                            )
+                          )}
+                          {a.status !== "pending" && (a.role === "super_admin" || a._id === currentUser?._id) && (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -327,6 +479,142 @@ function UsersContent() {
         Role changes apply immediately. Only the designated Super Admin can assign or revoke the
         Super Admin role, and the last Super Admin account cannot be demoted.
       </p>
+
+      {/* ── Suspend reason dialog ── */}
+      <Dialog open={!!suspendTarget} onOpenChange={(open) => !open && setSuspendTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldOff className="size-5 text-rose-500" />
+              Suspend {suspendTarget?.name}
+            </DialogTitle>
+            <DialogDescription>
+              This immediately blocks their access except for submitting an appeal. Provide a
+              reason for the record.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            placeholder="Reason for suspension..."
+            value={suspendReason}
+            onChange={(e) => setSuspendReason(e.target.value)}
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSuspendTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-rose-600 hover:bg-rose-700 text-white"
+              disabled={!suspendReason.trim() || mutatingId === suspendTarget?._id}
+              onClick={submitSuspend}
+            >
+              {mutatingId === suspendTarget?._id ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <ShieldOff className="size-4" />
+              )}
+              Suspend Account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function AppealsView({
+  appeals,
+  loading,
+  mutatingId,
+  onReview,
+}: {
+  appeals?: Appeal[];
+  loading: boolean;
+  mutatingId: string | null;
+  onReview: (id: string, status: "approved" | "rejected", decisionNote?: string) => void;
+}) {
+  const [notes, setNotes] = useState<Record<string, string>>({});
+
+  return (
+    <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
+      <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
+        <Gavel className="size-4 text-indigo-500" />
+        <p className="text-sm font-medium text-gray-700">Suspension appeals</p>
+      </div>
+
+      {loading ? (
+        <div className="space-y-2 p-4">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+      ) : !appeals?.length ? (
+        <p className="px-4 py-10 text-center text-sm text-gray-500">
+          No suspension appeals have been submitted.
+        </p>
+      ) : (
+        <div className="divide-y divide-slate-100">
+          {appeals.map((appeal) => {
+            const busy = mutatingId === appeal._id;
+            const decided = appeal.status === "approved" || appeal.status === "rejected";
+            return (
+              <div key={appeal._id} className="p-4 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-gray-800">{appeal.account?.name || "Unknown account"}</p>
+                    <p className="text-xs text-gray-500">{appeal.account?.email}</p>
+                  </div>
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${APPEAL_STATUS_BADGES[appeal.status]}`}>
+                    {appeal.status === "approved" ? <CheckCircle2 className="size-3" /> : appeal.status === "rejected" ? <XCircle className="size-3" /> : <Clock className="size-3" />}
+                    {appeal.status.replace("_", " ")}
+                  </span>
+                </div>
+                {appeal.account?.suspensionReason && (
+                  <p className="text-xs text-gray-500">
+                    <span className="font-medium">Suspended for:</span> {appeal.account.suspensionReason}
+                  </p>
+                )}
+                <p className="text-sm text-gray-700 bg-slate-50 rounded-lg p-3">{appeal.reason}</p>
+                {appeal.decisionNote && (
+                  <p className="text-xs text-gray-500">
+                    <span className="font-medium">Decision note:</span> {appeal.decisionNote}
+                  </p>
+                )}
+                {!decided && (
+                  <div className="space-y-2 pt-1">
+                    <Textarea
+                      placeholder="Optional note for the resident..."
+                      value={notes[appeal._id] || ""}
+                      onChange={(e) => setNotes((prev) => ({ ...prev, [appeal._id]: e.target.value }))}
+                      rows={2}
+                      className="text-sm"
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs border-rose-200 text-rose-600 hover:bg-rose-50"
+                        disabled={busy}
+                        onClick={() => onReview(appeal._id, "rejected", notes[appeal._id])}
+                      >
+                        Reject
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
+                        disabled={busy}
+                        onClick={() => onReview(appeal._id, "approved", notes[appeal._id])}
+                      >
+                        {busy ? <Loader2 className="size-3 animate-spin" /> : <CheckCircle2 className="size-3" />}
+                        Approve & Restore Access
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

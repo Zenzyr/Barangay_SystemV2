@@ -292,8 +292,15 @@ function VisualTemplateForm({
         await createTemplate(payload);
         successAlert("Template created successfully.");
       } else if (templateId) {
-        await updateTemplate(templateId, payload);
-        successAlert("Template saved successfully.");
+        const feeChanged = initial && fee !== initial.fee;
+        const updated = await updateTemplate(templateId, payload);
+        if (feeChanged && updated.priceApprovalStatus === "pending") {
+          successAlert(
+            `Template saved. The new price (${currency} ${fee}) is pending Super Admin approval — the active price stays ${currency} ${initial?.fee} until then.`,
+          );
+        } else {
+          successAlert("Template saved successfully.");
+        }
       }
       setDirty(false);
       queryClient.invalidateQueries({ queryKey: ["document-templates"] });
@@ -408,6 +415,11 @@ function VisualTemplateForm({
                   touch();
                 }}
               />
+              {initial?.priceApprovalStatus === "pending" && (
+                <p className="text-xs text-amber-600">
+                  A price change to {currency} {initial.pendingFee} is pending Super Admin approval.
+                </p>
+              )}
             </div>
           </div>
           <div className="space-y-1.5">

@@ -1,12 +1,15 @@
 export interface accountInterfaceInput {
     profile : string,
     name: string,
+    nickname?: string,
     address: string,
     email: string,
     contact: string,
     password: string,
     status :  string,
     role?: "resident" | "secretary" | "super_admin",
+    isSuspended?: boolean,
+    suspensionReason?: string,
     possibleDuplicate?: {
         status?: string,
         reason?: string,

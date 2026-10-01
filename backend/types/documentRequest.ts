@@ -51,6 +51,16 @@ export interface documentRequestInterfaceInput {
     archivedAt?: Date | string,
     statusHistory?: { status: string; at: Date | string }[],
     checkoutSessionId?: string | null,
+    census?: string | null,
+    paymentMethod?: "over-the-counter" | "online",
+    paymentChannel?: string,
+    amountPaid?: number,
+    amountTendered?: number,
+    changeGiven?: number,
+    paidAt?: Date | string,
+    receiptNumber?: string,
+    paymentReference?: string,
+    paymentProcessedBy?: string,
 
 }
 
@@ -107,4 +117,14 @@ export interface documentRequestInterface {
 
     archivedAt?: Date | string,
     statusHistory?: { status: string; at: Date | string }[],
+    census?: string | null,
+    paymentMethod?: "over-the-counter" | "online",
+    paymentChannel?: string,
+    amountPaid?: number,
+    amountTendered?: number,
+    changeGiven?: number,
+    paidAt?: Date | string,
+    receiptNumber?: string,
+    paymentReference?: string,
+    paymentProcessedBy?: string,
 }

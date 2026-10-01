@@ -9,7 +9,33 @@ import { smsTemplates } from "../utils/smsTemplates";
 import { isObjectId } from "../utils/validation";
 import { convertDocxToPdf } from "../utils/docxToPdf";
 import { isStaffRole } from "../utils/roles";
-import { verifyPayMongoPayment } from "../services/payment.service";
+import { getPayMongoCheckoutDetails } from "../services/payment.service";
+import { AccountService } from "../services/acccount.service";
+import { ResidentCensusService } from "../services/residentCensus.service";
+import { documentDisplayName } from "../utils/documentNames";
+
+const MAX_CASH_PAYMENT = 100000;
+
+const presentValue = (value: unknown): string | null => {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  if (!text || text.toUpperCase() === "N/A") return null;
+  return text;
+};
+
+const fillIfEmpty = (target: Record<string, any>, key: string, value: unknown) => {
+  const current = target[key];
+  if (current !== undefined && current !== null && String(current).trim() !== "") return;
+  const clean = presentValue(value);
+  if (clean !== null) target[key] = clean;
+};
+
+const amountDueOf = (doc: any): number => {
+  const fee = Number(doc?.feeAtRequest);
+  if (Number.isFinite(fee) && fee >= 0) return fee;
+  const price = Number(doc?.price);
+  return Number.isFinite(price) && price >= 0 ? price : 0;
+};
 
 const DOC_STATUSES = ["pending", "processing", "ready", "released", "cancelled", "to claim", "completed", "rejected"];
 
@@ -30,33 +56,6 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
 
 // ... (other parts of the file remain the same, just keeping the imports correct)
 
-// Human-friendly names for notifications (falls back to a CamelCase -> Title).
-// NOTE: "Barangay Clearance" is deliberately absent from selection/validation.
-// Historical records that used barangayClearance still map to this display name
-// for backward-compatibility in views/history, but the type is never created in
-// new requests.
-const DOCUMENT_NAMES: Record<string, string> = {
-  barangayCertificate: "Barangay Certificate",
-  barangayClearance: "Barangay Certificate",
-  certificateOfResidency: "Certificate of Residency",
-  certificateOfIndigency: "Certificate of Indigency",
-  barangayBusinessClearance: "Barangay Business Clearance",
-  certificateOfAttestation: "Certificate of Attestation",
-  certificationOfTreesCutting: "Certification of Trees Cutting",
-  barangayCertification: "Barangay Certification",
-  certificateOfFirstTimeJobseeker: "Barangay Certification (First-Time Jobseeker)",
-  firstTimeJobseekerOath: "Oath of Undertaking (FTJ)",
-  certificateOfLowIncome: "Certificate of Low Income",
-  endorsementLetter: "Endorsement Letter",
-};
-
-const documentDisplayName = (key: string): string =>
-  DOCUMENT_NAMES[key] ||
-  key
-    .replace(/([A-Z])/g, " $1")
-    .replace(/^./, (c) => c.toUpperCase())
-    .trim();
-
 export class DocumentRequestController {
 
   static create = async (request: AuthRequest, response: Response) => {
@@ -72,9 +71,52 @@ export class DocumentRequestController {
       // An account-linked request must reference a real account. A walk-in
       // without an account (resident field omitted) is allowed as long as a
       // denormalized fullName is provided for the snapshot fields.
+      const requesterIsStaff = isStaffRole(account.role);
+      if (!requesterIsStaff) delete documentData.census;
+      for (const key of ["paymentMethod", "paymentChannel", "amountPaid", "amountTendered", "changeGiven", "paidAt", "receiptNumber", "paymentReference", "paymentProcessedBy", "checkoutSessionId"]) {
+        delete documentData[key];
+      }
+      documentData.isPaid = false;
+
       if (documentData.resident && !isObjectId(documentData.resident)) {
         response.status(400).send("A valid resident is required");
         return;
+      }
+      if (documentData.census && !isObjectId(documentData.census)) {
+        response.status(400).send("A valid census record is required");
+        return;
+      }
+      if (documentData.resident) {
+        const residentAccount = await AccountService.get(documentData.resident);
+        if (!residentAccount) {
+          response.status(400).send("The selected resident could not be found");
+          return;
+        }
+        if (requesterIsStaff && account._id !== documentData.resident) {
+          if (residentAccount.role !== "resident" || residentAccount.status !== "approved" || residentAccount.isSuspended) {
+            response.status(400).send("Walk-in requests can only be filed for approved, active resident accounts");
+            return;
+          }
+          fillIfEmpty(documentData, "fullName", residentAccount.name);
+          fillIfEmpty(documentData, "contact", residentAccount.contact);
+          fillIfEmpty(documentData, "address", residentAccount.address);
+          fillIfEmpty(documentData, "dateOfBirth", residentAccount.dateOfBirth);
+          fillIfEmpty(documentData, "civilStatus", residentAccount.civilStatus);
+          fillIfEmpty(documentData, "purok", residentAccount.purok);
+          if (residentAccount.censusId) documentData.census = residentAccount.censusId;
+          else delete documentData.census;
+        }
+      } else if (documentData.census) {
+        const censusRecord: any = await ResidentCensusService.get(documentData.census);
+        if (!censusRecord || censusRecord.isArchived) {
+          response.status(400).send("The selected census resident could not be found");
+          return;
+        }
+        documentData.fullName = presentValue(censusRecord.name) ?? documentData.fullName;
+        fillIfEmpty(documentData, "contact", censusRecord.cellphone);
+        fillIfEmpty(documentData, "dateOfBirth", censusRecord.birthday);
+        fillIfEmpty(documentData, "purok", censusRecord.purok);
+        fillIfEmpty(documentData, "age", censusRecord.age);
       }
       if (!documentData.resident && !String(documentData.fullName || "").trim()) {
         response.status(400).send("A full name is required for walk-in requests");
@@ -404,7 +446,7 @@ export class DocumentRequestController {
   static updatePayment = async (request: AuthRequest, response: Response) => {
     try {
       const { id } = request.params;
-      const { isPaid } = request.body;
+      const { isPaid, amountTendered } = request.body;
 
       if (!isObjectId(id)) {
         response.status(400).send("Invalid document request id");
@@ -420,41 +462,73 @@ export class DocumentRequestController {
         response.status(401).send("Authentication required");
         return;
       }
-      const current = await DocumentRequestService.get(id);
+      if (!isStaffRole(account.role)) {
+        response.status(403).send("Only barangay staff can record over-the-counter payments");
+        return;
+      }
+      const current: any = await DocumentRequestService.get(id);
       if (!current) {
         response.status(404).send("Document request not found");
         return;
       }
-      const residentId = String(current.resident?._id || current.resident);
-      const isStaff = isStaffRole(account.role);
-      // Only the secretary may mark a request unpaid; the resident owner may
-      // only confirm their own payment succeeded (isPaid → true).
-      const isOwner = account._id === residentId;
-      if (!isStaff && !(isOwner && isPaid === true)) {
-        response.status(403).send("You are not allowed to update this payment record");
+
+      if (!isPaid) {
+        await DocumentRequestService.clearPayment(id);
+        response.send({ message: "Payment status updated to unpaid successfully" });
         return;
       }
 
-      const document = await DocumentRequestService.updatePayment(id, isPaid);
+      if (current.isPaid) {
+        response.status(409).send("This request has already been paid");
+        return;
+      }
+
+      const amountDue = amountDueOf(current);
+      let tendered: number | undefined;
+      if (amountTendered !== undefined && amountTendered !== null && amountTendered !== "") {
+        tendered = Number(amountTendered);
+        if (!Number.isFinite(tendered) || tendered < 0) {
+          response.status(400).send("Amount tendered must be a valid amount");
+          return;
+        }
+        if (tendered > MAX_CASH_PAYMENT) {
+          response.status(400).send(`Amount tendered cannot exceed ${MAX_CASH_PAYMENT}`);
+          return;
+        }
+        if (tendered < amountDue) {
+          response.status(400).send("Amount tendered is less than the amount due");
+          return;
+        }
+        tendered = Math.round(tendered * 100) / 100;
+      }
+
+      const document = await DocumentRequestService.recordPayment(id, {
+        paymentMethod: "over-the-counter",
+        paymentChannel: "cash",
+        amountPaid: amountDue,
+        amountTendered: tendered ?? amountDue,
+        changeGiven: Math.round(((tendered ?? amountDue) - amountDue) * 100) / 100,
+        paymentProcessedBy: account._id.toString(),
+      });
       if (!document) {
-        response.status(404).send("Document request not found");
+        response.status(409).send("This request has already been paid");
         return;
       }
 
       const resident = document.resident as any;
-      if (isPaid && resident?._id) {
+      if (resident?._id) {
         await NotificationService.create({
           accountId: resident._id.toString(),
           title: "Payment Received",
-          message: `We received your payment for your ${documentDisplayName(document.document)} request.`,
+          message: `We received your payment for your ${documentDisplayName(document.document)} request. Receipt No. ${document.receiptNumber}.`,
           type: "payment",
         }).catch(() => null);
       }
-      if (isPaid && resident?.contact) {
+      if (resident?.contact) {
         sendNotification("payment", resident.contact, smsTemplates.paymentReceived(resident.name, document.document));
       }
 
-      response.send({ message: `Payment status updated to ${isPaid ? 'paid' : 'unpaid'} successfully` });
+      response.send({ message: "Payment status updated to paid successfully", receiptNumber: document.receiptNumber });
     } catch (error) {
       response.status(500).send("Failed to update payment status");
     }
@@ -546,11 +620,30 @@ export class DocumentRequestController {
                 response.status(400).send("Invalid document request id");
                 return;
             }
-            const document = await DocumentRequestService.update(id, { checkoutSessionId });
-            if (!document) {
+            if (typeof checkoutSessionId !== "string" || !/^[A-Za-z0-9_]{1,100}$/.test(checkoutSessionId)) {
+                response.status(400).send("Invalid checkout session id");
+                return;
+            }
+            const account = request.account;
+            if (!account) {
+                response.status(401).send("Authentication required");
+                return;
+            }
+            const current: any = await DocumentRequestService.get(id);
+            if (!current) {
                 response.status(404).send("Document request not found");
                 return;
             }
+            const residentId = String(current.resident?._id || current.resident);
+            if (!isStaffRole(account.role) && account._id !== residentId) {
+                response.status(403).send("You can only pay for your own requests");
+                return;
+            }
+            if (current.isPaid) {
+                response.status(409).send("This request has already been paid");
+                return;
+            }
+            await DocumentRequestService.update(id, { checkoutSessionId });
             response.send({ message: "Checkout session ID saved" });
         } catch (error) {
             console.error("[SAVE CHECKOUT SESSION ERROR]", error);
@@ -562,33 +655,74 @@ export class DocumentRequestController {
     static onlinePayment = async (request: AuthRequest, response: Response) => {
         try {
             const { documentID, checkoutSessionId } = request.body;
-            if (!isObjectId(documentID)) {
+            const routeId = request.params?.id;
+            if (!isObjectId(documentID) || (routeId && routeId !== documentID)) {
                 response.status(400).send("Invalid document id");
                 return;
             }
 
-            // Secure Verification
-            const isPaid = await verifyPayMongoPayment(checkoutSessionId);
-            if (!isPaid) {
+            const account = request.account;
+            if (!account) {
+                response.status(401).send("Authentication required");
+                return;
+            }
+
+            const current: any = await DocumentRequestService.get(documentID);
+            if (!current) {
+                response.status(404).send("Document request not found");
+                return;
+            }
+            const residentId = String(current.resident?._id || current.resident);
+            if (!isStaffRole(account.role) && account._id !== residentId) {
+                response.status(403).send("You can only confirm payments for your own requests");
+                return;
+            }
+            if (!checkoutSessionId || current.checkoutSessionId !== checkoutSessionId) {
+                response.status(400).send("Payment session does not match this request");
+                return;
+            }
+            if (current.isPaid) {
+                response.send("success");
+                return;
+            }
+
+            const details = await getPayMongoCheckoutDetails(checkoutSessionId);
+            if (!details.paid) {
                 response.status(400).send("Payment not verified");
                 return;
             }
 
-            const document = await DocumentRequestService.updatePayment(documentID, true);
+            const document = await DocumentRequestService.recordPayment(documentID, {
+                paymentMethod: "online",
+                paymentChannel: details.paymentMethod || "paymongo",
+                amountPaid: details.amount ?? amountDueOf(current),
+                paidAt: details.paidAt ?? new Date(),
+                paymentReference: details.reference ?? checkoutSessionId,
+            });
+            if (!document) {
+                response.send("success");
+                return;
+            }
+
             // Online payment marks the request ready for the secretary to print
             // and release — payment alone never releases the document.
             await DocumentRequestService.updateStatus(documentID, "ready");
-            
-            const account = request.account;
-            if (account) {
-                await UserActivityService.create({
-                    accountId: account._id.toString(),
-                    activity: `online payment`,
-                    date: formattedDate()
-                });
-            }
+
+            await UserActivityService.create({
+                accountId: account._id.toString(),
+                activity: `online payment`,
+                date: formattedDate()
+            });
 
             const resident = document?.resident as any;
+            if (resident?._id) {
+                await NotificationService.create({
+                    accountId: resident._id.toString(),
+                    title: "Payment Received",
+                    message: `We received your online payment for your ${documentDisplayName(document.document)} request. Receipt No. ${document.receiptNumber}.`,
+                    type: "payment",
+                }).catch(() => null);
+            }
             if (resident?.contact) {
                 sendNotification("payment", resident.contact, smsTemplates.paymentReceived(resident.name, document!.document));
             }

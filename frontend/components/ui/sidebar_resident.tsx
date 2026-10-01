@@ -8,7 +8,7 @@ import {
   FolderOpen,
   FileText,
   Wrench,
-  ListChecks,
+  ReceiptText,
   FileStack,
   Activity,
   LogOut,
@@ -60,14 +60,14 @@ const navigationItems = [
     icon: Wrench,
   },
   {
-    title: "Service Requests",
-    url: "/pages/resident/serviceRequests",
-    icon: ListChecks,
-  },
-  {
     title: "Work Requests",
     url: "/pages/resident/workRequest",
     icon: Briefcase,
+  },
+  {
+    title: "My Transactions",
+    url: "/pages/resident/transactions",
+    icon: ReceiptText,
   },
   {
     title: "My Contracts",

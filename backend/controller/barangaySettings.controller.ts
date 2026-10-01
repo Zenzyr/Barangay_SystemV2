@@ -3,6 +3,7 @@ import { AuthRequest } from "../types/request.type";
 import { BarangaySettingsService } from "../services/barangaySettings.service";
 import { AuditLogService } from "../services/auditLog.service";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload";
+import { normalizeWorkScheduleConfig } from "../services/workSchedule.service";
 
 export class BarangaySettingsController {
   /** Image-URL fields, by section, that must be empty or a valid URL. */
@@ -55,10 +56,14 @@ export class BarangaySettingsController {
         }
       }
 
+      if (data.workSchedule !== undefined) {
+        data.workSchedule = normalizeWorkScheduleConfig(data.workSchedule);
+      }
+
       const settings: any = await BarangaySettingsService.upsert(data);
 
       const changedFields: string[] = [];
-      for (const section of ["barangay", "documents", "sms"] as const) {
+      for (const section of ["barangay", "documents", "sms", "workSchedule"] as const) {
         if (data[section] && typeof data[section] === "object") {
           if (JSON.stringify(before?.[section]) !== JSON.stringify(settings?.[section])) {
             changedFields.push(section);
@@ -73,7 +78,7 @@ export class BarangaySettingsController {
           action: "update",
           entity: "barangaySettings",
           entityId: settings?._id?.toString?.() ?? "",
-          entityLabel: section === "barangay" ? "Barangay Information" : section === "documents" ? "Document Settings" : "SMS Settings",
+          entityLabel: section === "barangay" ? "Barangay Information" : section === "documents" ? "Document Settings" : section === "workSchedule" ? "Work Request Schedule" : "SMS Settings",
           field: section,
           previousValue: before?.[section],
           newValue: settings?.[section],

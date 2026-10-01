@@ -105,6 +105,17 @@ const DocumentSchema = new Schema({
     officialsSnapshot : { type: Schema.Types.Mixed, required: false },
     checkoutSessionId: { type: String, required: false },
 
+    census: { type: mongoose.Schema.Types.ObjectId, ref: "ResidentCensus", required: false },
+    paymentMethod: { type: String, enum: ["over-the-counter", "online"], required: false },
+    paymentChannel: { type: String, required: false },
+    amountPaid: { type: Number, required: false, min: 0 },
+    amountTendered: { type: Number, required: false, min: 0 },
+    changeGiven: { type: Number, required: false, min: 0 },
+    paidAt: { type: Date, required: false },
+    receiptNumber: { type: String, required: false },
+    paymentReference: { type: String, required: false },
+    paymentProcessedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Accounts", required: false },
+
    
 });
 
@@ -124,5 +135,10 @@ DocumentSchema.index(
     },
   }
 );
+
+DocumentSchema.index({ receiptNumber: 1 }, { unique: true, sparse: true });
+DocumentSchema.index({ isPaid: 1, paidAt: -1 });
+DocumentSchema.index({ resident: 1, paidAt: -1 });
+DocumentSchema.index({ requestDate: 1 });
 
 export default mongoose.model('Documents', DocumentSchema)

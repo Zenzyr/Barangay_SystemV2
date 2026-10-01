@@ -43,7 +43,9 @@ const PRESET_SKILLS = [
   "Nursing Assistance",
 ];
 
+const OTHER_SKILL_VALUE = "__other__";
 const PROFICIENCY_LEVELS = ["Beginner", "Intermediate", "Advanced"];
+const MAX_YEARS_EXPERIENCE = 20;
 
 interface AddSkillModalProps {
   open: boolean;
@@ -63,47 +65,45 @@ export default function AddSkillModal({
 }: AddSkillModalProps) {
   const [skill, setSkill] = useState("");
   const [customSkill, setCustomSkill] = useState("");
-  const [useCustom, setUseCustom] = useState(false);
   const [experience, setExperience] = useState("");
   const [proficiency, setProficiency] = useState("");
   const [serviceTypesInput, setServiceTypesInput] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const useCustom = skill === OTHER_SKILL_VALUE;
+
   const resetForm = () => {
     setSkill("");
     setCustomSkill("");
-    setUseCustom(false);
     setExperience("");
     setProficiency("");
     setServiceTypesInput("");
   };
 
+  const skillName = useCustom ? customSkill.trim() : skill;
+  const expNumber = Number(experience);
+  const experienceValid =
+    experience !== "" &&
+    Number.isFinite(expNumber) &&
+    Number.isInteger(expNumber) &&
+    expNumber >= 0 &&
+    expNumber <= MAX_YEARS_EXPERIENCE;
+  const serviceTypes = serviceTypesInput
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const serviceTypesValid = serviceTypes.length > 0;
+
   const handleSubmit = async () => {
-    const skillName = useCustom ? customSkill.trim() : skill;
-
-    if (!skillName) {
+    if (!skillName || !experienceValid || !proficiency || !serviceTypesValid) {
       return;
     }
-
-    const exp = Number(experience);
-    if (!experience || isNaN(exp) || exp < 0) {
-      return;
-    }
-
-    if (!proficiency) {
-      return;
-    }
-
-    const serviceTypes = serviceTypesInput
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
 
     setLoading(true);
     try {
       await onAdd({
         skill: skillName,
-        experience: exp,
+        experience: expNumber,
         proficiency,
         serviceTypes,
       });
@@ -141,42 +141,35 @@ export default function AddSkillModal({
           {/* Skill Selection */}
           <div className="space-y-1.5">
             <Label className="text-sm font-medium text-gray-700">
-              Skill
+              Skill <span className="text-red-500">*</span>
             </Label>
-            {!useCustom ? (
-              <Select value={skill} onValueChange={setSkill}>
-                <SelectTrigger className="w-full h-10 border-gray-200 focus:border-sky-400">
-                  <SelectValue placeholder="Select a skill..." />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {PRESET_SKILLS.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
+            <Select
+              value={skill}
+              onValueChange={(value) => {
+                setSkill(value);
+                if (value !== OTHER_SKILL_VALUE) setCustomSkill("");
+              }}
+            >
+              <SelectTrigger className="w-full h-10 border-gray-200 focus:border-sky-400">
+                <SelectValue placeholder="Select a skill..." />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {PRESET_SKILLS.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+                <SelectItem value={OTHER_SKILL_VALUE}>Other</SelectItem>
+              </SelectContent>
+            </Select>
+            {useCustom && (
               <Input
                 placeholder="Enter your skill..."
                 value={customSkill}
                 onChange={(e) => setCustomSkill(e.target.value)}
-                className="h-10 border-gray-200 focus:border-sky-400"
+                className="h-10 border-gray-200 focus:border-sky-400 mt-2"
               />
             )}
-            <button
-              type="button"
-              onClick={() => {
-                setUseCustom(!useCustom);
-                setSkill("");
-                setCustomSkill("");
-              }}
-              className="text-xs text-sky-600 hover:text-sky-700 transition-colors mt-1"
-            >
-              {useCustom
-                ? "Pick from list instead"
-                : "My skill is not in the list"}
-            </button>
           </div>
 
           {/* Years of Experience */}
@@ -185,12 +178,13 @@ export default function AddSkillModal({
               htmlFor="experience"
               className="text-sm font-medium text-gray-700"
             >
-              Years of Experience
+              Years of Experience <span className="text-red-500">*</span>
             </Label>
             <Input
               id="experience"
               type="number"
               min="0"
+              max={MAX_YEARS_EXPERIENCE}
               step="1"
               placeholder="e.g. 3"
               value={experience}
@@ -202,7 +196,7 @@ export default function AddSkillModal({
           {/* Proficiency */}
           <div className="space-y-1.5">
             <Label className="text-sm font-medium text-gray-700">
-              Proficiency Level
+              Proficiency Level <span className="text-red-500">*</span>
             </Label>
             <Select value={proficiency} onValueChange={setProficiency}>
               <SelectTrigger className="w-full h-10 border-gray-200 focus:border-sky-400">
@@ -220,8 +214,11 @@ export default function AddSkillModal({
 
           {/* Service Types */}
           <div className="space-y-1.5">
-            <Label htmlFor="serviceTypes" className="text-sm font-medium text-gray-700">
-              Service Types <span className="text-gray-400 font-normal">(optional, comma-separated)</span>
+            <Label
+              htmlFor="serviceTypes"
+              className="text-sm font-medium text-gray-700"
+            >
+              Service Types <span className="text-red-500">*</span>
             </Label>
             <Input
               id="serviceTypes"
@@ -231,19 +228,19 @@ export default function AddSkillModal({
               className="h-10 border-gray-200 focus:border-sky-400"
             />
             <p className="text-[11px] text-gray-400">
-              Specific services you offer under this skill, so clients can find you more precisely.
+              Comma-separated. Specific services you offer under this skill, so
+              clients can find you more precisely.
             </p>
           </div>
 
           {/* Validation hints */}
           <div className="space-y-1 text-xs text-gray-400">
-            {(useCustom ? !customSkill.trim() : !skill) && (
-              <p>Select or enter a skill</p>
-            )}
-            {(!experience || isNaN(Number(experience)) || Number(experience) < 0) && (
-              <p>Enter valid years of experience</p>
+            {!skillName && <p>Select or enter a skill</p>}
+            {!experienceValid && (
+              <p>Enter years of experience between 0 and {MAX_YEARS_EXPERIENCE}</p>
             )}
             {!proficiency && <p>Select your proficiency level</p>}
+            {!serviceTypesValid && <p>Enter at least one service type</p>}
           </div>
         </div>
 
@@ -263,14 +260,7 @@ export default function AddSkillModal({
           <Button
             type="button"
             onClick={handleSubmit}
-            disabled={
-              loading ||
-              (useCustom ? !customSkill.trim() : !skill) ||
-              !experience ||
-              isNaN(Number(experience)) ||
-              Number(experience) < 0 ||
-              !proficiency
-            }
+            disabled={loading || !skillName || !experienceValid || !proficiency || !serviceTypesValid}
             className="h-9 bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-medium shadow-lg shadow-sky-200/50 transition-all disabled:opacity-50"
           >
             {loading ? (

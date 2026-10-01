@@ -257,6 +257,53 @@ export class DocumentTemplateService {
     return updated;
   }
 
+  static async proposePriceChange(id: string, pendingFee: number, proposedBy?: string) {
+    return await DocumentTemplate.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          pendingFee,
+          pendingFeeProposedBy: proposedBy,
+          pendingFeeProposedAt: new Date(),
+          priceApprovalStatus: "pending",
+        },
+      },
+      { new: true },
+    );
+  }
+
+  static async clearPendingPrice(id: string, status: "none" | "approved" | "rejected" = "none") {
+    return await DocumentTemplate.findByIdAndUpdate(
+      id,
+      {
+        $unset: { pendingFee: "", pendingFeeProposedBy: "", pendingFeeProposedAt: "" },
+        $set: { priceApprovalStatus: status },
+      },
+      { new: true },
+    );
+  }
+
+  static async approvePendingPrice(id: string) {
+    const existing = await DocumentTemplate.findById(id);
+    if (!existing || existing.priceApprovalStatus !== "pending" || existing.pendingFee === undefined) {
+      return null;
+    }
+    return await DocumentTemplate.findByIdAndUpdate(
+      id,
+      {
+        $set: { fee: existing.pendingFee, priceApprovalStatus: "approved", version: (existing.version || 1) + 1 },
+        $unset: { pendingFee: "", pendingFeeProposedBy: "", pendingFeeProposedAt: "" },
+      },
+      { new: true },
+    );
+  }
+
+  static async getPendingApprovals() {
+    return await DocumentTemplate.find({ priceApprovalStatus: "pending" })
+      .populate("pendingFeeProposedBy", "name email")
+      .sort({ pendingFeeProposedAt: -1 });
+  }
+
   static async getEditorContent(id: string) {
     const template = await DocumentTemplate.findById(id).lean();
     if (!template) return null;

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, FormEvent, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -29,20 +29,50 @@ import {
   CheckCircle2,
   ArrowRight,
   Smartphone,
+  ShieldAlert,
+  Clock,
 } from "lucide-react";
 
 type ForgotStep = "email" | "code" | "newPassword" | "done";
 type ResetDelivery = "email" | "sms";
 
-type ApiError = { response?: { data?: unknown }; message?: string };
+type ApiError = {
+  response?: { status?: number; data?: unknown };
+  message?: string;
+};
+type LoginErrorPayload = {
+  message?: string;
+  locked?: boolean;
+  lockedUntil?: string | null;
+  attemptsRemaining?: number;
+};
 
-export default function SignInPage() {
+const LAST_LOGIN_EMAIL_KEY = "bims_last_login_email";
+
+function formatCountdown(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function SignInContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { setUser } = useUserStore();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() =>
+    typeof window === "undefined"
+      ? ""
+      : localStorage.getItem(LAST_LOGIN_EMAIL_KEY) || "",
+  );
   const [password, setPassword] = useState("");
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [attemptsRemaining, setAttemptsRemaining] = useState<number | null>(
+    null,
+  );
+  const adminMode = searchParams.get("mode") === "admin";
 
   // Forgot password flow
   const [forgotOpen, setForgotOpen] = useState(false);
@@ -56,6 +86,45 @@ export default function SignInPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
+
+  const applyLock = (ms: number | null) => {
+    setLockedUntil(ms);
+    setRemainingSeconds(
+      ms ? Math.max(0, Math.ceil((ms - Date.now()) / 1000)) : 0,
+    );
+  };
+
+  const checkLoginStatus = useCallback(async (candidateEmail: string) => {
+    const trimmed = candidateEmail.trim().toLowerCase();
+    if (!trimmed || !trimmed.includes("@")) return;
+    try {
+      const res = await axiosInstance.get("/account/login-status", {
+        params: { email: trimmed },
+      });
+      if (res.data?.locked && res.data?.lockedUntil) {
+        applyLock(new Date(res.data.lockedUntil).getTime());
+      } else {
+        applyLock(null);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    const lastEmail = localStorage.getItem(LAST_LOGIN_EMAIL_KEY);
+    if (lastEmail) {
+      checkLoginStatus(lastEmail);
+    }
+  }, [checkLoginStatus]);
+
+  useEffect(() => {
+    if (!lockedUntil) return;
+    const interval = setInterval(() => {
+      setRemainingSeconds((s) => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockedUntil]);
+
+  const isLocked = remainingSeconds > 0;
 
   const openForgotPassword = () => {
     setForgotStep("email");
@@ -113,8 +182,11 @@ export default function SignInPage() {
       setResetToken(res.data.resetToken);
       setForgotStep("newPassword");
     } catch (err) {
-      const message = (err as ApiError)?.response?.data || "Invalid or expired code";
-      errorAlert(typeof message === "string" ? message : "Invalid or expired code");
+      const message =
+        (err as ApiError)?.response?.data || "Invalid or expired code";
+      errorAlert(
+        typeof message === "string" ? message : "Invalid or expired code",
+      );
     } finally {
       setForgotBusy(false);
     }
@@ -147,11 +219,18 @@ export default function SignInPage() {
     }
     setForgotBusy(true);
     try {
-      await axiosInstance.post("/account/reset-password", { resetToken, newPassword });
+      await axiosInstance.post("/account/reset-password", {
+        resetToken,
+        newPassword,
+      });
       setForgotStep("done");
     } catch (err) {
-      const message = (err as ApiError)?.response?.data || "Failed to reset password. Please try again.";
-      errorAlert(typeof message === "string" ? message : "Failed to reset password");
+      const message =
+        (err as ApiError)?.response?.data ||
+        "Failed to reset password. Please try again.";
+      errorAlert(
+        typeof message === "string" ? message : "Failed to reset password",
+      );
     } finally {
       setForgotBusy(false);
     }
@@ -165,10 +244,23 @@ export default function SignInPage() {
       return;
     }
 
+    if (isLocked) {
+      errorAlert(
+        `Too many failed attempts. Try again in ${formatCountdown(remainingSeconds)}.`,
+      );
+      return;
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    localStorage.setItem(LAST_LOGIN_EMAIL_KEY, normalizedEmail);
+
     setLoading(true);
 
     try {
-      const res = await axiosInstance.post("/account/login", { email, password });
+      const res = await axiosInstance.post("/account/login", {
+        email,
+        password,
+      });
       const { account, token } = res.data;
 
       // Store token in localStorage (used by axios interceptor)
@@ -176,6 +268,8 @@ export default function SignInPage() {
 
       // Store user data in zustand persist store (saved to localStorage)
       setUser(account);
+      localStorage.removeItem(LAST_LOGIN_EMAIL_KEY);
+      setAttemptsRemaining(null);
 
       // Navigate by role returned from the server (never trust the client)
       if (account?.role === "super_admin") {
@@ -186,9 +280,30 @@ export default function SignInPage() {
         router.push("/pages/resident/home");
       }
     } catch (err) {
-      const message =
-        (err as ApiError)?.response?.data || (err as ApiError)?.message || "Login failed";
-      errorAlert(typeof message === "string" ? message : "Login failed");
+      const status = (err as ApiError)?.response?.status;
+      const data = (err as ApiError)?.response?.data;
+
+      if (
+        (status === 401 || status === 429) &&
+        data &&
+        typeof data === "object"
+      ) {
+        const payload = data as LoginErrorPayload;
+        if (payload.locked && payload.lockedUntil) {
+          applyLock(new Date(payload.lockedUntil).getTime());
+        }
+        if (typeof payload.attemptsRemaining === "number") {
+          setAttemptsRemaining(payload.attemptsRemaining);
+        }
+        const suffix =
+          !payload.locked && typeof payload.attemptsRemaining === "number"
+            ? ` (${payload.attemptsRemaining} attempt${payload.attemptsRemaining === 1 ? "" : "s"} remaining)`
+            : "";
+        errorAlert(`${payload.message || "Login failed"}${suffix}`);
+      } else {
+        const message = data || (err as ApiError)?.message || "Login failed";
+        errorAlert(typeof message === "string" ? message : "Login failed");
+      }
       setLoading(false);
     }
   };
@@ -240,10 +355,20 @@ export default function SignInPage() {
                 className="object-cover"
               />
             </div>
-            <h1 className="text-2xl font-bold text-slate-800">Welcome Back</h1>
+            <h1 className="text-2xl font-bold text-slate-800">
+              {adminMode ? "Super Admin Access" : "Welcome Back"}
+            </h1>
             <p className="mt-1 text-sm text-slate-500">
-              Sign in to continue to Barangay Rabon
+              {adminMode
+                ? "Emergency sign-in for barangay super administrators"
+                : "Sign in to continue to Barangay Rabon"}
             </p>
+            {adminMode && (
+              <div className="mt-3 flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
+                <ShieldAlert className="size-3.5" />
+                Restricted access
+              </div>
+            )}
           </div>
 
           {/* Form Card */}
@@ -251,7 +376,10 @@ export default function SignInPage() {
             <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6">
               {/* Email */}
               <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+                <Label
+                  htmlFor="email"
+                  className="text-sm font-medium text-gray-700"
+                >
                   Email Address
                 </Label>
                 <div className="relative">
@@ -262,6 +390,7 @@ export default function SignInPage() {
                     placeholder="juan@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    onBlur={(e) => checkLoginStatus(e.target.value)}
                     className="pl-10 h-11 bg-white/60 backdrop-blur-sm border-gray-200/50 focus:border-sky-400 focus:ring-sky-400/20 transition-all rounded-xl"
                     required
                   />
@@ -270,7 +399,10 @@ export default function SignInPage() {
 
               {/* Password */}
               <div className="space-y-1.5">
-                <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                <Label
+                  htmlFor="password"
+                  className="text-sm font-medium text-gray-700"
+                >
                   Password
                 </Label>
                 <div className="relative">
@@ -289,18 +421,50 @@ export default function SignInPage() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   >
-                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    {showPassword ? (
+                      <EyeOff className="size-4" />
+                    ) : (
+                      <Eye className="size-4" />
+                    )}
                   </button>
                 </div>
               </div>
 
+              {/* Lockout notice */}
+              {isLocked && (
+                <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+                  <Clock className="size-4 shrink-0" />
+                  <span>
+                    Too many failed attempts. Try again in{" "}
+                    <span className="font-semibold tabular-nums">
+                      {formatCountdown(remainingSeconds)}
+                    </span>
+                    .
+                  </span>
+                </div>
+              )}
+              {!isLocked &&
+                attemptsRemaining !== null &&
+                attemptsRemaining > 0 && (
+                  <p className="text-xs text-amber-600">
+                    {attemptsRemaining} attempt
+                    {attemptsRemaining === 1 ? "" : "s"} remaining before your
+                    account is temporarily locked.
+                  </p>
+                )}
+
               {/* Submit */}
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || isLocked}
                 className="w-full h-11 bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-medium rounded-xl shadow-lg shadow-sky-200/50 hover:shadow-emerald-200/50 transition-all duration-300 disabled:opacity-60"
               >
-                {loading ? (
+                {isLocked ? (
+                  <>
+                    <Clock className="size-4" />
+                    Locked
+                  </>
+                ) : loading ? (
                   <>
                     <Loader2 className="size-4 animate-spin" />
                     Signing in...
@@ -370,7 +534,10 @@ export default function SignInPage() {
               <div className="space-y-4 py-2">
                 {forgotMethod === "sms" ? (
                   <div className="space-y-1.5">
-                    <Label htmlFor="forgotContact" className="text-sm font-medium text-gray-700">
+                    <Label
+                      htmlFor="forgotContact"
+                      className="text-sm font-medium text-gray-700"
+                    >
                       Mobile Number
                     </Label>
                     <div className="relative">
@@ -381,7 +548,11 @@ export default function SignInPage() {
                         inputMode="numeric"
                         placeholder="09171234567"
                         value={forgotContact}
-                        onChange={(e) => setForgotContact(e.target.value.replace(/[^\d]/g, "").slice(0, 11))}
+                        onChange={(e) =>
+                          setForgotContact(
+                            e.target.value.replace(/[^\d]/g, "").slice(0, 11),
+                          )
+                        }
                         onKeyDown={(e) => e.key === "Enter" && handleSendCode()}
                         className="pl-10 h-11 border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
                       />
@@ -389,7 +560,10 @@ export default function SignInPage() {
                   </div>
                 ) : (
                   <div className="space-y-1.5">
-                    <Label htmlFor="forgotEmail" className="text-sm font-medium text-gray-700">
+                    <Label
+                      htmlFor="forgotEmail"
+                      className="text-sm font-medium text-gray-700"
+                    >
                       Email Address
                     </Label>
                     <div className="relative">
@@ -407,7 +581,9 @@ export default function SignInPage() {
                   </div>
                 )}
                 <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-gray-700">Send code via</Label>
+                  <Label className="text-sm font-medium text-gray-700">
+                    Send code via
+                  </Label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
@@ -441,7 +617,13 @@ export default function SignInPage() {
                 disabled={forgotBusy}
                 className="w-full h-11 bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-medium rounded-xl"
               >
-                {forgotBusy ? <Loader2 className="size-4 animate-spin" /> : <>Send Reset Code <ArrowRight className="size-4" /></>}
+                {forgotBusy ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <>
+                    Send Reset Code <ArrowRight className="size-4" />
+                  </>
+                )}
               </Button>
             </>
           )}
@@ -460,7 +642,10 @@ export default function SignInPage() {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-1.5 py-2">
-                <Label htmlFor="resetCode" className="text-sm font-medium text-gray-700">
+                <Label
+                  htmlFor="resetCode"
+                  className="text-sm font-medium text-gray-700"
+                >
                   6-Digit Code
                 </Label>
                 <Input
@@ -470,7 +655,11 @@ export default function SignInPage() {
                   maxLength={6}
                   placeholder="123456"
                   value={resetCode}
-                  onChange={(e) => setResetCode(e.target.value.replace(/[^\d]/g, "").slice(0, 6))}
+                  onChange={(e) =>
+                    setResetCode(
+                      e.target.value.replace(/[^\d]/g, "").slice(0, 6),
+                    )
+                  }
                   onKeyDown={(e) => e.key === "Enter" && handleVerifyCode()}
                   className="h-12 text-center text-2xl tracking-[0.5em] border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
                 />
@@ -480,7 +669,13 @@ export default function SignInPage() {
                 disabled={forgotBusy}
                 className="w-full h-11 bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-medium rounded-xl"
               >
-                {forgotBusy ? <Loader2 className="size-4 animate-spin" /> : <>Verify Code <ArrowRight className="size-4" /></>}
+                {forgotBusy ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <>
+                    Verify Code <ArrowRight className="size-4" />
+                  </>
+                )}
               </Button>
               <button
                 type="button"
@@ -500,11 +695,16 @@ export default function SignInPage() {
                   <Lock className="size-5 text-sky-600" />
                   Set a new password
                 </DialogTitle>
-                <DialogDescription>Choose a new password for your account.</DialogDescription>
+                <DialogDescription>
+                  Choose a new password for your account.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 py-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="newPassword" className="text-sm font-medium text-gray-700">
+                  <Label
+                    htmlFor="newPassword"
+                    className="text-sm font-medium text-gray-700"
+                  >
                     New Password
                   </Label>
                   <div className="relative">
@@ -522,16 +722,32 @@ export default function SignInPage() {
                       onClick={() => setShowNewPassword(!showNewPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
-                      {showNewPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      {showNewPassword ? (
+                        <EyeOff className="size-4" />
+                      ) : (
+                        <Eye className="size-4" />
+                      )}
                     </button>
                   </div>
                   <ul className="mt-2 space-y-1">
                     {[
-                      { label: "At least 8 characters", ok: newPassword.length >= 8 },
-                      { label: "Uppercase letter (A-Z)", ok: /[A-Z]/.test(newPassword) },
-                      { label: "Lowercase letter (a-z)", ok: /[a-z]/.test(newPassword) },
+                      {
+                        label: "At least 8 characters",
+                        ok: newPassword.length >= 8,
+                      },
+                      {
+                        label: "Uppercase letter (A-Z)",
+                        ok: /[A-Z]/.test(newPassword),
+                      },
+                      {
+                        label: "Lowercase letter (a-z)",
+                        ok: /[a-z]/.test(newPassword),
+                      },
                       { label: "Number (0-9)", ok: /[0-9]/.test(newPassword) },
-                      { label: "Special character (!@#$...)", ok: /[^A-Za-z0-9]/.test(newPassword) },
+                      {
+                        label: "Special character (!@#$...)",
+                        ok: /[^A-Za-z0-9]/.test(newPassword),
+                      },
                     ].map((check) => (
                       <li
                         key={check.label}
@@ -550,7 +766,10 @@ export default function SignInPage() {
                   </ul>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="confirmNewPassword" className="text-sm font-medium text-gray-700">
+                  <Label
+                    htmlFor="confirmNewPassword"
+                    className="text-sm font-medium text-gray-700"
+                  >
                     Confirm New Password
                   </Label>
                   <Input
@@ -559,7 +778,9 @@ export default function SignInPage() {
                     placeholder="Re-enter your new password"
                     value={confirmNewPassword}
                     onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleResetPassword()}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" && handleResetPassword()
+                    }
                     className="h-11 border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
                   />
                 </div>
@@ -569,7 +790,11 @@ export default function SignInPage() {
                 disabled={forgotBusy}
                 className="w-full h-11 bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-medium rounded-xl"
               >
-                {forgotBusy ? <Loader2 className="size-4 animate-spin" /> : "Reset Password"}
+                {forgotBusy ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  "Reset Password"
+                )}
               </Button>
             </>
           )}
@@ -582,7 +807,8 @@ export default function SignInPage() {
                   Password reset!
                 </DialogTitle>
                 <DialogDescription>
-                  Your password has been changed. You can now sign in with your new password.
+                  Your password has been changed. You can now sign in with your
+                  new password.
                 </DialogDescription>
               </DialogHeader>
               <Button
@@ -602,3 +828,10 @@ export default function SignInPage() {
   );
 }
 
+export default function SignInPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignInContent />
+    </Suspense>
+  );
+}

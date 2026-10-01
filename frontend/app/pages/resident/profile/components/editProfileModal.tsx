@@ -28,6 +28,7 @@ interface EditProfileModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentName: string;
+  currentNickname: string;
   currentAddress: string;
   currentContact: string;
   currentGender: string;
@@ -37,7 +38,7 @@ interface EditProfileModalProps {
   currentVoterStatus: string;
   currentHouseHoldNumber: string;
   onSave: (data: {
-    name: string;
+    nickname: string;
     address: string;
     contact: string;
     gender: string;
@@ -49,10 +50,13 @@ interface EditProfileModalProps {
   }) => Promise<void>;
 }
 
+const HOUSEHOLD_NUMBER_PATTERN = /^HH-(20|1\d|[1-9])$/i;
+
 export default function EditProfileModal({
   open,
   onOpenChange,
   currentName,
+  currentNickname,
   currentAddress,
   currentContact,
   currentGender,
@@ -63,7 +67,7 @@ export default function EditProfileModal({
   currentHouseHoldNumber,
   onSave,
 }: EditProfileModalProps) {
-  const [name, setName] = useState(currentName);
+  const [nickname, setNickname] = useState(currentNickname);
   const [address, setAddress] = useState(currentAddress);
   const [contact, setContact] = useState(currentContact);
   const [gender, setGender] = useState(currentGender);
@@ -77,6 +81,7 @@ export default function EditProfileModal({
   const snapshotKey = [
     open,
     currentName,
+    currentNickname,
     currentAddress,
     currentContact,
     currentGender,
@@ -89,7 +94,7 @@ export default function EditProfileModal({
   const [resolvedKey, setResolvedKey] = useState(snapshotKey);
   if (snapshotKey !== resolvedKey) {
     setResolvedKey(snapshotKey);
-    setName(currentName);
+    setNickname(currentNickname);
     setAddress(currentAddress);
     setContact(currentContact);
     setGender(currentGender);
@@ -100,13 +105,21 @@ export default function EditProfileModal({
     setHouseHoldNumber(currentHouseHoldNumber);
   }
 
+  const householdNumberChanged = houseHoldNumber.trim() !== currentHouseHoldNumber.trim();
+  const householdNumberError =
+    householdNumberChanged &&
+    houseHoldNumber.trim().toUpperCase() !== "N/A" &&
+    !HOUSEHOLD_NUMBER_PATTERN.test(houseHoldNumber.trim())
+      ? "Format must be HH-1 to HH-20 (e.g. HH-5)"
+      : "";
+
   const handleSubmit = async () => {
-    if (!name.trim()) return;
+    if (householdNumberError) return;
 
     setLoading(true);
     try {
       await onSave({
-        name: name.trim(),
+        nickname: nickname.trim(),
         address: address.trim(),
         contact: contact.trim(),
         gender,
@@ -125,7 +138,7 @@ export default function EditProfileModal({
   };
 
   const hasChanges =
-    name !== currentName ||
+    nickname !== currentNickname ||
     address !== currentAddress ||
     contact !== currentContact ||
     gender !== currentGender ||
@@ -165,17 +178,32 @@ export default function EditProfileModal({
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="edit-name" className="text-sm font-medium text-gray-700">
-                  Full Name
+                <Label className="text-sm font-medium text-gray-700">
+                  Official Name
+                </Label>
+                <div className="relative">
+                  <UserRound className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+                  <div className="pl-10 h-10 flex items-center rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-600">
+                    {currentName}
+                  </div>
+                </div>
+                <p className="text-xs text-gray-400">
+                  Your official name can only be changed by barangay staff.
+                </p>
+              </div>
+
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="edit-nickname" className="text-sm font-medium text-gray-700">
+                  Nickname
                 </Label>
                 <div className="relative">
                   <UserRound className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
                   <Input
-                    id="edit-name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    id="edit-nickname"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
                     className="pl-10 h-10 border-gray-200 focus:border-sky-400"
-                    placeholder="Your full name"
+                    placeholder="What should we call you?"
                   />
                 </div>
               </div>
@@ -272,10 +300,17 @@ export default function EditProfileModal({
                     id="edit-houseHoldNumber"
                     value={houseHoldNumber}
                     onChange={(e) => setHouseHoldNumber(e.target.value)}
-                    className="pl-10 h-10 border-gray-200 focus:border-sky-400"
-                    placeholder="e.g. HH-001"
+                    className={`pl-10 h-10 ${
+                      householdNumberError
+                        ? "border-red-400 focus:border-red-400"
+                        : "border-gray-200 focus:border-sky-400"
+                    }`}
+                    placeholder="e.g. HH-5 (max HH-20)"
                   />
                 </div>
+                {householdNumberError && (
+                  <p className="text-xs text-red-500">{householdNumberError}</p>
+                )}
               </div>
             </div>
           </div>
@@ -359,7 +394,7 @@ export default function EditProfileModal({
           <Button
             type="button"
             onClick={handleSubmit}
-            disabled={loading || !name.trim() || !hasChanges}
+            disabled={loading || !hasChanges || !!householdNumberError}
             className="h-9 bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-medium shadow-lg shadow-sky-200/50 transition-all disabled:opacity-50"
           >
             {loading ? (

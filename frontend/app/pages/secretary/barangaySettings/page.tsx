@@ -15,6 +15,7 @@ import {
   Landmark,
   ChevronRight,
   DatabaseBackup,
+  CalendarClock,
 } from "lucide-react";
 
 const SECTIONS = [
@@ -52,6 +53,13 @@ const SECTIONS = [
     description:
       "Configure SMS notifications for document requests, status updates, and payments.",
     icon: MessageSquare,
+  },
+  {
+    href: "/pages/secretary/barangaySettings/workSchedule",
+    label: "Work Request Schedule",
+    description:
+      "Configure the bookable time slots, per-slot capacity, working days, and booking window for resident work requests.",
+    icon: CalendarClock,
   },
   {
     href: "/pages/secretary/barangaySettings/account",

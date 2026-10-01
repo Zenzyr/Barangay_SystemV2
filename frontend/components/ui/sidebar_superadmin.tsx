@@ -17,6 +17,7 @@ import {
   X,
   ChevronRight,
   ShieldCheck,
+  FileText,
 } from "lucide-react"
 import { useState } from "react"
 import type { LucideIcon } from "lucide-react"
@@ -55,6 +56,7 @@ const navigationGroups: NavGroup[] = [
       { title: "Residents", url: "/pages/secretary/residentCensus", icon: UserRoundCheck },
       { title: "Officials", url: "/pages/secretary/barangaySettings/officials", icon: Landmark },
       { title: "Puroks", url: "/pages/secretary/barangaySettings/puroks", icon: MapPin },
+      { title: "Document Templates", url: "/pages/secretary/document-templates", icon: FileText },
       { title: "Settings", url: "/pages/secretary/barangaySettings", icon: Settings2 },
     ],
   },

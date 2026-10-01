@@ -20,6 +20,9 @@ import {
   MapPin,
   ScrollText,
   Settings,
+  ReceiptText,
+  FileBarChart,
+  Hammer,
   type LucideIcon,
 } from "lucide-react"
 import { useState } from "react"
@@ -49,6 +52,9 @@ const navigationItems: NavItem[] = [
   { title: "Verify Resident", url: "/pages/secretary/verifyResident", icon: UserPlus2 },
   { title: "Document Requests", url: "/pages/secretary/documentRequest", icon: FileText },
   { title: "Request History", url: "/pages/secretary/requestHistory", icon: History },
+  { title: "Transactions", url: "/pages/secretary/transactions", icon: ReceiptText },
+  { title: "Reports", url: "/pages/secretary/reports", icon: FileBarChart },
+  { title: "Work Requests", url: "/pages/secretary/workRequests", icon: Hammer },
   { title: "Resident Census", url: "/pages/secretary/residentCensus", icon: ClipboardList },
   { title: "Resident Skills", url: "/pages/secretary/residentSkills", icon: Award },
   {

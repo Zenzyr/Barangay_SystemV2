@@ -28,9 +28,7 @@ export default function Home() {
     skilledNeighbors: null,
   });
 
-
   useEffect(() => {
-
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
 
@@ -51,10 +49,11 @@ export default function Home() {
     <div className="flex flex-col min-h-screen font-sans">
       {/* ── Navigation ── */}
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+          scrolled
             ? "bg-white/80 backdrop-blur-xl shadow-lg shadow-sky-900/5"
             : "bg-white/20 backdrop-blur-md border-b border-white/10 shadow-sm"
-          }`}
+        }`}
       >
         <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
           {/* Logo + Brand */}
@@ -95,7 +94,6 @@ export default function Home() {
             </button>
           </nav>
 
-
           {/* Auth Buttons */}
           <div className="flex items-center gap-3">
             <Link href="/guest/signIn">
@@ -135,13 +133,13 @@ export default function Home() {
 
                 <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-tight text-white/95 [text-shadow:0_2px_4px_rgba(0,0,0,0.3)]">
                   <span className="text-white">Welcome to</span>{" "}
-                  <span className="text-emerald-300">
-                    Barangay Rabon
-                  </span>
+                  <span className="text-emerald-300">Barangay Rabon</span>
                 </h1>
 
                 <p className="text-lg text-slate-100 leading-relaxed max-w-lg [text-shadow:0_1px_2px_rgba(0,0,0,0.3)]">
-                  Your all-in-one community hub. Request barangay documents, discover local skills, and connect with your neighbors — all in one place.
+                  Your all-in-one community hub. Request barangay documents,
+                  discover local skills, and connect with your neighbors — all
+                  in one place.
                 </p>
 
                 {/* CTA Buttons */}
@@ -262,8 +260,12 @@ export default function Home() {
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-sky-500 to-emerald-500 flex items-center justify-center mb-5 shadow-md shadow-sky-200/50">
                   <s.icon className="w-5 h-5 text-white" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-2">{s.title}</h3>
-                <p className="text-sm text-slate-500 leading-relaxed">{s.desc}</p>
+                <h3 className="text-lg font-bold text-slate-800 mb-2">
+                  {s.title}
+                </h3>
+                <p className="text-sm text-slate-500 leading-relaxed">
+                  {s.desc}
+                </p>
               </div>
             ))}
           </div>
@@ -283,8 +285,7 @@ export default function Home() {
               Everything You Need in One Portal
             </h2>
             <p className="mt-4 text-slate-500 text-lg">
-              We bring essential barangay services directly to your
-              fingertips.
+              We bring essential barangay services directly to your fingertips.
             </p>
           </div>
 
@@ -301,9 +302,8 @@ export default function Home() {
                   Document Requests
                 </h3>
                 <p className="text-slate-500 leading-relaxed mb-5">
-                  Request barangay clearances, certificates, and other
-                  official documents online. No more long queues — submit
-                  from home.
+                  Request barangay clearances, certificates, and other official
+                  documents online. No more long queues — submit from home.
                 </p>
                 <ul className="space-y-2 text-sm text-slate-500">
                   <li className="flex items-center gap-2">
@@ -333,8 +333,8 @@ export default function Home() {
                   Neighbor Skills & Hiring
                 </h3>
                 <p className="text-slate-500 leading-relaxed mb-5">
-                  Discover the talents within your community. Hire neighbors
-                  for plumbing, tutoring, gardening, events, and more.
+                  Discover the talents within your community. Hire neighbors for
+                  plumbing, tutoring, gardening, events, and more.
                 </p>
                 <ul className="space-y-2 text-sm text-slate-500">
                   <li className="flex items-center gap-2">
@@ -362,9 +362,18 @@ export default function Home() {
         <div className="relative max-w-7xl mx-auto px-6 w-full">
           <div className="flex flex-wrap justify-center items-center gap-6 md:gap-8">
             {[
-              { label: "Active Residents", value: stats.activeResidents ?? "—" },
-              { label: "Documents Processed", value: stats.processedDocuments ?? "—" },
-              { label: "Skilled Neighbors", value: stats.skilledNeighbors ?? "—" },
+              {
+                label: "Active Residents",
+                value: stats.activeResidents ?? "—",
+              },
+              {
+                label: "Documents Processed",
+                value: stats.processedDocuments ?? "—",
+              },
+              {
+                label: "Skilled Neighbors",
+                value: stats.skilledNeighbors ?? "—",
+              },
             ].map((stat) => (
               <div
                 key={stat.label}
@@ -422,7 +431,10 @@ export default function Home() {
       </section>
 
       {/* ── Footer / Contact ── */}
-      <footer id="contact" className="scroll-mt-24 bg-slate-900 text-slate-400 py-16">
+      <footer
+        id="contact"
+        className="scroll-mt-24 bg-slate-900 text-slate-400 py-16"
+      >
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid md:grid-cols-4 gap-10">
             {/* Brand */}
@@ -442,8 +454,8 @@ export default function Home() {
                 </span>
               </div>
               <p className="text-sm leading-relaxed">
-                Your all-in-one digital portal for barangay services,
-                community connection, and local commerce.
+                Your all-in-one digital portal for barangay services, community
+                connection, and local commerce.
               </p>
               <div className="flex items-center gap-3 pt-1">
                 {[
@@ -500,7 +512,9 @@ export default function Home() {
               <ul className="space-y-2.5 text-sm">
                 <li>Barangay Hall</li>
                 <li>Rabon, Rosario, La Union</li>
-                <li>Visit the Barangay Hall during office hours for inquiries.</li>
+                <li>
+                  Visit the Barangay Hall during office hours for inquiries.
+                </li>
               </ul>
             </div>
 
@@ -527,14 +541,40 @@ export default function Home() {
           </div>
 
           <div className="mt-12 pt-8 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
-            <p>© {new Date().getFullYear()} Barangay Rabon. All rights reserved.</p>
-            <div className="flex items-center gap-6">
-              <a href="/privacy-policy" className="hover:text-sky-300 transition-colors">
+            <p>
+              © {new Date().getFullYear()} Barangay Rabon. All rights reserved.
+            </p>
+
+            <div className="flex flex-wrap items-center justify-center gap-6">
+              <a
+                href="/privacy-policy"
+                className="hover:text-sky-300 transition-colors"
+              >
                 Privacy Policy
               </a>
-              <a href="/terms-of-service" className="hover:text-sky-300 transition-colors">
+
+              <a
+                href="/terms-of-service"
+                className="hover:text-sky-300 transition-colors"
+              >
                 Terms of Service
               </a>
+
+              <a
+                href="mailto:developer@example.com"
+                className="hover:text-sky-300 transition-colors"
+              >
+                Contact Developer
+              </a>
+
+              <Link
+                href="/guest/signIn?mode=admin"
+                className="flex items-center gap-1.5 text-slate-500 hover:text-slate-300 transition-colors"
+                title="Super Admin emergency access"
+              >
+                <Shield className="size-3.5" />
+                Admin Access
+              </Link>
             </div>
           </div>
         </div>

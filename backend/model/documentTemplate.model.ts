@@ -79,6 +79,11 @@ export interface IDocumentTemplate {
   isDefault: boolean;
   version: number;
 
+  pendingFee?: number;
+  pendingFeeProposedBy?: Schema.Types.ObjectId;
+  pendingFeeProposedAt?: Date;
+  priceApprovalStatus?: "none" | "pending" | "approved" | "rejected";
+
   page: {
     size: "A4" | "LETTER";
     orientation: "portrait" | "landscape";
@@ -169,6 +174,20 @@ const DocumentTemplateSchema = new Schema(
     status: { type: String, enum: ["active", "inactive"], default: "active" },
     isDefault: { type: Boolean, default: false },
     version: { type: Number, default: 1 },
+
+    // ── Price change approval workflow ──────────────────────────
+    // A secretary's fee change does not take effect immediately — it is
+    // staged here until a super admin approves it. `fee` above always
+    // reflects the currently ACTIVE price. Super admin fee edits bypass this
+    // (they are the approver) and apply directly.
+    pendingFee: { type: Number, required: false, min: 0 },
+    pendingFeeProposedBy: { type: Schema.Types.ObjectId, ref: "Accounts", required: false },
+    pendingFeeProposedAt: { type: Date, required: false },
+    priceApprovalStatus: {
+      type: String,
+      enum: ["none", "pending", "approved", "rejected"],
+      default: "none",
+    },
 
     page: {
       size: { type: String, enum: ["A4", "LETTER"], default: "A4" },

@@ -34,6 +34,14 @@ export class WorkService {
     ).populate("client", "-password").populate("worker", "-password");
   }
 
+  static async updateStatusIf(id: string, currentStatus: string, status: string) {
+    return await WorkModel.findOneAndUpdate(
+      { _id: id, status: currentStatus },
+      { status },
+      { new: true }
+    ).populate("client", "-password").populate("worker", "-password");
+  }
+
   static async getByClient(clientId: string) {
     const works = WorkModel.find({ client: clientId }).populate("client", "-password").populate("worker", "-password").sort({ _id: -1 });
     return works

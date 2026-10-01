@@ -148,10 +148,10 @@ export default function ContractsPage() {
             <p className="text-sm text-gray-500 mt-0.5">Track active and completed services, and leave reviews once done</p>
           </div>
         </div>
-        <Link href="/pages/resident/serviceRequests">
+        <Link href="/pages/resident/workRequest">
           <Button variant="outline" className="h-9 text-sm border-gray-200 gap-1.5">
             <ListChecks className="size-4" />
-            Service Requests
+            Work Requests
           </Button>
         </Link>
       </div>

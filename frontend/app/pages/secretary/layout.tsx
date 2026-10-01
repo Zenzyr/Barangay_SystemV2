@@ -6,6 +6,7 @@ import useUserStore from "@/app/store/useUserStore";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { SidebarSecretary } from "@/components/ui/sidebar_secretary";
 import { SidebarSuperAdmin } from "@/components/ui/sidebar_superadmin";
+import AccountSuspended from "@/components/ui/accountSuspended";
 
 const STAFF_ROLES = ["secretary", "super_admin"];
 
@@ -33,6 +34,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (!_hasHydrated || !user || !STAFF_ROLES.includes(user.role || "")) {
       return null;
     }
+
+    if (user.isSuspended) return <AccountSuspended />;
 
     const Sidebar = user.role === "super_admin" ? SidebarSuperAdmin : SidebarSecretary;
 

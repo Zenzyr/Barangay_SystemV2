@@ -1,11 +1,24 @@
-import mongoose, { Schema } from 'mongoose';
+import mongoose, { Schema } from "mongoose";
 
-
-const AccountSchema = new Schema({
+const AccountSchema = new Schema(
+  {
     profile: { type: String, required: false, default: "" },
     name: { type: String, required: true, trim: true, maxlength: 100 },
+    nickname: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 100,
+      default: "",
+    },
     contact: { type: String, required: false, default: "" },
-    address: { type: String, required: false, trim: true, maxlength: 255, default: "" },
+    address: {
+      type: String,
+      required: false,
+      trim: true,
+      maxlength: 255,
+      default: "",
+    },
     email: {
       type: String,
       required: true,
@@ -22,11 +35,24 @@ const AccountSchema = new Schema({
     purok: { type: String, required: false, default: "" },
     voterStatus: { type: String, required: false, default: "" },
     houseHoldNumber: { type: String, required: false, default: "" },
-    idType: { type: String, enum: ["national_id", "voters_id"], required: false },
+    idType: {
+      type: String,
+      enum: ["national_id", "voters_id"],
+      required: false,
+    },
 
     password: { type: String, required: true },
-    status :  { type: String, required: true },
-    role: { type: String, enum: ["resident", "secretary", "super_admin"], default: "resident" },
+    status: { type: String, required: true },
+    role: {
+      type: String,
+      enum: ["resident", "secretary", "super_admin"],
+      default: "resident",
+    },
+
+    isSuspended: { type: Boolean, required: false, default: false },
+    suspendedAt: { type: Date, required: false },
+    suspendedBy: { type: String, required: false, default: "" },
+    suspensionReason: { type: String, required: false, default: "" },
     // Email-ownership verification. register() only sets this true after the
     // applicant proved control of the inbox with a valid, non-expired OTP;
     // login refuses accounts explicitly marked false.
@@ -45,7 +71,11 @@ const AccountSchema = new Schema({
     // Link to the ResidentCensus record for this person. Set automatically
     // when registration matches an existing census entry, so the census and
     // the account stay in sync (edits on one side update the other).
-    censusId: { type: Schema.Types.ObjectId, ref: "ResidentCensus", required: false },
+    censusId: {
+      type: Schema.Types.ObjectId,
+      ref: "ResidentCensus",
+      required: false,
+    },
     // Set when registration partially matches an existing record; the
     // verifying clerk reviews it before approval. Operational flag only.
     possibleDuplicate: {
@@ -55,44 +85,58 @@ const AccountSchema = new Schema({
     },
 
     // ── Service provider marketplace fields ──────────────────────
-    availability: { type: String, enum: ["AVAILABLE", "BUSY", "NOT_AVAILABLE"], default: "AVAILABLE" },
+    availability: {
+      type: String,
+      enum: ["AVAILABLE", "BUSY", "NOT_AVAILABLE"],
+      default: "AVAILABLE",
+    },
     providerLocation: { type: String, required: false, default: "" },
     providerDescription: { type: String, required: false, default: "" },
     completedServices: { type: Number, required: false, default: 0 },
-    idImg : {
-        idFront  :  { type: String, required: false, default: "" },
-        idBack :  { type: String, required: false, default: "" },
-        idSelfie :  { type: String, required: false, default: "" },
+    idImg: {
+      idFront: { type: String, required: false, default: "" },
+      idBack: { type: String, required: false, default: "" },
+      idSelfie: { type: String, required: false, default: "" },
     },
-    skills : [{
-        skill  :  { type: String, required: true },
-        experience :  { type: Number, required: true },
-        proficiency :  { type: String, required: true },
-        serviceTypes : [{ type: String }],
-        availability : { type: String, enum: ["available", "busy"], default: "available" },
-        services : [{ type: String }],
-    }],
-    reviews : [{
-        user :   { type: String, required: true },
-        userProfile : { type: String, required: true },
-        star  :  { type: Number, required: true },
-        skill :  { type: String, required: true },
-        message :  { type: String, required: true },
-    }],
-}, {
+    skills: [
+      {
+        skill: { type: String, required: true },
+        experience: { type: Number, required: true },
+        proficiency: { type: String, required: true },
+        serviceTypes: [{ type: String }],
+        availability: {
+          type: String,
+          enum: ["available", "busy"],
+          default: "available",
+        },
+        services: [{ type: String }],
+      },
+    ],
+    reviews: [
+      {
+        user: { type: String, required: true },
+        userProfile: { type: String, required: true },
+        star: { type: Number, required: true },
+        skill: { type: String, required: true },
+        message: { type: String, required: true },
+      },
+    ],
+  },
+  {
     legalConsent: {
       privacyPolicyVersion: { type: String, required: false },
       termsOfServiceVersion: { type: String, required: false },
       acceptedAt: { type: Date, required: false },
     },
 
-  // Creation timestamp for the verification register (new registrations).
-  timestamps: true,
-});
+    // Creation timestamp for the verification register (new registrations).
+    timestamps: true,
+  },
+);
 
 // Race-safe ONE-PERSON-ONE-ACCOUNT backstop (skip docs without a hash).
 AccountSchema.index({ identityHash: 1 }, { unique: true, sparse: true });
 // Fast lookups when syncing a census record back to its linked account.
 AccountSchema.index({ censusId: 1 });
 
-export default mongoose.model('Accounts', AccountSchema)
+export default mongoose.model("Accounts", AccountSchema);

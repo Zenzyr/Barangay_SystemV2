@@ -61,12 +61,25 @@ export interface smsSettings {
   notifyOnPayment: boolean;
 }
 
+export interface workScheduleSlotConfig {
+  startTime: string;
+  endTime: string;
+}
+
+export interface workScheduleSettings {
+  slots: workScheduleSlotConfig[];
+  slotCapacity: number;
+  bookingWindowDays: number;
+  workingDays: number[];
+}
+
 export interface barangaySettings {
   _id: string;
   barangay: barangayInfo;
   documents: documentSettings;
   externalRecipients: externalRecipient[];
   sms: smsSettings;
+  workSchedule?: workScheduleSettings;
   updatedAt: string;
 }
 

@@ -2,7 +2,7 @@ import { Response } from "express";
 import { AuthRequest } from "../types/request.type";
 import { ResidentCensusService } from "../services/residentCensus.service";
 import { residentCensusInterfaceInput } from "../types/residentCensus.type";
-import { isObjectId, isName, isNonEmptyString } from "../utils/validation";
+import { isObjectId, isName, isNonEmptyString, householdNumberError } from "../utils/validation";
 import { matchPerson } from "../utils/duplicateCheck";
 import {
   normalizeCensusSex,
@@ -52,6 +52,13 @@ export class ResidentCensusController {
       if (!ageOk) {
         response.status(400).send("Age must be a number between 0 and 120, or 'N/A'");
         return;
+      }
+      if (data.householdNumber !== undefined) {
+        const householdError = householdNumberError(data.householdNumber);
+        if (householdError) {
+          response.status(400).send(householdError);
+          return;
+        }
       }
 
       // ── Duplicate guard ─────────────────────────────────────────
@@ -141,6 +148,17 @@ export class ResidentCensusController {
           (typeof data.age === "number" && data.age >= 0 && data.age <= 120);
         if (!ageOk) {
           response.status(400).send("Age must be a number between 0 and 120, or 'N/A'");
+          return;
+        }
+      }
+      if (data.householdNumber !== undefined) {
+        const existing = await ResidentCensusService.get(id);
+        const householdError = householdNumberError(
+          data.householdNumber,
+          existing?.householdNumber,
+        );
+        if (householdError) {
+          response.status(400).send(householdError);
           return;
         }
       }
