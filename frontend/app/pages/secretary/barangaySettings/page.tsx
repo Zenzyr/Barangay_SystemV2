@@ -68,13 +68,13 @@ const SECTIONS = [
       "Update your secretary profile, contact details, and password.",
     icon: UserCog,
   },
-  {
-    href: "/pages/secretary/document-templates",
-    label: "Document Templates",
-    description:
-      "Design document layouts, dynamic fields, fees, and previews for every barangay certificate.",
-    icon: FileText,
-  },
+  // {
+  //   href: "/pages/secretary/document-templates",
+  //   label: "Document Templates",
+  //   description:
+  //     "Design document layouts, dynamic fields, fees, and previews for every barangay certificate.",
+  //   icon: FileText,
+  // },
   {
     href: "/pages/secretary/barangaySettings/audit",
     label: "Audit Trail",

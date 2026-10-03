@@ -148,7 +148,7 @@ export class AccountService {
   }
 
   static async getAccountsForAI() {
-    const accounts = await AccountModel.find()
+    const accounts = await AccountModel.find({ role: "resident", status: "approved", isSuspended: { $ne: true } })
       .select("name email contact skills")
       .lean();
 

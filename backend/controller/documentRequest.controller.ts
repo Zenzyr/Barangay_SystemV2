@@ -255,9 +255,19 @@ export class DocumentRequestController {
         response.status(400).send("Invalid document request id");
         return;
       }
-      const document = await DocumentRequestService.get(id);
+      const account = request.account;
+      if (!account) {
+        response.status(401).send("Authentication required");
+        return;
+      }
+      const document: any = await DocumentRequestService.get(id);
       if (!document) {
         response.status(404).send("Document request not found");
+        return;
+      }
+      const ownerId = document.resident?._id ? String(document.resident._id) : document.resident ? String(document.resident) : null;
+      if (!isStaffRole(account.role) && ownerId !== account._id.toString()) {
+        response.status(403).send("You can only view your own document requests");
         return;
       }
       response.send(document);
@@ -271,6 +281,11 @@ export class DocumentRequestController {
       const { residentId } = request.params;
       if (!isObjectId(residentId)) {
         response.status(400).send("Invalid resident id");
+        return;
+      }
+      const account = request.account;
+      if (!account || (!isStaffRole(account.role) && account._id.toString() !== residentId)) {
+        response.status(403).send("You can only view your own document requests");
         return;
       }
       const documents = await DocumentRequestService.getByResident(residentId);

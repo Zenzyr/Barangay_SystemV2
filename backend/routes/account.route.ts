@@ -18,10 +18,9 @@ const staffOnly = [
 ];
 const superAdminOnly = [authenticateJWT, requireRoles(ROLES.SUPER_ADMIN)];
 
-// AI use endpoints stay available to signed-in/guest flows (resident chatbot).
 route.post("/book", authenticateJWT, handler(AccountController.bookWork));
-route.post("/ai", handler(AccountController.aiChatBot));
-route.post("/ai-suggestion", handler(AccountController.aiSuggestions));
+route.post("/ai", authenticateJWT, handler(AccountController.aiChatBot));
+route.post("/ai-suggestion", ...staffOnly, handler(AccountController.aiSuggestions));
 // Pre-registration email-ownership flow. Public: the applicant has no
 // account yet. OTPs are hashed, expiring, attempt-limited and rate-limited.
 route.post("/send-email-otp", handler(AccountController.sendEmailOtp));

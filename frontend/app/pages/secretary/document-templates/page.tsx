@@ -13,11 +13,39 @@ import {
   rejectTemplatePrice,
   type DocumentTemplate,
 } from "@/app/utils/documentTemplateService";
-import { Plus, Search, Edit, Eye, Copy, Trash2, Sparkles, RefreshCcw, X, FileType, Gavel, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Edit,
+  Eye,
+  Copy,
+  Trash2,
+  Sparkles,
+  RefreshCcw,
+  X,
+  FileType,
+  Gavel,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { successAlert, errorAlert, confirmAlert } from "@/app/utils/alert";
@@ -53,7 +81,9 @@ function PriceApprovalsPanel() {
   });
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["document-template-pending-approvals"] });
+    queryClient.invalidateQueries({
+      queryKey: ["document-template-pending-approvals"],
+    });
     queryClient.invalidateQueries({ queryKey: ["document-templates"] });
   };
 
@@ -87,16 +117,27 @@ function PriceApprovalsPanel() {
         Pending Price Approvals ({pending.length})
       </p>
       {pending.map((t) => {
-        const proposer = typeof t.pendingFeeProposedBy === "object" ? t.pendingFeeProposedBy?.name : undefined;
+        const proposer =
+          typeof t.pendingFeeProposedBy === "object"
+            ? t.pendingFeeProposedBy?.name
+            : undefined;
         const busy = approveMutation.isPending || rejectMutation.isPending;
         return (
-          <div key={t._id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white border border-amber-100 p-3">
+          <div
+            key={t._id}
+            className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white border border-amber-100 p-3"
+          >
             <div className="min-w-0">
               <p className="font-medium text-slate-800 truncate">{t.name}</p>
               <p className="text-xs text-slate-500">
-                {money(t.fee, t.currency)} → <span className="font-semibold text-amber-700">{money(t.pendingFee, t.currency)}</span>
+                {money(t.fee, t.currency)} →{" "}
+                <span className="font-semibold text-amber-700">
+                  {money(t.pendingFee, t.currency)}
+                </span>
                 {proposer ? ` · proposed by ${proposer}` : ""}
-                {t.pendingFeeProposedAt ? ` · ${new Date(t.pendingFeeProposedAt).toLocaleString()}` : ""}
+                {t.pendingFeeProposedAt
+                  ? ` · ${new Date(t.pendingFeeProposedAt).toLocaleString()}`
+                  : ""}
               </p>
             </div>
             <div className="flex gap-2 shrink-0">
@@ -116,7 +157,11 @@ function PriceApprovalsPanel() {
                 disabled={busy}
                 onClick={() => approveMutation.mutate(t._id)}
               >
-                {busy ? <Loader2 className="size-3 animate-spin" /> : <CheckCircle2 className="size-3" />}
+                {busy ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="size-3" />
+                )}
                 Approve
               </Button>
             </div>
@@ -132,7 +177,11 @@ export default function Page() {
   const { user } = useUserStore();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [preview, setPreview] = useState<{ id: string; name: string; url: string } | null>(null);
+  const [preview, setPreview] = useState<{
+    id: string;
+    name: string;
+    url: string;
+  } | null>(null);
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["document-templates"],
@@ -191,9 +240,13 @@ export default function Page() {
   }, [templates, search, statusFilter]);
 
   const handleDelete = (template: DocumentTemplate) => {
-    confirmAlert(`Permanently delete "${template.name}"? This cannot be undone.`, "Delete", () => {
-      deleteMutation.mutate(template._id);
-    });
+    confirmAlert(
+      `Permanently delete "${template.name}"? This cannot be undone.`,
+      "Delete",
+      () => {
+        deleteMutation.mutate(template._id);
+      },
+    );
   };
 
   const handleDuplicate = (template: DocumentTemplate) => {
@@ -204,10 +257,11 @@ export default function Page() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
         <div>
-<BackButton />
+          <BackButton />
           <h1 className="text-2xl font-bold">Document Templates</h1>
           <p className="text-sm text-muted-foreground">
-            Visual templates drive document layout, fees, and PDF generation for every barangay document.
+            Visual templates drive document layout, fees, and PDF generation for
+            every barangay document.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -217,7 +271,12 @@ export default function Page() {
               DOCX Templates
             </Link>
           </Button>
-          <Button variant="outline" size="sm" onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => seedMutation.mutate()}
+            disabled={seedMutation.isPending}
+          >
             <Sparkles className="size-4 mr-1" />
             {seedMutation.isPending ? "Seeding..." : "Seed Defaults"}
           </Button>
@@ -252,7 +311,9 @@ export default function Page() {
             <SelectItem value="inactive">Inactive</SelectItem>
           </SelectContent>
         </Select>
-        <span className="text-sm text-muted-foreground">{filtered.length} template(s)</span>
+        <span className="text-sm text-muted-foreground">
+          {filtered.length} template(s)
+        </span>
       </div>
 
       {isLoading ? (
@@ -265,7 +326,9 @@ export default function Page() {
         <div className="py-16 text-center border rounded-xl bg-white">
           <RefreshCcw className="size-8 mx-auto mb-2 text-muted-foreground" />
           <p className="text-muted-foreground">
-            {templates.length === 0 ? "No templates yet. Click \"Seed Defaults\" or create one." : "No templates match your search."}
+            {templates.length === 0
+              ? 'No templates yet. Click "Seed Defaults" or create one.'
+              : "No templates match your search."}
           </p>
         </div>
       ) : (
@@ -283,9 +346,10 @@ export default function Page() {
                       {template.name}
                     </h3>
                     <p className="mt-1 text-xs text-slate-500 uppercase tracking-wider font-medium">
-                      {DOCUMENT_NAMES[template.documentType] || template.documentType}
-                      <span className="mx-2 text-slate-300">|</span>
-                      v{template.version}
+                      {DOCUMENT_NAMES[template.documentType] ||
+                        template.documentType}
+                      <span className="mx-2 text-slate-300">|</span>v
+                      {template.version}
                     </p>
                   </div>
                   <span
@@ -298,7 +362,8 @@ export default function Page() {
                 </div>
 
                 <p className="text-sm text-slate-600 line-clamp-3 flex-1 leading-relaxed">
-                  {template.description || "No description provided for this document template."}
+                  {template.description ||
+                    "No description provided for this document template."}
                 </p>
 
                 <div className="border-t border-slate-100 pt-4 mt-auto">
@@ -308,7 +373,8 @@ export default function Page() {
                     </span>
                     {template.priceApprovalStatus === "pending" && (
                       <span className="font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                        Pending: {money(template.pendingFee ?? 0, template.currency)}
+                        Pending:{" "}
+                        {money(template.pendingFee ?? 0, template.currency)}
                       </span>
                     )}
                     <span>
@@ -320,23 +386,49 @@ export default function Page() {
                       pt
                     </span>
                     <span>
-                      {template.contentFormat === "tiptap" ? "Rich document" : `${template.elements.length} element(s)`}
+                      {template.contentFormat === "tiptap"
+                        ? "Rich document"
+                        : `${template.elements.length} element(s)`}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <Button asChild variant="outline" size="sm" className="flex-1">
-                      <Link href={`/pages/secretary/document-templates/edit/${template._id}`}>
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                    >
+                      <Link
+                        href={`/pages/secretary/document-templates/edit/${template._id}`}
+                      >
                         <Edit className="size-3.5 mr-1.5" /> Edit
                       </Link>
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handlePreview(template)} title="Preview">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handlePreview(template)}
+                      title="Preview"
+                    >
                       <Eye className="size-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDuplicate(template)} disabled={duplicateMutation.isPending} title="Duplicate">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDuplicate(template)}
+                      disabled={duplicateMutation.isPending}
+                      title="Duplicate"
+                    >
                       <Copy className="size-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="text-slate-500 hover:text-red-600 hover:bg-red-50" onClick={() => handleDelete(template)} title="Delete">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-slate-500 hover:text-red-600 hover:bg-red-50"
+                      onClick={() => handleDelete(template)}
+                      title="Delete"
+                    >
                       <Trash2 className="size-4" />
                     </Button>
                   </div>
@@ -347,14 +439,23 @@ export default function Page() {
         </div>
       )}
 
-      <Dialog open={!!preview} onOpenChange={(open) => !open && setPreview(null)}>
+      <Dialog
+        open={!!preview}
+        onOpenChange={(open) => !open && setPreview(null)}
+      >
         <DialogContent className="sm:max-w-[720px] h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Preview — {preview?.name}</DialogTitle>
-            <DialogDescription>Sample data preview rendered by the template engine.</DialogDescription>
+            <DialogDescription>
+              Sample data preview rendered by the template engine.
+            </DialogDescription>
           </DialogHeader>
           {preview ? (
-            <iframe src={preview.url} className="w-full flex-1 rounded-lg border bg-white" title="Template preview" />
+            <iframe
+              src={preview.url}
+              className="w-full flex-1 rounded-lg border bg-white"
+              title="Template preview"
+            />
           ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setPreview(null)}>
