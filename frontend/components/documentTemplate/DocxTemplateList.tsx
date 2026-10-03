@@ -3,12 +3,11 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Copy, Download, Edit, Eye, FileText, Loader2, RefreshCcw, Search, Sparkles, Trash2 } from "lucide-react";
+import { Copy, Download, Edit, Eye, FileText, Loader2, RefreshCcw, Search, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { successAlert, errorAlert, confirmAlert } from "@/app/utils/alert";
-import useUserStore from "@/app/store/useUserStore";
 import {
   deleteDocxTemplate,
   downloadDocxTemplate,
@@ -19,8 +18,6 @@ import {
 } from "@/app/utils/docxTemplateService";
 import type { DocxTemplateSummary } from "@/app/types/docxTemplate.type";
 
-const EDITOR_BASE = "/pages/secretary/document-templates/docx";
-
 const formatDate = (iso?: string) =>
   iso
     ? new Date(iso).toLocaleString("en-PH", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })
@@ -29,9 +26,8 @@ const formatDate = (iso?: string) =>
 const authorName = (author: DocxTemplateSummary["createdBy"]) =>
   author && typeof author === "object" ? author.name : "—";
 
-export default function Page() {
+export function DocxTemplateList({ editHref }: { editHref: (id: string, preview?: boolean) => string }) {
   const queryClient = useQueryClient();
-  const { user } = useUserStore();
   const [search, setSearch] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -94,36 +90,22 @@ export default function Page() {
     return templates.filter((t) => t.name.toLowerCase().includes(q) || (t.originalFilename || "").toLowerCase().includes(q));
   }, [templates, search]);
 
-  const isSuperAdmin = user?.role === "super_admin";
-
   return (
-    <div className="mx-auto max-w-7xl p-6">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <Button asChild variant="ghost" size="sm" className="-ml-2 mb-1">
-            <Link href="/pages/secretary/document-templates">
-              <ArrowLeft className="mr-1 size-4" /> PDF Templates
-            </Link>
-          </Button>
-          <h1 className="text-2xl font-bold">DOCX Templates</h1>
-          <p className="text-sm text-muted-foreground">
-            Word-style document templates edited in the browser. Use variables such as {"{{resident_name}}"} for data BIMS fills in.
-          </p>
-        </div>
-        {isSuperAdmin ? (
-          <Button variant="outline" size="sm" onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending}>
-            <Sparkles className="mr-1 size-4" />
-            {seedMutation.isPending ? "Importing..." : "Import Defaults"}
-          </Button>
-        ) : null}
-      </div>
+    <div>
+      <p className="mb-4 text-sm text-muted-foreground">
+        Word-style layouts used when a request is printed or downloaded. Use variables such as {"{{resident_name}}"} for data BIMS fills in.
+      </p>
 
       <div className="mb-5 flex flex-wrap items-center gap-3">
-        <div className="relative w-full max-w-sm">
+        <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search templates..." className="pl-9" aria-label="Search templates" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search layouts..." className="pl-9" aria-label="Search document layouts" />
         </div>
-        <span className="text-sm text-muted-foreground">{filtered.length} template(s)</span>
+        <span className="text-sm text-muted-foreground">{filtered.length} layout(s)</span>
+        <Button variant="outline" size="sm" className="sm:ml-auto" onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending}>
+          <Sparkles className="mr-1 size-4" />
+          {seedMutation.isPending ? "Importing..." : "Import Defaults"}
+        </Button>
       </div>
 
       {isLoading ? (
@@ -135,7 +117,7 @@ export default function Page() {
       ) : isError ? (
         <div className="rounded-xl border bg-white py-16 text-center">
           <RefreshCcw className="mx-auto mb-2 size-8 text-muted-foreground" />
-          <p className="mb-3 text-muted-foreground">Could not load the templates.</p>
+          <p className="mb-3 text-muted-foreground">Could not load the document layouts.</p>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             Try again
           </Button>
@@ -145,10 +127,8 @@ export default function Page() {
           <FileText className="mx-auto mb-2 size-8 text-muted-foreground" />
           <p className="text-muted-foreground">
             {templates.length === 0
-              ? isSuperAdmin
-                ? 'No templates yet. Click "Import Defaults" to add the six barangay templates.'
-                : "No templates yet. Ask a Super Admin to import the default templates."
-              : "No templates match your search."}
+              ? 'No layouts yet. Click "Import Defaults" to add the barangay document layouts.'
+              : "No layouts match your search."}
           </p>
         </div>
       ) : (
@@ -188,12 +168,12 @@ export default function Page() {
 
                 <div className="mt-auto flex items-center gap-2 border-t border-slate-100 pt-4">
                   <Button asChild variant="outline" size="sm" className="flex-1">
-                    <Link href={`${EDITOR_BASE}/${template._id}/edit`}>
+                    <Link href={editHref(template._id)}>
                       <Edit className="mr-1.5 size-3.5" /> Edit
                     </Link>
                   </Button>
                   <Button asChild variant="ghost" size="sm" title="Preview" aria-label={`Preview ${template.name}`}>
-                    <Link href={`${EDITOR_BASE}/${template._id}/edit?preview=1`}>
+                    <Link href={editHref(template._id, true)}>
                       <Eye className="size-4" />
                     </Link>
                   </Button>

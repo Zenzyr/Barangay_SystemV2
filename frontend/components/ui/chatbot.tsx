@@ -90,6 +90,10 @@ export default function Chatbot() {
         .filter((m) => m.text)
         .map((m) => `${m.from === "user" ? "User" : "AI"}: ${m.text}`);
       const convo = [...prior, `User: ${text}`];
+      if (!user) {
+        addBotMessage("Please sign in to your account to chat with the Barangay Assistant.");
+        return;
+      }
       setThinking(true);
       try {
         const res = await axiosInstance.post("/account/ai", { input: text, convo });
@@ -102,7 +106,7 @@ export default function Chatbot() {
         setThinking(false);
       }
     },
-    [messages]
+    [messages, user]
   );
 
   const checkMyStatus = async () => {

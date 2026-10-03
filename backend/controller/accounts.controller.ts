@@ -1667,6 +1667,29 @@ export class AccountController {
         return;
       }
 
+      if (String(reviewer._id) === id) {
+        response.status(400).send("You cannot review yourself");
+        return;
+      }
+
+      if (workId) {
+        const work: any = await WorkService.get(workId);
+        if (!work) {
+          response.status(404).send("Work request not found");
+          return;
+        }
+        const workClient = String(work.client?._id || work.client);
+        const workWorker = String(work.worker?._id || work.worker);
+        if (workClient !== String(reviewer._id) || workWorker !== id) {
+          response.status(403).send("You can only review work you requested from this provider");
+          return;
+        }
+        if (work.status !== "to review") {
+          response.status(400).send("This work request is not ready for review");
+          return;
+        }
+      }
+
       const account = await AccountService.addReview(id, {
         user: reviewerAccount.name,
         userProfile: reviewerAccount.profile || "",
@@ -1681,7 +1704,7 @@ export class AccountController {
       }
 
       if (workId) {
-        await WorkService.updateStatus(workId, "completed");
+        await WorkService.updateStatusIf(workId, "to review", "completed");
       }
 
       await UserActivityService.create({

@@ -1,25 +1,28 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getApiErrorMessage, getDocxTemplate, getTemplateVariables } from "@/app/utils/docxTemplateService";
-import { TemplateEditor } from "../../components/templateEditor";
+import { DocxTemplateEditor } from "./DocxTemplateEditor";
 
-function EditorLoader() {
-  const { id } = useParams<{ id: string }>();
-  const search = useSearchParams();
+export function DocxTemplateEditorLoader({
+  id,
+  startInPreview,
+  backHref,
+}: {
+  id: string;
+  startInPreview?: boolean;
+  backHref: string;
+}) {
   const [nonce, setNonce] = useState(0);
 
   const template = useQuery({
     queryKey: ["docx-template", id],
     queryFn: () => getDocxTemplate(id),
-    // The editor owns the working copy once loaded: never refetch under it, and
-    // never serve a cached copy on the next visit (it could be a stale version).
     staleTime: Infinity,
     gcTime: 0,
     refetchOnWindowFocus: false,
@@ -60,7 +63,7 @@ function EditorLoader() {
             Try again
           </Button>
           <Button asChild>
-            <Link href="/pages/secretary/document-templates/docx">
+            <Link href={backHref}>
               <ArrowLeft className="mr-1 size-4" /> Back to templates
             </Link>
           </Button>
@@ -70,12 +73,12 @@ function EditorLoader() {
   }
 
   return (
-    <TemplateEditor
-      // Remount only on an explicit reload (after a save conflict).
+    <DocxTemplateEditor
       key={`${template.data._id}:${nonce}`}
       template={template.data}
       variables={variables.data ?? []}
-      startInPreview={search.get("preview") === "1"}
+      startInPreview={startInPreview}
+      backHref={backHref}
       onReload={async () => {
         await template.refetch();
         setNonce((n) => n + 1);
@@ -91,15 +94,4 @@ function ErrorDetail({ error }: { error: unknown }) {
     staleTime: Infinity,
   });
   return <p className="text-sm text-slate-600">{data ?? "The template could not be loaded."}</p>;
-}
-
-export default function Page() {
-  return (
-    // Fills the viewport below the mobile header so the ribbon stays put while the page scrolls inside.
-    <div className="h-[calc(100dvh-80px)] lg:h-dvh">
-      <Suspense fallback={null}>
-        <EditorLoader />
-      </Suspense>
-    </div>
-  );
 }

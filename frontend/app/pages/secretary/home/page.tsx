@@ -3,10 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { DashboardCard } from "@/components/ui/dashboard-card";
 import { STATUS_CONFIG } from "@/lib/constants/status";
-import { StatusBadge } from "@/components/ui/shared/StatusBadge";
 
 import { DataError, DataEmpty } from "@/components/ui/data-state-renderer";
-import { Button } from "@/components/ui/button";
 
 
 import Link from "next/link";
@@ -14,21 +12,16 @@ import axiosInstance from "@/app/utils/axios";
 import { documentRequestInterface } from "@/app/types/documentRequest";
 import { accountInterface } from "@/app/types/account.type";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PendingPriceApprovalsSummary } from "@/components/documentTemplate/PendingPriceApprovals";
 import {
   FileText,
-  Clock,
-  Loader2,
   CheckCircle2,
-  FileCheck,
   ClipboardList,
   Inbox,
   UserPlus2,
   Users,
-  Award,
   ArrowUpRight,
   UserRound,
-  History,
-  CalendarDays,
   Wallet,
   LayoutDashboard,
   BarChart3,
@@ -259,6 +252,7 @@ export default function Page() {
           </div>
         </div>
 
+        <div className="space-y-6">
         {/* ── Residents Pending Verification ── */}
         <DashboardCard
           title="Awaiting Verification"
@@ -303,6 +297,9 @@ export default function Page() {
             )}
           </div>
         </DashboardCard>
+
+        <PendingPriceApprovalsSummary href="/pages/secretary/document-templates?tab=approvals" />
+        </div>
       </div>
 
       {/* ── Quick Links ── */}

@@ -5,8 +5,17 @@ node_modules
 *.log
 .git
 .gitignore
+.vscode
+Dockerfile
+.dockerignore
 run-start.log
 scratch
 docs
 temp_file.tsx
 tsconfig.tsbuildinfo
+README.md
+AGENTS.md
+CLAUDE.md
+gitCommand.txt
+app/pages/secretary/census_range.tmp
+app/pages/secretary/documentRequest/page.tsx.tmp

@@ -244,7 +244,8 @@ export class DocTemplateService {
   }
 
   private static async loadOriginalDocxFile(filename: string) {
-    const filePath = path.join(path.resolve(process.cwd(), "..", "frontend", "docs"), filename);
+    const docsRoot = process.env.TEMPLATE_DOCS_DIR || path.resolve(process.cwd(), "..", "frontend", "docs");
+    const filePath = path.join(docsRoot, path.basename(filename));
     if (!fs.existsSync(filePath)) return null;
     const buffer = fs.readFileSync(filePath);
     return {

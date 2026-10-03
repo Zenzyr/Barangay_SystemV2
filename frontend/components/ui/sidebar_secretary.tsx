@@ -7,15 +7,13 @@ import {
   Sparkles,
   UserPlus2,
   FileText,
+  FileStack,
   History,
   ClipboardList,
   Award,
   LogOut,
-  Menu,
-  X,
   ChevronRight,
   ChevronDown,
-  Store,
   Landmark,
   MapPin,
   ScrollText,
@@ -36,7 +34,6 @@ import {
 } from "@/components/ui/sidebar"
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import useBarangaySettingsStore from "@/app/store/useBarangaySettingsStore";
 import { SidebarBrand } from "@/components/ui/sidebar_shared";
 
 type NavLeaf = { title: string; url: string; icon: LucideIcon }
@@ -51,6 +48,7 @@ const navigationItems: NavItem[] = [
   { title: "Decision Support", url: "/pages/secretary/decisionSupport", icon: Sparkles },
   { title: "Verify Resident", url: "/pages/secretary/verifyResident", icon: UserPlus2 },
   { title: "Document Requests", url: "/pages/secretary/documentRequest", icon: FileText },
+  { title: "Document Templates", url: "/pages/secretary/document-templates", icon: FileStack },
   { title: "Request History", url: "/pages/secretary/requestHistory", icon: History },
   { title: "Transactions", url: "/pages/secretary/transactions", icon: ReceiptText },
   { title: "Reports", url: "/pages/secretary/reports", icon: FileBarChart },
@@ -63,7 +61,6 @@ const navigationItems: NavItem[] = [
     children: [
       { title: "Officials", url: "/pages/secretary/barangaySettings/officials", icon: Landmark },
       { title: "Puroks", url: "/pages/secretary/barangaySettings/puroks", icon: MapPin },
-      { title: "Document Templates", url: "/pages/secretary/document-templates", icon: FileText },
       { title: "Audit Trail", url: "/pages/secretary/barangaySettings/audit", icon: ScrollText },
     ],
   },

@@ -7,6 +7,10 @@ export class NotificationService {
     return await NotificationModel.create(data);
   }
 
+  static async get(id: string) {
+    return await NotificationModel.findById(id);
+  }
+
   static async getByAccount(accountId: string, limit = 20) {
     return await NotificationModel.find({ accountId })
       .sort({ createdAt: -1 })

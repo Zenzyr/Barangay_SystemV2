@@ -1,0 +1,10 @@
+services:
+  barangay-nginx:
+    networks:
+      - barangay-net
+      - edge
+
+networks:
+  edge:
+    name: ${PROXY_NETWORK:?set PROXY_NETWORK in .env to the existing proxy network name}
+    external: true
