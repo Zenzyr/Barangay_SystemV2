@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { DashboardCard } from "@/components/ui/dashboard-card";
 import { DataError, DataEmpty } from "@/components/ui/data-state-renderer";
-import { Button } from "@/components/ui/button";
 
 
 import { useQuery } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
 import { Skeleton } from "@/components/ui/skeleton";
 import { accountInterface } from "@/app/types/account.type";
+import { PendingPriceApprovals } from "@/components/documentTemplate/PendingPriceApprovals";
 import type { LucideIcon } from "lucide-react";
 import {
   ShieldCheck,
@@ -19,11 +19,8 @@ import {
   ClipboardList,
   Landmark,
   MapPin,
-  FileText,
-  SlidersHorizontal,
   Settings2,
   BarChart3,
-  ChartPie,
   Sparkles,
   ScrollText,
   ChevronRight,
@@ -49,7 +46,6 @@ const MANAGEMENT_ITEMS: ManageItem[] = [
   { title: "Residents", desc: "Resident census records", href: "/pages/secretary/residentCensus", icon: UserRoundCheck },
   { title: "Officials", desc: "Barangay officials directory", href: "/pages/secretary/barangaySettings/officials", icon: Landmark },
   { title: "Puroks", desc: "Purok directory", href: "/pages/secretary/barangaySettings/puroks", icon: MapPin },
-  { title: "Document Templates", desc: "Design fees, formats and layouts", href: "/pages/secretary/document-templates", icon: FileText },
   { title: "Settings", desc: "Barangay configuration", href: "/pages/secretary/barangaySettings", icon: Settings2 },
 ];
 
@@ -198,6 +194,8 @@ export default function SuperAdminHomePage() {
           <ManagementCard title="Monitoring & Insights" items={MONITORING_ITEMS} />
         </div>
       </div>
+
+      <PendingPriceApprovals canDecide />
 
       {/* ── Pending Resident Verification ── */}
       <section className="glass-card">

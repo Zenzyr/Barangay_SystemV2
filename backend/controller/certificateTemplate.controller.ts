@@ -1,6 +1,10 @@
 import { Request, Response } from "express";
 import CertificateTemplate from "../model/certificateTemplate.model";
 import { CertificateGeneratorService } from "../services/certificateGenerator.service";
+import DocumentRequestModel from "../model/documentRequest.model";
+import { AuthRequest } from "../types/request.type";
+import { isStaffRole } from "../utils/roles";
+import { isValidObjectId } from "mongoose";
 
 export class CertificateTemplateController {
   static getAll = async (req: Request, res: Response): Promise<void> => {
@@ -44,9 +48,23 @@ export class CertificateTemplateController {
     }
   };
 
-  static generate = async (req: Request, res: Response): Promise<void> => {
+  static generate = async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { templateId, documentId } = req.params;
+      if (!isValidObjectId(templateId) || !isValidObjectId(documentId)) {
+        res.status(400).send("Invalid template or document id");
+        return;
+      }
+      const doc = await DocumentRequestModel.findById(documentId).select("resident").lean();
+      if (!doc) {
+        res.status(404).send("Document request not found");
+        return;
+      }
+      const residentId = String((doc as { resident?: unknown }).resident ?? "");
+      if (!isStaffRole(req.account?.role) && req.account?._id !== residentId) {
+        res.status(403).send("You can only generate your own documents");
+        return;
+      }
       const pdfBytes = await CertificateGeneratorService.generatePDF(templateId, documentId);
       
       res.setHeader('Content-Type', 'application/pdf');

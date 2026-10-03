@@ -109,6 +109,57 @@ export const getPendingPriceApprovals = async (): Promise<DocumentTemplate[]> =>
   return data;
 };
 
+export interface PriceDecision {
+  id: string;
+  templateId: string;
+  templateName: string;
+  status: "approved" | "rejected";
+  proposedFee: number | null;
+  activeFee: number | null;
+  previousFee: number | null;
+  decidedBy: string;
+  decidedAt: string;
+}
+
+interface PriceAuditEntry {
+  _id: string;
+  actor: string;
+  action: string;
+  entityId: string;
+  entityLabel: string;
+  previousValue?: unknown;
+  newValue?: unknown;
+  createdAt: string;
+}
+
+const toFee = (value: unknown): number | null => {
+  const n = typeof value === "number" ? value : Number(value);
+  return value === undefined || value === null || Number.isNaN(n) ? null : n;
+};
+
+export const getPriceDecisionHistory = async (limit = 8): Promise<PriceDecision[]> => {
+  const { data } = await axiosInstance.get<PriceAuditEntry[]>("/barangay/audit", {
+    params: { entity: "documentTemplate" },
+  });
+  return data
+    .filter((e) => e.action === "price_approved" || e.action === "price_rejected")
+    .slice(0, limit)
+    .map((e) => {
+      const approved = e.action === "price_approved";
+      return {
+        id: e._id,
+        templateId: e.entityId,
+        templateName: e.entityLabel,
+        status: approved ? "approved" : "rejected",
+        proposedFee: approved ? toFee(e.newValue) : toFee(e.previousValue),
+        activeFee: toFee(e.newValue),
+        previousFee: approved ? toFee(e.previousValue) : toFee(e.newValue),
+        decidedBy: e.actor,
+        decidedAt: e.createdAt,
+      };
+    });
+};
+
 export const approveTemplatePrice = async (id: string): Promise<DocumentTemplate> => {
   const { data } = await axiosInstance.patch(`/document-templates/${id}/price/approve`);
   return data;

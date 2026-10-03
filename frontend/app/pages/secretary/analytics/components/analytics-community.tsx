@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CommunitySectorCharts } from "./analytics-community-sectors";
 import {
   BarChart,
   Bar,
@@ -24,13 +25,7 @@ import {
   UserRound,
   Accessibility,
   Sparkles,
-  Lightbulb,
-  AlertTriangle,
   GraduationCap,
-  HeartPulse,
-  Waves,
-  Trash2,
-  ShieldAlert,
   MapPin,
   FileText,
   Clock,
@@ -50,12 +45,6 @@ interface ChartTooltipProps {
   active?: boolean;
   payload?: ChartTooltipPayloadItem[];
   label?: string | number;
-}
-
-interface SectorData {
-  available?: boolean;
-  message?: string;
-  note?: string;
 }
 
 function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
@@ -79,49 +68,6 @@ function useAnalytics(path: string) {
     queryKey: ["community-analytics", path],
     queryFn: async () => (await axiosInstance.get(`/analytics/${path}`)).data,
   });
-}
-
-function SectorCard({
-  title,
-  icon: Icon,
-  loading,
-  data,
-  metricLabel,
-  metricValue,
-  note,
-}: {
-  title: string;
-  icon: React.ElementType;
-  loading: boolean;
-  data: SectorData;
-  metricLabel?: string;
-  metricValue?: string | number;
-  note?: string;
-}) {
-  return (
-    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-4 hover:shadow-md transition-shadow">
-      <div className="flex items-center gap-3 mb-3">
-        <div className="size-8 rounded-xl bg-gradient-to-br from-sky-100 to-emerald-100 text-sky-600 flex items-center justify-center">
-          <Icon className="size-4" />
-        </div>
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-      </div>
-      {loading ? (
-        <Skeleton className="h-16 w-full" />
-      ) : !data?.available ? (
-        <div className="flex items-start gap-2 text-gray-400 bg-gray-50 rounded-xl p-3 text-xs">
-          <Info className="size-4 shrink-0 mt-0.5" />
-          <span>{data?.message || "No data available for this sector."}</span>
-        </div>
-      ) : (
-        <div>
-          <p className="text-2xl font-bold text-gray-900">{metricValue}</p>
-          <p className="text-xs text-gray-500 mt-0.5">{metricLabel}</p>
-          {(data.note || note) && <p className="text-[11px] text-gray-400 mt-2 italic">{data.note || note}</p>}
-        </div>
-      )}
-    </div>
-  );
 }
 
 export function AnalyticsCommunity({ rangeLabel = "All time" }: { rangeLabel?: string }) {
@@ -176,71 +122,9 @@ export function AnalyticsCommunity({ rangeLabel = "All time" }: { rangeLabel?: s
         </div>
       </div>
 
-      {/* ── Sector Indicators ── */}
-      <div>
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Community Indicators by Sector</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <SectorCard
-            title="Employment"
-            icon={Briefcase}
-            loading={employment.isLoading}
-            data={employment.data}
-            metricValue={employment.data ? `${employment.data.unemploymentRateHeuristic}%` : undefined}
-            metricLabel={employment.data ? `${employment.data.unemployedHeuristic} of ${employment.data.workingAgePopulation} working-age residents (heuristic)` : undefined}
-          />
-          <SectorCard
-            title="Education"
-            icon={GraduationCap}
-            loading={education.isLoading}
-            data={education.data}
-            metricValue={education.data ? `${education.data.outOfSchoolRateHeuristic}%` : undefined}
-            metricLabel={education.data ? `${education.data.outOfSchoolHeuristic} of ${education.data.schoolAgePopulation} school-age residents (heuristic)` : undefined}
-          />
-          <SectorCard
-            title="Senior Citizens"
-            icon={UserRound}
-            loading={seniors.isLoading}
-            data={seniors.data}
-            metricValue={seniors.data ? `${seniors.data.seniorCitizenRate}%` : undefined}
-            metricLabel={seniors.data ? `${seniors.data.seniorCitizens} of ${seniors.data.totalResidents} residents · ${seniors.data.pensioners} pensioners` : undefined}
-          />
-          <SectorCard
-            title="Persons with Disabilities"
-            icon={Accessibility}
-            loading={pwd.isLoading}
-            data={pwd.data}
-            metricValue={pwd.data ? `${pwd.data.pwdRate}%` : undefined}
-            metricLabel={pwd.data ? `${pwd.data.pwd} of ${pwd.data.totalResidents} residents` : undefined}
-          />
-          <SectorCard
-            title="Youth"
-            icon={Sparkles}
-            loading={youth.isLoading}
-            data={youth.data}
-            metricValue={youth.data ? `${youth.data.youthRate}%` : undefined}
-            metricLabel={youth.data ? `${youth.data.youthPopulation} residents aged 15-30 · ${youth.data.employedYouthHeuristic} employed (heuristic)` : undefined}
-          />
-          <SectorCard
-            title="Social & Household Welfare"
-            icon={Home}
-            loading={social.isLoading}
-            data={social.data}
-            metricValue={social.data ? `${social.data.fourPsRate}%` : undefined}
-            metricLabel={social.data ? `${social.data.fourPsBeneficiaries} 4Ps beneficiaries · ${social.data.soloParents} solo parents (${social.data.soloParentRate}%)` : undefined}
-          />
-          <SectorCard
-            title="Health & Nutrition"
-            icon={HeartPulse}
-            loading={health.isLoading}
-            data={health.data}
-            metricValue={health.data ? `${health.data.hpnMaintenanceRate}%` : undefined}
-            metricLabel={health.data ? `${health.data.hpnMaintenance} residents on HPN maintenance` : undefined}
-          />
-          <SectorCard title="Disaster Risk" icon={Waves} loading={disaster.isLoading} data={disaster.data} />
-          <SectorCard title="Environment" icon={Trash2} loading={environment.isLoading} data={environment.data} />
-          <SectorCard title="Peace & Order" icon={ShieldAlert} loading={peaceAndOrder.isLoading} data={peaceAndOrder.data} />
-        </div>
-      </div>
+      <CommunitySectorCharts
+        queries={{ employment, education, seniors, pwd, youth, social, health, disaster, environment, peaceAndOrder }}
+      />
 
       {/* ── Charts ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

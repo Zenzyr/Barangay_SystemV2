@@ -21,20 +21,21 @@ import {
   type TiptapDocumentEditorHandle,
 } from "@/components/documentTemplate/TiptapDocumentEditor";
 import { DocumentPreviewOverlay } from "@/components/documentTemplate/DocumentPreviewOverlay";
-import { TopBar, type SaveState } from "./topBar";
+import { TopBar, type SaveState } from "./DocxTopBar";
 
 const MAX_SAVE_BYTES = 2_900_000;
-const BACK_HREF = "/pages/secretary/document-templates/docx";
 
-export function TemplateEditor({
+export function DocxTemplateEditor({
   template,
   variables,
   startInPreview,
+  backHref,
   onReload,
 }: {
   template: DocxTemplate;
   variables: TemplateVariable[];
   startInPreview?: boolean;
+  backHref: string;
   /** Re-fetch the template (used after a save conflict). */
   onReload: () => void | Promise<void>;
 }) {
@@ -195,7 +196,7 @@ export function TemplateEditor({
         onPrint={printFromMenu}
         onDownload={() => void download()}
         downloading={downloading}
-        backHref={BACK_HREF}
+        backHref={backHref}
       />
 
       {conflict ? (

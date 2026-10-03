@@ -8,7 +8,6 @@ import {
   Landmark,
   MapPin,
   BarChart3,
-  ChartPie,
   Sparkles,
   ScrollText,
   Settings2,
@@ -17,7 +16,6 @@ import {
   X,
   ChevronRight,
   ShieldCheck,
-  FileText,
 } from "lucide-react"
 import { useState } from "react"
 import type { LucideIcon } from "lucide-react"
@@ -30,7 +28,6 @@ import {
 } from "@/components/ui/sidebar"
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import useBarangaySettingsStore from "@/app/store/useBarangaySettingsStore";
 import { SidebarBrand } from "@/components/ui/sidebar_shared";
 
 interface NavItem {
@@ -56,7 +53,6 @@ const navigationGroups: NavGroup[] = [
       { title: "Residents", url: "/pages/secretary/residentCensus", icon: UserRoundCheck },
       { title: "Officials", url: "/pages/secretary/barangaySettings/officials", icon: Landmark },
       { title: "Puroks", url: "/pages/secretary/barangaySettings/puroks", icon: MapPin },
-      { title: "Document Templates", url: "/pages/secretary/document-templates", icon: FileText },
       { title: "Settings", url: "/pages/secretary/barangaySettings", icon: Settings2 },
     ],
   },

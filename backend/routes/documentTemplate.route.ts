@@ -6,6 +6,7 @@ import { handler } from "../utils/handler";
 
 const route = Router();
 const STAFF = [ROLES.SECRETARY, ROLES.SUPER_ADMIN] as const;
+const MANAGERS = [ROLES.SECRETARY] as const;
 
 // Active templates are read by residents+staff to drive fees & dropdowns.
 route.get(
@@ -18,13 +19,13 @@ route.get(
 route.get(
   "/",
   authenticateJWT,
-  requireRoles(...STAFF),
+  requireRoles(...MANAGERS),
   handler(DocumentTemplateController.getAll),
 );
 route.get(
   "/pending-approvals",
   authenticateJWT,
-  requireRoles(ROLES.SUPER_ADMIN),
+  requireRoles(...STAFF),
   handler(DocumentTemplateController.getPendingApprovals),
 );
 route.patch(
@@ -42,19 +43,19 @@ route.patch(
 route.get(
   "/:id",
   authenticateJWT,
-  requireRoles(...STAFF),
+  requireRoles(...MANAGERS),
   handler(DocumentTemplateController.get),
 );
 route.post(
   "/",
   authenticateJWT,
-  requireRoles(...STAFF),
+  requireRoles(...MANAGERS),
   handler(DocumentTemplateController.create),
 );
 route.post(
   "/seed",
   authenticateJWT,
-  requireRoles(ROLES.SUPER_ADMIN),
+  requireRoles(...MANAGERS),
   handler(DocumentTemplateController.seed),
 );
 // Any authenticated user (residents included) may render the template bound to
@@ -67,43 +68,43 @@ route.post(
 route.put(
   "/:id",
   authenticateJWT,
-  requireRoles(...STAFF),
+  requireRoles(...MANAGERS),
   handler(DocumentTemplateController.update),
 );
 route.post(
   "/preview",
   authenticateJWT,
-  requireRoles(...STAFF),
+  requireRoles(...MANAGERS),
   handler(DocumentTemplateController.previewContent),
 );
 route.get(
   "/:id/editor-content",
   authenticateJWT,
-  requireRoles(...STAFF),
+  requireRoles(...MANAGERS),
   handler(DocumentTemplateController.getEditorContent),
 );
 route.post(
   "/:id/duplicate",
   authenticateJWT,
-  requireRoles(...STAFF),
+  requireRoles(...MANAGERS),
   handler(DocumentTemplateController.duplicate),
 );
 route.post(
   "/:id/render",
   authenticateJWT,
-  requireRoles(...STAFF),
+  requireRoles(...MANAGERS),
   handler(DocumentTemplateController.renderDocument),
 );
 route.get(
   "/:id/preview",
   authenticateJWT,
-  requireRoles(...STAFF),
+  requireRoles(...MANAGERS),
   handler(DocumentTemplateController.preview),
 );
 route.delete(
   "/:id",
   authenticateJWT,
-  requireRoles(...STAFF),
+  requireRoles(...MANAGERS),
   handler(DocumentTemplateController.remove),
 );
 
