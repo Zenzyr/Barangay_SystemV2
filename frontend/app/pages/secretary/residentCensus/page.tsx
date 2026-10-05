@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
+import { censusNameToParts, compareNamesAZ } from "@/app/utils/personName";
 import { successAlert, errorAlert } from "@/app/utils/alert";
 import { confirmAlert } from "@/app/utils/alert";
 import { Button } from "@/components/ui/button";
@@ -492,14 +493,16 @@ export default function ResidentCensusPage() {
   }, [all]);
 
   const filtered = useMemo(() => {
-    return all.filter((r) => {
-      if (purokFilter !== "all" && r.purok !== purokFilter) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        return r.name.toLowerCase().includes(q) || r.householdNumber.toLowerCase().includes(q);
-      }
-      return true;
-    });
+    return all
+      .filter((r) => {
+        if (purokFilter !== "all" && r.purok !== purokFilter) return false;
+        if (search) {
+          const q = search.toLowerCase();
+          return r.name.toLowerCase().includes(q) || r.householdNumber.toLowerCase().includes(q);
+        }
+        return true;
+      })
+      .sort((a, b) => compareNamesAZ(a.name, b.name));
   }, [all, purokFilter, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -654,7 +657,7 @@ export default function ResidentCensusPage() {
         successAlert("Record updated");
       } else if (createAccount) {
         await axiosInstance.post("/account/admin/create", {
-          name: form.name,
+          ...(censusNameToParts(form.name) ?? { name: form.name }),
           email: accountEmail.trim(),
           password: accountPassword,
           contact: form.cellphone.trim(),

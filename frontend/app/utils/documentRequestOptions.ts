@@ -111,3 +111,14 @@ export function formatRequestTime(doc: {
 }): string {
   return doc.requestTime || "";
 }
+export function formatBusinessDate(dateKey: string, timeZone = "Asia/Manila"): string {
+  const date = new Date(`${dateKey}T12:00:00+08:00`);
+  if (isNaN(date.getTime())) return dateKey;
+  return date.toLocaleDateString("en-PH", {
+    timeZone,
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}

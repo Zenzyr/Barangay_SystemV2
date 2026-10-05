@@ -137,6 +137,7 @@ async function loadImage(
 export interface RenderTemplateOptions {
   data?: Record<string, any>;
   lenient?: boolean;
+  watermark?: string;
 }
 
 /**
@@ -154,10 +155,14 @@ export class DocumentTemplateRenderer {
       await DocumentTemplateService.getByIdOrType(templateIdOrType);
     if (!template) throw new Error("Template not found");
 
+    const watermark = opts.watermark ?? (template.page as any).watermark;
+
     if (template.contentFormat === "tiptap" && template.editorContent) {
       return this.renderContentPDF(
         template.editorContent as TiptapNode,
-        template.page as any,
+        opts.watermark
+          ? { ...(template.toObject().page as any), watermark }
+          : (template.page as any),
         opts.data || {},
       );
     }
@@ -197,9 +202,9 @@ export class DocumentTemplateRenderer {
       }
     }
 
-    if ((template.page as any).watermark) {
+    if (watermark) {
       const wFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-      page.drawText(String((template.page as any).watermark), {
+      page.drawText(String(watermark), {
         x: 60,
         y: height / 2 - 80,
         size: 40,

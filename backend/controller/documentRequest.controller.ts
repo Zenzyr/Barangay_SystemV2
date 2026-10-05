@@ -1,6 +1,6 @@
 import { Response } from "express";
 import { AuthRequest } from "../types/request.type";
-import { DocumentRequestService } from "../services/documentRequest.service";
+import { DocumentRequestService, DailyRequestStatus } from "../services/documentRequest.service";
 import { UserActivityService } from "../services/userActivity.service";
 import { NotificationService } from "../services/notification.service";
 import { formattedDate } from "../utils/customFunc";
@@ -56,7 +56,27 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
 
 // ... (other parts of the file remain the same, just keeping the imports correct)
 
+const dailyLimitPayload = (daily: DailyRequestStatus) => ({
+  message: "Your document request limit for today has been reached. You can submit another request tomorrow.",
+  error: "daily_limit_reached",
+  daily,
+});
+
 export class DocumentRequestController {
+
+  static getDailyStatus = async (request: AuthRequest, response: Response) => {
+    try {
+      const account = request.account;
+      if (!account) {
+        response.status(401).send("Authentication required");
+        return;
+      }
+      const daily = await DocumentRequestService.getDailyStatus(account._id);
+      response.send(daily);
+    } catch (error) {
+      response.status(500).send("Failed to fetch daily request status");
+    }
+  }
 
   static create = async (request: AuthRequest, response: Response) => {
     try {
@@ -76,7 +96,11 @@ export class DocumentRequestController {
       for (const key of ["paymentMethod", "paymentChannel", "amountPaid", "amountTendered", "changeGiven", "paidAt", "receiptNumber", "paymentReference", "paymentProcessedBy", "checkoutSessionId"]) {
         delete documentData[key];
       }
+      for (const key of ["templateId", "templateVersion", "feeAtRequest", "isArchived", "archivedAt", "statusHistory", "officialsSnapshot"]) {
+        delete documentData[key];
+      }
       documentData.isPaid = false;
+      documentData.status = "pending";
 
       if (documentData.resident && !isObjectId(documentData.resident)) {
         response.status(400).send("A valid resident is required");
@@ -166,9 +190,18 @@ export class DocumentRequestController {
       // ── Normalize the single request timestamp + source ──
       const isWalkIn = isStaff && account._id !== documentData.resident;
       documentData.source = isWalkIn ? "walk-in" : "online";
-      const stamp = DocumentRequestService.getRequestStamp();
+      const requestedAt = new Date();
+      const stamp = DocumentRequestService.getRequestStamp(requestedAt);
       documentData.requestDate = stamp.requestDate;
       documentData.requestTime = stamp.requestTime;
+
+      if (!isStaff) {
+        const daily = await DocumentRequestService.getDailyStatus(account._id, requestedAt);
+        if (daily.limitReached) {
+          response.status(429).json(dailyLimitPayload(daily));
+          return;
+        }
+      }
 
       // ── Duplicate prevention (normalized key) ──
       const existing = await DocumentRequestService.findExistingDuplicate(
@@ -188,6 +221,16 @@ export class DocumentRequestController {
       }
 
       const document = await DocumentRequestService.create(documentData);
+
+      if (!isStaff) {
+        const withinLimit = await DocumentRequestService.isWithinDailyLimit(account._id, stamp.requestDate, String(document._id));
+        if (!withinLimit) {
+          await DocumentRequestService.delete(String(document._id));
+          const daily = await DocumentRequestService.getDailyStatus(account._id, requestedAt);
+          response.status(429).json(dailyLimitPayload(daily));
+          return;
+        }
+      }
 
       await UserActivityService.create({
         accountId: account._id.toString(),

@@ -22,17 +22,33 @@ const OBJECT_ID = /^[a-f0-9]{24}$/i;
 
 type TabKey = "templates" | "layouts" | "approvals";
 
-const TABS: { key: TabKey; label: string; shortLabel: string; icon: LucideIcon }[] = [
-  { key: "templates", label: "Templates & Fees", shortLabel: "Fees", icon: FileText },
-  { key: "layouts", label: "Document Layouts", shortLabel: "Layouts", icon: FileType },
-  { key: "approvals", label: "Price Approvals", shortLabel: "Approvals", icon: Gavel },
+const TABS: {
+  key: TabKey;
+  label: string;
+  shortLabel: string;
+  icon: LucideIcon;
+}[] = [
+  {
+    key: "templates",
+    label: "Templates & Fees",
+    shortLabel: "Fees",
+    icon: FileText,
+  },
+  // { key: "layouts", label: "Document Layouts", shortLabel: "Layouts", icon: FileType },
+  {
+    key: "approvals",
+    label: "Price Approvals",
+    shortLabel: "Approvals",
+    icon: Gavel,
+  },
 ];
 
 const isTab = (value: string | null): value is TabKey =>
   value === "templates" || value === "layouts" || value === "approvals";
 
 const editHref = (id: string) => `${BASE}?edit=${id}`;
-const docxHref = (id: string, preview?: boolean) => `${BASE}?docx=${id}${preview ? "&preview=1" : ""}`;
+const docxHref = (id: string, preview?: boolean) =>
+  `${BASE}?docx=${id}${preview ? "&preview=1" : ""}`;
 
 function DocumentTemplatesWorkspace() {
   const params = useSearchParams();
@@ -68,13 +84,23 @@ function DocumentTemplatesWorkspace() {
   }
 
   if (editId && OBJECT_ID.test(editId)) {
-    return <TemplateEditor key={editId} isCreate={false} templateId={editId} onSaved={handleSaved} />;
+    return (
+      <TemplateEditor
+        key={editId}
+        isCreate={false}
+        templateId={editId}
+        onSaved={handleSaved}
+      />
+    );
   }
 
   const pendingCount = pending.data?.length ?? 0;
 
   const selectTab = (next: TabKey) => {
-    router.replace(next === "templates" ? pathname : `${pathname}?tab=${next}`, { scroll: false });
+    router.replace(
+      next === "templates" ? pathname : `${pathname}?tab=${next}`,
+      { scroll: false },
+    );
   };
 
   return (
@@ -83,7 +109,8 @@ function DocumentTemplatesWorkspace() {
         <BackButton />
         <h1 className="text-2xl font-bold">Document Templates</h1>
         <p className="text-sm text-muted-foreground">
-          Manage document fees, PDF templates and printable layouts. Price changes take effect after Super Admin approval.
+          Manage document fees, PDF templates and printable layouts. Price
+          changes take effect after Super Admin approval.
         </p>
       </div>
 
@@ -105,14 +132,23 @@ function DocumentTemplatesWorkspace() {
               onClick={() => selectTab(t.key)}
               className={cn(
                 "flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-sm font-medium transition-colors sm:gap-2 sm:px-3",
-                active ? "bg-white text-sky-700 shadow-sm ring-1 ring-slate-200" : "text-slate-600 hover:text-slate-900",
+                active
+                  ? "bg-white text-sky-700 shadow-sm ring-1 ring-slate-200"
+                  : "text-slate-600 hover:text-slate-900",
               )}
             >
-              <t.icon className={cn("hidden size-4 shrink-0 sm:block", active ? "text-emerald-600" : "text-slate-400")} />
+              <t.icon
+                className={cn(
+                  "hidden size-4 shrink-0 sm:block",
+                  active ? "text-emerald-600" : "text-slate-400",
+                )}
+              />
               <span className="truncate sm:hidden">{t.shortLabel}</span>
               <span className="hidden sm:inline">{t.label}</span>
               {t.key === "approvals" && pendingCount > 0 ? (
-                <span className="rounded-full bg-amber-100 px-1.5 text-xs font-semibold text-amber-700 tabular-nums">{pendingCount}</span>
+                <span className="rounded-full bg-amber-100 px-1.5 text-xs font-semibold text-amber-700 tabular-nums">
+                  {pendingCount}
+                </span>
               ) : null}
             </button>
           );
@@ -129,12 +165,19 @@ function DocumentTemplatesWorkspace() {
               >
                 <Gavel className="size-4 shrink-0" />
                 <span>
-                  <strong>{pendingCount}</strong> price change{pendingCount === 1 ? " is" : "s are"} awaiting Super Admin approval.
+                  <strong>{pendingCount}</strong> price change
+                  {pendingCount === 1 ? " is" : "s are"} awaiting Super Admin
+                  approval.
                 </span>
-                <span className="ml-auto shrink-0 text-xs font-medium underline-offset-2 hover:underline">View approvals</span>
+                <span className="ml-auto shrink-0 text-xs font-medium underline-offset-2 hover:underline">
+                  View approvals
+                </span>
               </Link>
             ) : null}
-            <DocumentTemplateList createHref={`${BASE}?create=1`} editHref={editHref} />
+            <DocumentTemplateList
+              createHref={`${BASE}?create=1`}
+              editHref={editHref}
+            />
           </div>
         ) : tab === "layouts" ? (
           <DocxTemplateList editHref={docxHref} />

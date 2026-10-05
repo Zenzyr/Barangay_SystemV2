@@ -20,6 +20,9 @@
     "backup:census": "ts-node scripts/backupResidentCensus.ts",
     "standardize:census": "ts-node scripts/standardizeResidentCensus.ts",
     "standardize:census:apply": "ts-node scripts/standardizeResidentCensus.ts --apply",
+    "migrate:name-parts": "ts-node scripts/backfillAccountNameParts.ts",
+    "migrate:name-parts:apply": "ts-node scripts/backfillAccountNameParts.ts --apply",
+    "migrate:name-parts:rollback": "ts-node scripts/backfillAccountNameParts.ts --rollback --apply",
     "test": "jest"
   },
   "keywords": [],

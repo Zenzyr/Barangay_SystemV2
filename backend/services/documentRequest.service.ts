@@ -1,6 +1,35 @@
 import DocumentRequestModel from "../model/documentRequest.model"
 import { documentRequestInterface, documentRequestInterfaceInput } from "../types/documentRequest";
 
+export const BUSINESS_TIME_ZONE = "Asia/Manila";
+export const BUSINESS_UTC_OFFSET = "+08:00";
+export const DAILY_DOCUMENT_REQUEST_LIMIT = 1;
+export const DAILY_LIMIT_EXCLUDED_STATUSES = ["cancelled", "rejected"];
+
+const businessParts = (now: Date): Record<string, string> => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BUSINESS_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  return Object.fromEntries(parts.map((p) => [p.type, p.value]));
+};
+
+export interface DailyRequestStatus {
+  limit: number;
+  used: number;
+  remaining: number;
+  limitReached: boolean;
+  date: string;
+  nextAvailableDate: string;
+  resetsAt: string;
+  timeZone: string;
+}
+
 export class DocumentRequestService {
 
   /**
@@ -9,11 +38,56 @@ export class DocumentRequestService {
    * requestDate = YYYY-MM-DD, requestTime = HH:mm.
    */
   static getRequestStamp(now: Date = new Date()): { requestDate: string; requestTime: string } {
-    const pad = (n: number) => String(n).padStart(2, "0");
+    const p = businessParts(now);
     return {
-      requestDate: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
-      requestTime: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
+      requestDate: `${p.year}-${p.month}-${p.day}`,
+      requestTime: `${p.hour}:${p.minute}`,
     };
+  }
+
+  static nextBusinessDate(dateKey: string): string {
+    const [y, m, d] = dateKey.split("-").map(Number);
+    const next = new Date(Date.UTC(y, m - 1, d + 1));
+    return next.toISOString().slice(0, 10);
+  }
+
+  static dailyLimitFilter(residentId: string, requestDate: string) {
+    return {
+      resident: residentId,
+      requestDate,
+      source: { $ne: "walk-in" },
+      status: { $nin: DAILY_LIMIT_EXCLUDED_STATUSES },
+    };
+  }
+
+  static async getDailyStatus(residentId: string, now: Date = new Date()): Promise<DailyRequestStatus> {
+    const { requestDate } = DocumentRequestService.getRequestStamp(now);
+    const used = await DocumentRequestModel.countDocuments(
+      DocumentRequestService.dailyLimitFilter(residentId, requestDate),
+    );
+    const tomorrow = DocumentRequestService.nextBusinessDate(requestDate);
+    const limitReached = used >= DAILY_DOCUMENT_REQUEST_LIMIT;
+    return {
+      limit: DAILY_DOCUMENT_REQUEST_LIMIT,
+      used,
+      remaining: Math.max(0, DAILY_DOCUMENT_REQUEST_LIMIT - used),
+      limitReached,
+      date: requestDate,
+      nextAvailableDate: limitReached ? tomorrow : requestDate,
+      resetsAt: `${tomorrow}T00:00:00${BUSINESS_UTC_OFFSET}`,
+      timeZone: BUSINESS_TIME_ZONE,
+    };
+  }
+
+  static async isWithinDailyLimit(residentId: string, requestDate: string, documentId: string): Promise<boolean> {
+    const earliest = await DocumentRequestModel.find(
+      DocumentRequestService.dailyLimitFilter(residentId, requestDate),
+    )
+      .sort({ _id: 1 })
+      .limit(DAILY_DOCUMENT_REQUEST_LIMIT)
+      .select("_id")
+      .lean();
+    return earliest.some((d) => String(d._id) === String(documentId));
   }
 
   /**

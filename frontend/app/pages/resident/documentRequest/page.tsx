@@ -6,9 +6,12 @@ import { toast } from "sonner";
 import axiosInstance from "@/app/utils/axios";
 import useUserStore from "@/app/store/useUserStore";
 import { documentTypes } from "@/app/utils/documents";
-import { getPublicTemplates } from "@/app/utils/documentTemplateService";
-import { documentRequestInterfaceInput, documentRequestInterface } from "@/app/types/documentRequest";
+import { getPublicTemplates, fetchActiveTemplatePreviewPdf } from "@/app/utils/documentTemplateService";
+import { formatBusinessDate } from "@/app/utils/documentRequestOptions";
+import useDailyRequestStatus, { DAILY_REQUEST_STATUS_KEY } from "@/app/hooks/useDailyRequestStatus";
+import { documentRequestInterfaceInput, documentRequestInterface, DailyRequestStatus } from "@/app/types/documentRequest";
 import DuplicateRequestDialog from "@/components/documentRequest/DuplicateRequestDialog";
+import { DailyRequestStatusCard } from "@/components/documentRequest/DailyRequestStatusCard";
 import { DocumentCard } from "@/components/documentRequest/DocumentCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +41,7 @@ import {
   CheckCircle2,
   ArrowLeft,
   Send,
+  Eye,
 } from "lucide-react";
 import { getDocumentPrice } from "@/app/utils/documents";
 
@@ -53,7 +57,7 @@ interface FieldConfig {
 
 interface ApiError {
   response?: {
-    data?: { existing?: documentRequestInterface; message?: string };
+    data?: { existing?: documentRequestInterface; message?: string; daily?: DailyRequestStatus };
     status?: number;
   };
   message?: string;
@@ -362,6 +366,10 @@ export default function DocumentRequestPage() {
   const [step, setStep] = useState<"select" | "form">("select");
   const [duplicateExisting, setDuplicateExisting] = useState<documentRequestInterface | null>(null);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  const dailyStatus = useDailyRequestStatus();
+  const limitReached = !!dailyStatus.data?.limitReached;
 
   // Active templates → data-driven fees
   const { data: activeTemplates = [] } = useQuery({
@@ -378,6 +386,27 @@ export default function DocumentRequestPage() {
       map[document] ?? getDocumentPrice(document);
   }, [activeTemplates]);
 
+  const hasActiveTemplate = useMemo(
+    () => activeTemplates.some((t) => t.status === "active" && t.documentType === selectedDocument),
+    [activeTemplates, selectedDocument],
+  );
+
+  const handlePreviewTemplate = async () => {
+    if (!selectedDocument) return;
+    setPreviewLoading(true);
+    try {
+      const url = await fetchActiveTemplatePreviewPdf(selectedDocument);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch {
+      toast.error("Unable to load the document preview", {
+        description: "Please try again later.",
+      });
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
   // ── Get fields for selected document ──────────────────────────
   const currentDocFields = useMemo(() => {
     if (!selectedDocument) return [];
@@ -387,6 +416,7 @@ export default function DocumentRequestPage() {
 
   // ── Pre-fill from user data ───────────────────────────────────
   const handleSelectDocument = (doc: string) => {
+    if (limitReached) return;
     setSelectedDocument(doc);
     setFormData({
       fullName: user?.name || "",
@@ -478,6 +508,16 @@ export default function DocumentRequestPage() {
     },
     onError: (err: ApiError) => {
       const data = err?.response?.data;
+      if (err?.response?.status === 429) {
+        queryClient.invalidateQueries({ queryKey: DAILY_REQUEST_STATUS_KEY });
+        const next = data?.daily?.nextAvailableDate;
+        toast.error("Your document request limit for today has been reached.", {
+          description: next
+            ? `You can submit another request tomorrow, ${formatBusinessDate(next, data?.daily?.timeZone)}.`
+            : "You can submit another request tomorrow.",
+        });
+        return;
+      }
       if (err?.response?.status === 409 && data?.existing) {
         setDuplicateExisting(data.existing);
         setDuplicateOpen(true);
@@ -598,6 +638,14 @@ export default function DocumentRequestPage() {
              Back to documents
            </button>
         )}
+
+        <div className="mt-4">
+          <DailyRequestStatusCard
+            status={dailyStatus.data}
+            isLoading={dailyStatus.isLoading}
+            isError={dailyStatus.isError}
+          />
+        </div>
       </div>
 
       {/* ── Content area ── */}
@@ -611,7 +659,9 @@ export default function DocumentRequestPage() {
                 <button
                   key={doc.document}
                   onClick={() => handleSelectDocument(doc.document)}
-                  className="group relative bg-white rounded-2xl border border-slate-200 p-5 text-left hover:border-sky-300 hover:shadow-lg hover:shadow-sky-100/50 transition-all duration-200 hover:-translate-y-0.5"
+                  disabled={limitReached}
+                  aria-disabled={limitReached}
+                  className="group relative bg-white rounded-2xl border border-slate-200 p-5 text-left hover:border-sky-300 hover:shadow-lg hover:shadow-sky-100/50 transition-all duration-200 hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-60"
                 >
                   {/* Hover glow */}
                   <div className="absolute inset-0 bg-gradient-to-br from-sky-50/50 to-emerald-50/30 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -662,6 +712,19 @@ export default function DocumentRequestPage() {
                         Fill in the required fields below
                       </p>
                     </div>
+                    {hasActiveTemplate && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePreviewTemplate}
+                        disabled={previewLoading}
+                        className="ml-auto h-8 border-slate-200 bg-white text-xs text-slate-600"
+                      >
+                        {previewLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Eye className="size-3.5" />}
+                        Preview layout
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -699,7 +762,7 @@ export default function DocumentRequestPage() {
               <div className="flex items-center gap-3">
                 <Button
                   onClick={() => submitMutation.mutate()}
-                  disabled={!isFormValid || submitMutation.isPending}
+                  disabled={!isFormValid || submitMutation.isPending || limitReached}
                   className="flex-1 h-10 bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-medium shadow-lg shadow-sky-200/50 hover:shadow-emerald-200/50 transition-all disabled:opacity-50"
                 >
                   {submitMutation.isPending ? (

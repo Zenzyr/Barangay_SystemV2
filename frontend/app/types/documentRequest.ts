@@ -108,3 +108,13 @@ export interface documentRequestInterface {
     receiptNumber?: string;
     paymentReference?: string;
 }
+export interface DailyRequestStatus {
+    limit: number;
+    used: number;
+    remaining: number;
+    limitReached: boolean;
+    date: string;
+    nextAvailableDate: string;
+    resetsAt: string;
+    timeZone: string;
+}

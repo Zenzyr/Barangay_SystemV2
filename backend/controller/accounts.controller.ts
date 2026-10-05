@@ -28,6 +28,7 @@ import {
   EMAIL_VERIFICATION_TOKEN_TTL,
 } from "../utils/emailVerification";
 import { calculateAge } from "../utils/age";
+import { hasNameParts, parseNameParts } from "../utils/personName";
 import {
   generateResetCode,
   hashResetCode,
@@ -221,7 +222,9 @@ export class AccountController {
       const email = String(body.email || "")
         .trim()
         .toLowerCase();
-      const name = String(body.name || "").trim();
+      const structuredName = hasNameParts(body) ? parseNameParts(body) : null;
+      const nameParts = structuredName?.ok ? structuredName.parts : null;
+      const name = structuredName?.ok ? structuredName.name : String(body.name || "").trim();
       const address = String(body.address || "").trim();
       const contact = String(body.contact || "").trim();
       const password = String(body.password || "");
@@ -242,6 +245,8 @@ export class AccountController {
       }
 
       // ── Field validation ─────────────────────────────────────
+      if (structuredName && !structuredName.ok)
+        return response.status(400).send(structuredName.error);
       if (!isNonEmptyString(name))
         return response.status(400).send("Full name is required");
       if (!isName(name))
@@ -422,6 +427,7 @@ export class AccountController {
       const account = await AccountService.create({
         profile: String(body.profile || ""),
         name,
+        ...(nameParts ?? {}),
         address,
         contact,
         email,
@@ -532,7 +538,9 @@ export class AccountController {
       const email = String(body.email || "")
         .trim()
         .toLowerCase();
-      const name = String(body.name || "").trim();
+      const structuredName = hasNameParts(body) ? parseNameParts(body) : null;
+      const nameParts = structuredName?.ok ? structuredName.parts : null;
+      const name = structuredName?.ok ? structuredName.name : String(body.name || "").trim();
       const address = String(body.address || "").trim();
       const contact = String(body.contact || "").trim();
       const gender = String(body.gender || "").trim();
@@ -550,6 +558,8 @@ export class AccountController {
       }
 
       // ── Field validation (same rules as the sign-up form) ─────
+      if (structuredName && !structuredName.ok)
+        return response.status(400).send(structuredName.error);
       if (!isNonEmptyString(name))
         return response.status(400).send("Full name is required");
       if (!isName(name))
@@ -639,6 +649,7 @@ export class AccountController {
       const account = await AccountService.create({
         profile: String(body.profile || ""),
         name,
+        ...(nameParts ?? {}),
         address,
         contact,
         email,
@@ -727,7 +738,12 @@ export class AccountController {
   static checkDuplicate = async (request: AuthRequest, response: Response) => {
     try {
       const body = (request.body || {}) as Record<string, unknown>;
-      const name = String(body.name || "").trim();
+      const structuredName = hasNameParts(body) ? parseNameParts(body) : null;
+      if (structuredName && !structuredName.ok) {
+        response.status(400).send(structuredName.error);
+        return;
+      }
+      const name = structuredName?.ok ? structuredName.name : String(body.name || "").trim();
       const dateOfBirth = String(body.dateOfBirth || "").trim();
       const gender = String(body.gender || "").trim();
       const contact = String(body.contact || "").trim();
@@ -1424,7 +1440,14 @@ export class AccountController {
         response.status(400).send("Invalid account id");
         return;
       }
+      if (!isStaffRole(request.account?.role) && request.account?._id !== id) {
+        response.status(403).send("You can only update your own profile");
+        return;
+      }
+      const nameFieldsProvided = hasNameParts(request.body || {});
+      const structuredName = nameFieldsProvided ? parseNameParts(request.body) : null;
       if (
+        !nameFieldsProvided &&
         !name &&
         !nickname &&
         !address &&
@@ -1450,10 +1473,19 @@ export class AccountController {
       // — only staff-maintained workflows may. Residents may still set a
       // nickname. This is enforced server-side regardless of what the
       // frontend hides.
+      const storedParts = {
+        firstName: existingAccount.firstName ?? "",
+        middleName: existingAccount.middleName ?? "",
+        lastName: existingAccount.lastName ?? "",
+      };
+      const namePartsChanged =
+        !!structuredName?.ok &&
+        (Object.keys(storedParts) as (keyof typeof storedParts)[]).some(
+          (key) => structuredName.parts[key] !== storedParts[key],
+        );
       if (
         request.account?.role === "resident" &&
-        name &&
-        name !== existingAccount.name
+        ((name && name !== existingAccount.name) || namePartsChanged)
       ) {
         response
           .status(403)
@@ -1463,6 +1495,10 @@ export class AccountController {
         return;
       }
 
+      if (structuredName && !structuredName.ok) {
+        response.status(400).send(structuredName.error);
+        return;
+      }
       if (name && (!isName(name) || !withinLength(name, MAX_NAME_LENGTH))) {
         response
           .status(400)
@@ -1497,7 +1533,15 @@ export class AccountController {
       }
 
       const updateData: Record<string, string> = {};
-      if (name) updateData.name = name;
+      if (structuredName?.ok) {
+        updateData.name = structuredName.name;
+        Object.assign(updateData, structuredName.parts);
+      } else if (name) {
+        updateData.name = name;
+        if (name !== existingAccount.name && (storedParts.firstName || storedParts.lastName)) {
+          Object.assign(updateData, { firstName: "", middleName: "", lastName: "" });
+        }
+      }
       if (nickname !== undefined) updateData.nickname = nickname;
       if (address) updateData.address = address;
       if (contact) updateData.contact = contact;
