@@ -10,7 +10,7 @@ export interface accountInterfaceInput {
     contact: string,
     password: string,
     status :  string,
-    role?: "resident" | "secretary" | "super_admin",
+    role?: "resident" | "secretary" | "super_admin" | "treasurer",
     isSuspended?: boolean,
     suspensionReason?: string,
     possibleDuplicate?: {

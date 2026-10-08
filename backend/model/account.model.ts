@@ -48,7 +48,7 @@ const AccountSchema = new Schema(
     status: { type: String, required: true },
     role: {
       type: String,
-      enum: ["resident", "secretary", "super_admin"],
+      enum: ["resident", "secretary", "super_admin", "treasurer"],
       default: "resident",
     },
 

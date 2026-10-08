@@ -57,7 +57,7 @@ import { SystemInfoService } from "../services/systemInfo.service";
 import { WorkService } from "../services/work.service";
 import { ScheduleError, WorkScheduleService } from "../services/workSchedule.service";
 import { AuditLogService } from "../services/auditLog.service";
-import { ROLES, ROLE_LIST, isStaffRole } from "../utils/roles";
+import { ROLES, ROLE_LIST, isStaffRole, isOfficeRole } from "../utils/roles";
 import {
   assessPersonRegistration,
   buildDuplicateReport,
@@ -2271,7 +2271,7 @@ export class AccountController {
       // assigned by a trusted super admin, so email ownership proof is
       // not required for staff to log in.
       const accountRole = account.role || "resident";
-      if (account.emailVerified === false && !isStaffRole(accountRole)) {
+      if (account.emailVerified === false && !isOfficeRole(accountRole)) {
         response
           .status(403)
           .send(

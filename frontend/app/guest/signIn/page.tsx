@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import axiosInstance from "@/app/utils/axios";
 import useUserStore from "@/app/store/useUserStore";
+import { homeForRole } from "@/lib/constants/roles";
 import { errorAlert, successAlert } from "@/app/utils/alert";
 import {
   LogIn,
@@ -272,13 +273,7 @@ function SignInContent() {
       setAttemptsRemaining(null);
 
       // Navigate by role returned from the server (never trust the client)
-      if (account?.role === "super_admin") {
-        router.push("/pages/superadmin/home");
-      } else if (account?.role === "secretary") {
-        router.push("/pages/secretary/home");
-      } else {
-        router.push("/pages/resident/home");
-      }
+      router.push(homeForRole(account?.role));
     } catch (err) {
       const status = (err as ApiError)?.response?.status;
       const data = (err as ApiError)?.response?.data;

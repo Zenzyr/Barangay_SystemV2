@@ -30,9 +30,14 @@ export const ReceiptView = forwardRef<HTMLDivElement, { receipt: ReceiptData }>(
   return (
     <div
       ref={ref}
-      className="bg-[#fffdf7] border border-[#e8dcc8] shadow-lg mx-auto"
+      className="relative bg-[#fffdf7] border border-[#e8dcc8] shadow-lg mx-auto"
       style={{ width: "340px", fontFamily: "'Courier New', 'Courier', monospace" }}
     >
+      {receipt.voided && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <span className="-rotate-[24deg] border-4 border-rose-500/70 px-4 py-1 text-4xl font-black tracking-[0.3em] text-rose-500/70">VOID</span>
+        </div>
+      )}
       <div className="border-b border-dashed border-[#d4c5a9] mx-4" />
 
       <div className="px-5 pt-5 pb-2 text-center">
@@ -60,6 +65,12 @@ export const ReceiptView = forwardRef<HTMLDivElement, { receipt: ReceiptData }>(
         <Row label="Receipt No:" value={receipt.receiptNumber} strong />
         <Row label="Date Paid:" value={receipt.paidAt ? formatDateTime(receipt.paidAt) : "Not recorded"} />
         {receipt.processedBy && <Row label="Cashier:" value={receipt.processedBy} />}
+        {receipt.verificationStatus && (
+          <Row
+            label="Verification:"
+            value={receipt.voided ? "Rejected" : receipt.verificationStatus === "verified" ? "Verified" : "Pending"}
+          />
+        )}
       </div>
 
       <Divider />
@@ -116,6 +127,11 @@ export const ReceiptView = forwardRef<HTMLDivElement, { receipt: ReceiptData }>(
       <Divider />
 
       <div className="px-5 py-4 text-center space-y-1">
+        {receipt.voided && (
+          <p className="text-[10px] font-bold text-rose-600 uppercase">
+            Voided — payment rejected{receipt.rejectionReason ? `: ${receipt.rejectionReason}` : ""}
+          </p>
+        )}
         <p className="text-[11px] font-semibold text-gray-800">Maraming Salamat!</p>
         <p className="text-[9px] text-gray-400">This serves as your official receipt.</p>
         <p className="text-[9px] text-gray-400">Keep this for your records.</p>

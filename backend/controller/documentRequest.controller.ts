@@ -8,7 +8,7 @@ import { sendNotification } from "../utils/sms";
 import { smsTemplates } from "../utils/smsTemplates";
 import { isObjectId } from "../utils/validation";
 import { convertDocxToPdf } from "../utils/docxToPdf";
-import { isStaffRole } from "../utils/roles";
+import { ROLES, isStaffRole } from "../utils/roles";
 import { getPayMongoCheckoutDetails } from "../services/payment.service";
 import { AccountService } from "../services/acccount.service";
 import { ResidentCensusService } from "../services/residentCensus.service";
@@ -36,6 +36,11 @@ const amountDueOf = (doc: any): number => {
   const price = Number(doc?.price);
   return Number.isFinite(price) && price >= 0 ? price : 0;
 };
+
+const wasRejectedSession = (doc: any, checkoutSessionId: string): boolean =>
+  (doc?.paymentHistory ?? []).some(
+    (entry: any) => entry?.action === "rejected" && entry?.snapshot?.checkoutSessionId === checkoutSessionId,
+  );
 
 const DOC_STATUSES = ["pending", "processing", "ready", "released", "cancelled", "to claim", "completed", "rejected"];
 
@@ -91,6 +96,10 @@ export class DocumentRequestController {
       // An account-linked request must reference a real account. A walk-in
       // without an account (resident field omitted) is allowed as long as a
       // denormalized fullName is provided for the snapshot fields.
+      if (account.role === ROLES.TREASURER) {
+        response.status(403).send("Treasurer accounts cannot file document requests");
+        return;
+      }
       const requesterIsStaff = isStaffRole(account.role);
       if (!requesterIsStaff) delete documentData.census;
       for (const key of ["paymentMethod", "paymentChannel", "amountPaid", "amountTendered", "changeGiven", "paidAt", "receiptNumber", "paymentReference", "paymentProcessedBy", "checkoutSessionId"]) {
@@ -531,7 +540,11 @@ export class DocumentRequestController {
       }
 
       if (!isPaid) {
-        await DocumentRequestService.clearPayment(id);
+        if (current.paymentVerificationStatus === "verified") {
+          response.status(409).send("This payment has been verified by the treasurer and can no longer be cleared");
+          return;
+        }
+        await DocumentRequestService.clearPayment(id, { id: account._id.toString(), name: account.name });
         response.send({ message: "Payment status updated to unpaid successfully" });
         return;
       }
@@ -567,6 +580,7 @@ export class DocumentRequestController {
         amountTendered: tendered ?? amountDue,
         changeGiven: Math.round(((tendered ?? amountDue) - amountDue) * 100) / 100,
         paymentProcessedBy: account._id.toString(),
+        recordedByName: account.name,
       });
       if (!document) {
         response.status(409).send("This request has already been paid");
@@ -701,6 +715,10 @@ export class DocumentRequestController {
                 response.status(409).send("This request has already been paid");
                 return;
             }
+            if (wasRejectedSession(current, checkoutSessionId)) {
+                response.status(400).send("This payment session was rejected by the treasurer. Please start a new payment.");
+                return;
+            }
             await DocumentRequestService.update(id, { checkoutSessionId });
             response.send({ message: "Checkout session ID saved" });
         } catch (error) {
@@ -743,6 +761,10 @@ export class DocumentRequestController {
                 response.send("success");
                 return;
             }
+            if (wasRejectedSession(current, checkoutSessionId)) {
+                response.status(400).send("This payment session was rejected by the treasurer. Please start a new payment.");
+                return;
+            }
 
             const details = await getPayMongoCheckoutDetails(checkoutSessionId);
             if (!details.paid) {
@@ -756,6 +778,7 @@ export class DocumentRequestController {
                 amountPaid: details.amount ?? amountDueOf(current),
                 paidAt: details.paidAt ?? new Date(),
                 paymentReference: details.reference ?? checkoutSessionId,
+                recordedByName: account.name,
             });
             if (!document) {
                 response.send("success");

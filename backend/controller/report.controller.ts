@@ -2,6 +2,7 @@ import { Response } from "express";
 import { AuthRequest } from "../types/request.type";
 import { ReportService } from "../services/report.service";
 import { parseTransactionFilters, validateDateRange } from "../services/transaction.service";
+import { PERMISSIONS, hasPermission, isStaffRole } from "../utils/roles";
 
 const DOCUMENT_STATUSES = ["pending", "processing", "ready", "released", "cancelled", "to claim", "completed", "rejected"];
 const WORK_STATUSES = ["pending", "active", "accepted", "to review", "completed", "rejected"];
@@ -12,8 +13,14 @@ export class ReportController {
   static generate = async (request: AuthRequest, response: Response) => {
     try {
       const type = String(request.query.type || "documents");
-      if (!["documents", "payments", "work"].includes(type)) {
-        response.status(400).json({ message: "Report type must be documents, payments, or work" });
+      if (!["documents", "payments", "work", "collections"].includes(type)) {
+        response.status(400).json({ message: "Report type must be documents, payments, work, or collections" });
+        return;
+      }
+      const role = request.account?.role;
+      const allowed = type === "collections" ? hasPermission(role, PERMISSIONS.COLLECTION_REPORTS_VIEW) : isStaffRole(role);
+      if (!allowed) {
+        response.status(403).json({ message: "Access denied" });
         return;
       }
 
@@ -43,6 +50,13 @@ export class ReportController {
       const rangeError = validateDateRange(filters);
       if (rangeError) {
         response.status(400).json({ message: rangeError });
+        return;
+      }
+
+      if (type === "collections") {
+        const { paymentStatus: _paymentStatus, receipt: _receipt, ...collectionFilters } = filters;
+        const report = await ReportService.collections(collectionFilters);
+        response.send({ ...report, generatedAt, filters: collectionFilters });
         return;
       }
 

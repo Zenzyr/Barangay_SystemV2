@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import useUserStore from "@/app/store/useUserStore";
+import { homeForRole } from "@/lib/constants/roles";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { SidebarSecretary } from "@/components/ui/sidebar_secretary";
 import { SidebarSuperAdmin } from "@/components/ui/sidebar_superadmin";
@@ -27,7 +28,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         return;
       }
       if (!STAFF_ROLES.includes(user.role || "")) {
-        router.replace("/pages/resident/home");
+        router.replace(homeForRole(user.role));
       }
     }, [user, router, _hasHydrated]);
 

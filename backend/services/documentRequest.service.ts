@@ -19,6 +19,30 @@ const businessParts = (now: Date): Record<string, string> => {
   return Object.fromEntries(parts.map((p) => [p.type, p.value]));
 };
 
+export const PAYMENT_SNAPSHOT_FIELDS = [
+  "isPaid",
+  "paymentMethod",
+  "paymentChannel",
+  "amountPaid",
+  "amountTendered",
+  "changeGiven",
+  "paidAt",
+  "receiptNumber",
+  "paymentReference",
+  "paymentProcessedBy",
+  "paymentVerificationStatus",
+  "checkoutSessionId",
+] as const;
+
+export const paymentSnapshot = (source: Record<string, any>): Record<string, unknown> => {
+  const snapshot: Record<string, unknown> = {};
+  for (const key of PAYMENT_SNAPSHOT_FIELDS) {
+    const value = source?.[key];
+    if (value !== undefined && value !== null && value !== "") snapshot[key] = value;
+  }
+  return snapshot;
+};
+
 export interface DailyRequestStatus {
   limit: number;
   used: number;
@@ -187,30 +211,64 @@ export class DocumentRequestService {
       paidAt?: Date;
       paymentReference?: string;
       paymentProcessedBy?: string;
+      recordedByName?: string;
     }
   ) {
     const paidAt = details.paidAt ?? new Date();
+    const prior: any = await DocumentRequestModel.findById(id).select("paymentHistory").lean();
+    const rejections = (prior?.paymentHistory ?? []).filter((h: any) => h.action === "rejected").length;
+    const baseReceipt = DocumentRequestService.buildReceiptNumber(id, paidAt);
+    const receiptNumber = rejections ? `${baseReceipt}-${rejections + 1}` : baseReceipt;
+
     const set: Record<string, any> = {
       isPaid: true,
       paymentMethod: details.paymentMethod,
       paymentChannel: details.paymentChannel,
       amountPaid: details.amountPaid,
       paidAt,
-      receiptNumber: DocumentRequestService.buildReceiptNumber(id, paidAt),
+      receiptNumber,
+      paymentVerificationStatus: "pending",
     };
-    if (details.amountTendered !== undefined) set.amountTendered = details.amountTendered;
-    if (details.changeGiven !== undefined) set.changeGiven = details.changeGiven;
-    if (details.paymentReference) set.paymentReference = details.paymentReference;
-    if (details.paymentProcessedBy) set.paymentProcessedBy = details.paymentProcessedBy;
+    const unset: Record<string, 1> = {
+      paymentVerifiedBy: 1,
+      paymentVerifiedAt: 1,
+      paymentRejectedBy: 1,
+      paymentRejectedAt: 1,
+      paymentRejectionReason: 1,
+    };
+    const optional = {
+      amountTendered: details.amountTendered,
+      changeGiven: details.changeGiven,
+      paymentReference: details.paymentReference || undefined,
+      paymentProcessedBy: details.paymentProcessedBy,
+    };
+    for (const [key, value] of Object.entries(optional)) {
+      if (value !== undefined) set[key] = value;
+      else unset[key] = 1;
+    }
 
     return await DocumentRequestModel.findOneAndUpdate(
       { _id: id, isPaid: { $ne: true } },
-      { $set: set },
+      {
+        $set: set,
+        $unset: unset,
+        $push: {
+          paymentHistory: {
+            action: "recorded",
+            at: new Date(),
+            by: details.paymentProcessedBy,
+            byName: details.recordedByName,
+            snapshot: paymentSnapshot({ ...set, ...optional }),
+          },
+        },
+      },
       { new: true }
     ).populate("resident", "-password");
   }
 
-  static async clearPayment(id: string) {
+  static async clearPayment(id: string, actor?: { id: string; name: string }) {
+    const current: any = await DocumentRequestModel.findById(id).lean();
+    if (!current) return null;
     return await DocumentRequestModel.findByIdAndUpdate(
       id,
       {
@@ -225,6 +283,18 @@ export class DocumentRequestService {
           receiptNumber: 1,
           paymentReference: 1,
           paymentProcessedBy: 1,
+          paymentVerificationStatus: 1,
+          paymentVerifiedBy: 1,
+          paymentVerifiedAt: 1,
+        },
+        $push: {
+          paymentHistory: {
+            action: "cleared",
+            at: new Date(),
+            by: actor?.id,
+            byName: actor?.name,
+            snapshot: paymentSnapshot(current),
+          },
         },
       },
       { new: true }

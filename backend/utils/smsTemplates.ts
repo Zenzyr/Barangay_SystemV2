@@ -48,6 +48,9 @@ export const smsTemplates = {
   paymentReceived: (name: string, doc: string) =>
     `Hi ${firstName(name)}, we've received your payment for ${documentLabel(doc)}. Thank you!`,
 
+  paymentRejected: (name: string, doc: string) =>
+    `Hi ${firstName(name)}, your payment for ${documentLabel(doc)} could not be verified by the barangay treasurer. Please check your notifications or visit the barangay hall.`,
+
   accountStatus: (name: string, status: "approved" | "rejected") =>
     status === "approved"
       ? `Hi ${firstName(name)}, your barangay resident account has been approved! You can now log in and request documents.`

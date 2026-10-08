@@ -1,4 +1,4 @@
-import { Clock, Loader2, FileCheck, CheckCircle2, Ban, BadgeCheck, type LucideIcon } from "lucide-react";
+import { Clock, Loader2, FileCheck, CheckCircle2, Ban, BadgeCheck, Hourglass, ShieldCheck, ShieldX, type LucideIcon } from "lucide-react";
 
 export type StatusConfig = {
   label: string;
@@ -19,3 +19,9 @@ export const STATUS_CONFIG: Record<string, StatusConfig> = {
   rejected:   { label: "Rejected",   icon: Ban,          bg: "bg-rose-50",    text: "text-rose-700",    border: "border-rose-200" },
 };
 
+
+export const PAYMENT_VERIFICATION_CONFIG: Record<string, StatusConfig> = {
+  pending:  { label: "Pending Verification", icon: Hourglass,   bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-200" },
+  verified: { label: "Verified",             icon: ShieldCheck, bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
+  rejected: { label: "Rejected",             icon: ShieldX,     bg: "bg-rose-50",    text: "text-rose-700",    border: "border-rose-200" },
+};

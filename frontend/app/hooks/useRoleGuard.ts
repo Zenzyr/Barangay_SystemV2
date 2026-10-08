@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import useUserStore from "@/app/store/useUserStore";
+import { homeForRole } from "@/lib/constants/roles";
 
 /**
  * Redirects non-Super Admins away from system configuration pages.
@@ -19,7 +20,7 @@ export function useSuperAdminGuard() {
       return;
     }
     if (user.role !== "super_admin") {
-      router.replace("/pages/secretary/home");
+      router.replace(user.role === "secretary" ? "/pages/secretary/home" : homeForRole(user.role));
     }
   }, [user, router, _hasHydrated]);
 

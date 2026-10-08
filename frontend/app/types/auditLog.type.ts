@@ -3,7 +3,7 @@ export interface auditLog {
   actor: string;
   actorId?: string;
   action: string;
-  entity: "official" | "barangaySettings" | "account";
+  entity: "official" | "barangaySettings" | "account" | "payment" | "documentTemplate" | "decisionSupport" | "residentCensus" | "analyticsSnapshot";
   entityId: string;
   entityLabel: string;
   field?: string;
