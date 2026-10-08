@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import axiosInstance from "@/app/utils/axios";
 import { successAlert, errorAlert } from "@/app/utils/alert";
+import { namePartError, fullNameLengthError, normalizeNamePart, MAX_NAME_PART_LENGTH } from "@/app/utils/personName";
 import {
   Upload,
   Camera,
@@ -33,7 +34,9 @@ import {
 
 // ─── Validation rules ────────────────────────────────────────────
 type FormValues = {
-  name: string;
+  firstName: string;
+  middleName: string;
+  lastName: string;
   email: string;
   contact: string;
   address: string;
@@ -87,12 +90,9 @@ function calculateAge(dob: string): number | null {
 const validators: {
   [K in keyof FormValues]: (value: string, values: FormValues) => string;
 } = {
-  name: (v) => {
-    if (!v.trim()) return "Full name is required";
-    if (v.trim().length < 2) return "Name looks too short";
-    if (!/^[a-zA-ZñÑ.'\-\s]+$/.test(v)) return "Name can only contain letters and spaces";
-    return "";
-  },
+  firstName: (v) => namePartError("First name", v, true),
+  middleName: (v) => namePartError("Middle name", v, false),
+  lastName: (v, values) => namePartError("Last name", v, true) || fullNameLengthError(values),
   email: (v) => {
     const email = v.trim();
     if (!email) return "Email is required";
@@ -453,7 +453,9 @@ export default function SignUpPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   // Form fields
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [middleName, setMiddleName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [address, setAddress] = useState("");
   const [contact, setContact] = useState("");
   const [email, setEmail] = useState("");
@@ -600,7 +602,9 @@ export default function SignUpPage() {
   const [touched, setTouched] = useState<Partial<Record<keyof FormValues, boolean>>>({});
 
   const formValues: FormValues = {
-    name,
+    firstName,
+    middleName,
+    lastName,
     email,
     contact,
     address,
@@ -834,7 +838,9 @@ export default function SignUpPage() {
       let censusAutoFill: Record<string, string> | null = null;
       try {
         const precheck = await axiosInstance.post("/account/check-duplicate", {
-          name: name.trim(),
+          firstName: normalizeNamePart(firstName),
+          middleName: normalizeNamePart(middleName),
+          lastName: normalizeNamePart(lastName),
           dateOfBirth,
           gender,
           contact,
@@ -873,7 +879,9 @@ export default function SignUpPage() {
       }
 
       const formData = new FormData();
-      formData.append("name", name.trim());
+      formData.append("firstName", normalizeNamePart(firstName));
+      formData.append("middleName", normalizeNamePart(middleName));
+      formData.append("lastName", normalizeNamePart(lastName));
       formData.append("address", address.trim());
       formData.append("email", email.trim());
       formData.append("password", password);
@@ -979,25 +987,73 @@ export default function SignUpPage() {
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 w-full">
                 <div className="space-y-1.5 min-w-0">
-                  <Label htmlFor="name" className="text-sm font-medium text-gray-700">
-                    Full Name
+                  <Label htmlFor="firstName" className="text-sm font-medium text-gray-700">
+                    First Name
                   </Label>
                   <div className="relative">
                     <UserRound className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
                     <Input
-                      id="name"
-                      placeholder="Juan Dela Cruz"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      onBlur={handleBlur("name")}
+                      id="firstName"
+                      placeholder="Juan"
+                      value={firstName}
+                      maxLength={MAX_NAME_PART_LENGTH}
+                      autoComplete="given-name"
+                      onChange={(e) => setFirstName(e.target.value)}
+                      onBlur={handleBlur("firstName")}
                       className={`pl-10 h-10 transition-all ${
-                        touched.name && errors.name
+                        touched.firstName && errors.firstName
                           ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
                           : "border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
                       }`}
                     />
                   </div>
-                  <FieldError message={touched.name ? errors.name : undefined} />
+                  <FieldError message={touched.firstName ? errors.firstName : undefined} />
+                </div>
+                <div className="space-y-1.5 min-w-0">
+                  <Label htmlFor="middleName" className="text-sm font-medium text-gray-700">
+                    Middle Name <span className="text-xs font-normal text-gray-400">(optional)</span>
+                  </Label>
+                  <div className="relative">
+                    <UserRound className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+                    <Input
+                      id="middleName"
+                      placeholder="Santos"
+                      value={middleName}
+                      maxLength={MAX_NAME_PART_LENGTH}
+                      autoComplete="additional-name"
+                      onChange={(e) => setMiddleName(e.target.value)}
+                      onBlur={handleBlur("middleName")}
+                      className={`pl-10 h-10 transition-all ${
+                        touched.middleName && errors.middleName
+                          ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
+                          : "border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
+                      }`}
+                    />
+                  </div>
+                  <FieldError message={touched.middleName ? errors.middleName : undefined} />
+                </div>
+                <div className="space-y-1.5 min-w-0">
+                  <Label htmlFor="lastName" className="text-sm font-medium text-gray-700">
+                    Last Name
+                  </Label>
+                  <div className="relative">
+                    <UserRound className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+                    <Input
+                      id="lastName"
+                      placeholder="Dela Cruz"
+                      value={lastName}
+                      maxLength={MAX_NAME_PART_LENGTH}
+                      autoComplete="family-name"
+                      onChange={(e) => setLastName(e.target.value)}
+                      onBlur={handleBlur("lastName")}
+                      className={`pl-10 h-10 transition-all ${
+                        touched.lastName && errors.lastName
+                          ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
+                          : "border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
+                      }`}
+                    />
+                  </div>
+                  <FieldError message={touched.lastName ? errors.lastName : undefined} />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="email" className="text-sm font-medium text-gray-700">

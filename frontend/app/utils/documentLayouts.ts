@@ -267,6 +267,48 @@ export const documentLayouts: DocumentLayout[] = [
       { key: "dateIssued", label: "Date Issued", format: "date" },
     ],
   },
+  {
+    document: "certificationOfCohabitant",
+    price: 30,
+    title: "Certification of Cohabitation",
+    source: "docs/certification-of-cohabitant.docx",
+    signatoryPrefix: "HON.",
+    signatoryTitle: "Barangay Captain",
+    description:
+      "This is to certify that the persons named herein have been living together as spouses in this Barangay.",
+    body:
+      "This is to certify that {fullName}, born on {dateOfBirth}, and {spouseName}, born on {spouseDateOfBirth}, have been living as spouses in good faith, taking on all of the tasks and responsibilities that follow with being in the relationship, cohabiting the same household at {purok}, Rabon, Rosario, La Union, and both holding themselves out to the community as spouses since {cohabitationYear}.\n\n" +
+      "This certification is issued upon request of the said herein person for whatever legal intents and purposes it may serve.\n\n" +
+      "Issued this {dateIssuedDay} day of {dateIssuedMonth}, {dateIssuedYear} at Barangay Rabon, Rosario, La Union.",
+    fields: [
+      { key: "fullName", label: "Full Name" },
+      { key: "dateOfBirth", label: "Date of Birth", format: "date" },
+      { key: "spouseName", label: "Spouse Name" },
+      { key: "spouseDateOfBirth", label: "Partner Date of Birth", format: "date" },
+      { key: "purok", label: "Purok" },
+      { key: "cohabitationYear", label: "Living Together Since" },
+      { key: "dateIssued", label: "Date Issued", format: "date" },
+    ],
+  },
+  {
+    document: "soloCertification",
+    price: 30,
+    title: "Certification",
+    source: "docs/solo-certification.docx",
+    signatoryPrefix: "HON.",
+    description:
+      "This is to certify that the person named herein is a solo parent with sole custody of a child.",
+    body:
+      "This is to certify that as per record available in this office {fullName}, {age} years old, Filipino Citizen, and a bonafide resident here in Barangay Rabon, Rosario, La Union.\n\n" +
+      "Further certify that above named person \u201Csolo parent\u201D having sole custody care and support of his/her child.\n\n" +
+      "This certification is issued upon request of the above mentioned for whatever legal purposes it may serve.\n\n" +
+      "Issued this {dateIssuedDay} day of {dateIssuedMonth}, {dateIssuedYear} at Barangay Rabon, Rosario, La Union.",
+    fields: [
+      { key: "fullName", label: "Full Name" },
+      { key: "age", label: "Age", format: "number" },
+      { key: "dateIssued", label: "Date Issued", format: "date" },
+    ],
+  },
 ];
 
 // "Barangay Clearance" was consolidated into "Barangay Certificate". Legacy

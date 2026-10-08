@@ -176,6 +176,11 @@ export const fetchTemplatePreviewPdf = async (id: string): Promise<string> => {
   return URL.createObjectURL(blob);
 };
 
+export const fetchActiveTemplatePreviewPdf = async (documentType: string): Promise<string> => {
+  const response = await axiosInstance.get(`/document-templates/public/${encodeURIComponent(documentType)}/preview`, { responseType: "blob" });
+  return URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+};
+
 /** What the editor opens: the stored Tiptap document, or a converted draft of a legacy layout. */
 export interface TemplateEditorContent {
   format: "tiptap" | "legacy-converted";

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import useUserStore from "@/app/store/useUserStore";
+import { homeForRole } from "@/lib/constants/roles";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { SidebarResident } from "@/components/ui/sidebar_resident";
 import { NotificationBell } from "@/components/ui/notificationBell";
@@ -24,15 +25,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         router.replace("/guest/signIn");
         return;
       }
-      if (user.role === "secretary") {
-        router.replace("/pages/secretary/home");
-      } else if (user.role === "super_admin") {
-        router.replace("/pages/superadmin/home");
+      if (user.role && user.role !== "resident") {
+        router.replace(homeForRole(user.role));
       }
     }, [user, router, _hasHydrated]);
 
     // Show nothing or a loading state until hydrated
     if (!_hasHydrated || !user) return null;
+    if (user.role && user.role !== "resident") return null;
 
     if(user?.isSuspended) return <AccountSuspended />
     if(user?.status == "pending" ) return <ResidentPending />

@@ -13,7 +13,8 @@ export type AuditEntity =
   | "documentRequest"
   | "transaction"
   | "purok"
-  | "certificate";
+  | "certificate"
+  | "payment";
 
 export interface auditLogInterfaceInput {
   /** Display identity of the actor (from the authenticated account). */

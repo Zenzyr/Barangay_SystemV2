@@ -15,6 +15,12 @@ route.get(
   handler(DocumentTemplateController.getPublic),
 );
 
+route.get(
+  "/public/:documentType/preview",
+  authenticateJWT,
+  handler(DocumentTemplateController.previewByType),
+);
+
 // Management endpoints are restricted to barangay staff.
 route.get(
   "/",

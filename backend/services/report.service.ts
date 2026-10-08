@@ -2,6 +2,7 @@ import DocumentRequestModel from "../model/documentRequest.model";
 import {
   REPORT_TIMEZONE,
   TransactionFilters,
+  VerificationStatus,
   buildTransactionMatch,
   baseTransactionScope,
   toTransactionItem,
@@ -20,6 +21,10 @@ export const DOCUMENT_STATUS_GROUPS = {
 
 export interface DocumentReportFilters extends TransactionFilters {
   status?: string;
+}
+
+export interface CollectionReportFilters extends TransactionFilters {
+  verificationStatus?: VerificationStatus;
 }
 
 export interface WorkReportFilters {
@@ -199,6 +204,137 @@ export class ReportService {
         revenue: round2(b.revenue),
       })),
       byChannel: (result?.byChannel ?? []).map((b: any) => ({ channel: b._id, count: b.count, revenue: round2(b.revenue) })),
+      rows: (result?.rows ?? []).map(toTransactionItem),
+      totalRows: totalTransactions,
+      truncated: totalTransactions > REPORT_ROW_LIMIT,
+    };
+  }
+
+  static async collections(filters: CollectionReportFilters) {
+    const match = buildTransactionMatch(filters);
+    const isVerified = { $eq: ["$_verification", "verified"] };
+    const isPending = { $eq: ["$_verification", "pending"] };
+    const isRejected = { $eq: ["$_verification", "rejected"] };
+    const isCash = { $eq: ["$_method", "over-the-counter"] };
+    const isOnline = { $eq: ["$_method", "online"] };
+    const periodGroup = (format: string) => [
+      { $addFields: { _period: { $dateToString: { format, date: "$_txAt", timezone: REPORT_TIMEZONE } } } },
+      {
+        $group: {
+          _id: "$_period",
+          from: { $min: "$_day" },
+          to: { $max: "$_day" },
+          transactions: { $sum: 1 },
+          verifiedCount: { $sum: { $cond: [isVerified, 1, 0] } },
+          collected: { $sum: { $cond: [isVerified, "$_amount", 0] } },
+          cash: { $sum: { $cond: [{ $and: [isVerified, isCash] }, "$_amount", 0] } },
+          online: { $sum: { $cond: [{ $and: [isVerified, isOnline] }, "$_amount", 0] } },
+          pending: { $sum: { $cond: [isPending, "$_amount", 0] } },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ];
+
+    const [result] = await DocumentRequestModel.aggregate([
+      { $match: { $or: [{ isPaid: true }, { paymentVerificationStatus: { $exists: true } }] } },
+      ...transactionBaseStages(),
+      { $match: { _verification: { $in: ["pending", "verified", "rejected"] } } },
+      { $match: match },
+      {
+        $facet: {
+          summary: [
+            {
+              $group: {
+                _id: null,
+                totalTransactions: { $sum: 1 },
+                verifiedCount: { $sum: { $cond: [isVerified, 1, 0] } },
+                totalCollected: { $sum: { $cond: [isVerified, "$_amount", 0] } },
+                cashCount: { $sum: { $cond: [{ $and: [isVerified, isCash] }, 1, 0] } },
+                cashCollected: { $sum: { $cond: [{ $and: [isVerified, isCash] }, "$_amount", 0] } },
+                onlineCount: { $sum: { $cond: [{ $and: [isVerified, isOnline] }, 1, 0] } },
+                onlineCollected: { $sum: { $cond: [{ $and: [isVerified, isOnline] }, "$_amount", 0] } },
+                pendingCount: { $sum: { $cond: [isPending, 1, 0] } },
+                pendingAmount: { $sum: { $cond: [isPending, "$_amount", 0] } },
+                rejectedCount: { $sum: { $cond: [isRejected, 1, 0] } },
+                rejectedAmount: { $sum: { $cond: [isRejected, "$_amount", 0] } },
+              },
+            },
+          ],
+          daily: periodGroup("%Y-%m-%d"),
+          weekly: periodGroup("%G-W%V"),
+          monthly: periodGroup("%Y-%m"),
+          byDocument: [
+            {
+              $group: {
+                _id: "$document",
+                count: { $sum: { $cond: [isVerified, 1, 0] } },
+                collected: { $sum: { $cond: [isVerified, "$_amount", 0] } },
+                pending: { $sum: { $cond: [isPending, "$_amount", 0] } },
+              },
+            },
+            { $sort: { collected: -1, _id: 1 } },
+          ],
+          byChannel: [
+            { $match: { _verification: "verified" } },
+            {
+              $group: {
+                _id: { $ifNull: ["$paymentChannel", { $cond: [isOnline, "paymongo", "cash"] }] },
+                count: { $sum: 1 },
+                collected: { $sum: "$_amount" },
+              },
+            },
+            { $sort: { collected: -1 } },
+          ],
+          rows: [{ $sort: { _txAt: -1, _id: -1 } }, { $limit: REPORT_ROW_LIMIT }],
+        },
+      },
+    ]);
+
+    const s = result?.summary?.[0] ?? {};
+    const totalTransactions = s.totalTransactions ?? 0;
+    const verifiedCount = s.verifiedCount ?? 0;
+    const period = (rows: any[]) =>
+      (rows ?? []).map((p: any) => ({
+        period: p._id,
+        from: p.from,
+        to: p.to,
+        transactions: p.transactions,
+        verifiedCount: p.verifiedCount,
+        collected: round2(p.collected),
+        cash: round2(p.cash),
+        online: round2(p.online),
+        pending: round2(p.pending),
+      }));
+
+    return {
+      type: "collections" as const,
+      summary: {
+        totalTransactions,
+        verifiedCount,
+        totalCollected: round2(s.totalCollected),
+        averageCollected: verifiedCount ? round2((s.totalCollected ?? 0) / verifiedCount) : 0,
+        cashCount: s.cashCount ?? 0,
+        cashCollected: round2(s.cashCollected),
+        onlineCount: s.onlineCount ?? 0,
+        onlineCollected: round2(s.onlineCollected),
+        pendingCount: s.pendingCount ?? 0,
+        pendingAmount: round2(s.pendingAmount),
+        rejectedCount: s.rejectedCount ?? 0,
+        rejectedAmount: round2(s.rejectedAmount),
+      },
+      series: {
+        daily: period(result?.daily),
+        weekly: period(result?.weekly),
+        monthly: period(result?.monthly),
+      },
+      byDocument: (result?.byDocument ?? []).map((b: any) => ({
+        document: b._id,
+        documentName: documentDisplayName(b._id),
+        count: b.count,
+        collected: round2(b.collected),
+        pending: round2(b.pending),
+      })),
+      byChannel: (result?.byChannel ?? []).map((b: any) => ({ channel: b._id, count: b.count, collected: round2(b.collected) })),
       rows: (result?.rows ?? []).map(toTransactionItem),
       totalRows: totalTransactions,
       truncated: totalTransactions > REPORT_ROW_LIMIT,

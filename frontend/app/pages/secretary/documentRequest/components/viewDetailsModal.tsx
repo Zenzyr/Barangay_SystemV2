@@ -63,6 +63,8 @@ const DOCUMENT_NAMES: Record<string, string> = {
   certificateOfLowIncome: "Certificate of Low Income",
   firstTimeJobseekerOath: "Oath of Undertaking (FTJ)",
   endorsementLetter: "Endorsement Letter",
+  certificationOfCohabitant: "Certification of Cohabitant",
+  soloCertification: "Solo Certification",
 };
 
 // ─── Formatter helpers ───────────────────────────────────────────

@@ -39,6 +39,8 @@ export interface documentRequestInterfaceInput {
     treeType: string | null,
     age: string | null,
     spouseName: string | null,
+    spouseDateOfBirth?: string | null,
+    cohabitationYear?: string | null,
     annualIncome: string | null,
     purok: string | null,
 }
@@ -86,6 +88,8 @@ export interface documentRequestInterface {
     treeType: string | null,
     age: string | null,
     spouseName: string | null,
+    spouseDateOfBirth?: string | null,
+    cohabitationYear?: string | null,
     annualIncome: string | null,
     purok: string | null,
     requestDate?: string | null;
@@ -107,4 +111,14 @@ export interface documentRequestInterface {
     paidAt?: string;
     receiptNumber?: string;
     paymentReference?: string;
+}
+export interface DailyRequestStatus {
+    limit: number;
+    used: number;
+    remaining: number;
+    limitReached: boolean;
+    date: string;
+    nextAvailableDate: string;
+    resetsAt: string;
+    timeZone: string;
 }

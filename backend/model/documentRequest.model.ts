@@ -15,6 +15,8 @@ const DOCUMENT_TYPES = [
   "firstTimeJobseekerOath",
   "certificateOfLowIncome",
   "endorsementLetter",
+  "certificationOfCohabitant",
+  "soloCertification",
 ];
 
 // Primary lifecycle: pending -> processing -> ready -> released (or cancelled
@@ -31,6 +33,10 @@ const DOCUMENT_STATUSES = [
   "completed",
   "rejected",
 ];
+
+export const PAYMENT_VERIFICATION_STATUSES = ["pending", "verified", "rejected"];
+
+export const PAYMENT_HISTORY_ACTIONS = ["recorded", "verified", "rejected", "corrected", "cleared", "receipt_reprinted"];
 
 const DocumentSchema = new Schema({
     // Optional: linked to an Accounts doc when the resident has an account.
@@ -81,6 +87,8 @@ const DocumentSchema = new Schema({
     treeType : { type: String, required: false },
     age : { type: String, required: false },
     spouseName : { type: String, required: false },
+    spouseDateOfBirth : { type: String, required: false },
+    cohabitationYear : { type: String, required: false },
     annualIncome : { type: String, required: false },
     purok : { type: String, required: false },
 
@@ -115,6 +123,21 @@ const DocumentSchema = new Schema({
     receiptNumber: { type: String, required: false },
     paymentReference: { type: String, required: false },
     paymentProcessedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Accounts", required: false },
+    paymentVerificationStatus: { type: String, enum: PAYMENT_VERIFICATION_STATUSES, required: false },
+    paymentVerifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Accounts", required: false },
+    paymentVerifiedAt: { type: Date, required: false },
+    paymentRejectedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Accounts", required: false },
+    paymentRejectedAt: { type: Date, required: false },
+    paymentRejectionReason: { type: String, required: false, maxlength: 500 },
+    paymentHistory: [{
+        action: { type: String, required: true, enum: PAYMENT_HISTORY_ACTIONS },
+        at: { type: Date, default: Date.now },
+        by: { type: mongoose.Schema.Types.ObjectId, ref: "Accounts", required: false },
+        byName: { type: String, required: false },
+        note: { type: String, required: false, maxlength: 500 },
+        changes: { type: Schema.Types.Mixed, required: false },
+        snapshot: { type: Schema.Types.Mixed, required: false },
+    }],
 
    
 });
@@ -140,5 +163,6 @@ DocumentSchema.index({ receiptNumber: 1 }, { unique: true, sparse: true });
 DocumentSchema.index({ isPaid: 1, paidAt: -1 });
 DocumentSchema.index({ resident: 1, paidAt: -1 });
 DocumentSchema.index({ requestDate: 1 });
+DocumentSchema.index({ paymentVerificationStatus: 1, paidAt: -1 });
 
 export default mongoose.model('Documents', DocumentSchema)

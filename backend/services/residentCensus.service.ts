@@ -3,6 +3,7 @@ import AccountModel from "../model/account.model";
 import { residentCensusInterfaceInput } from "../types/residentCensus.type";
 import { matchPerson } from "../utils/duplicateCheck";
 import { calculateAge } from "../utils/age";
+import { compareCensusNames, formatCensusName, formatFullName, normalizeNamePart } from "../utils/personName";
 import {
   normalizeCensusSex,
   censusSexToAccountGender,
@@ -93,7 +94,7 @@ export class ResidentCensusService {
       census = census || match;
     } else {
       census = await ResidentCensusModel.create({
-        name: name || "N/A",
+        name: account?.lastName ? formatCensusName(account) : name || "N/A",
         sex: normalizeCensusSex(gender),
         birthday: dateOfBirth || "N/A",
         age: dateOfBirth ? calculateAge(dateOfBirth) : "N/A",
@@ -146,6 +147,20 @@ export class ResidentCensusService {
       updates.name = census.name.includes(",")
         ? census.name.split(",").reverse().join(" ").replace(/\s+/g, " ").trim()
         : census.name;
+      const linked = await AccountModel.findById(accountId).select("firstName middleName lastName").lean();
+      const censusName = normalizeNamePart(census.name);
+      if (linked?.lastName && normalizeNamePart(formatCensusName(linked)) === censusName) {
+        updates.name = formatFullName(linked);
+      } else if (censusName.includes(",")) {
+        const commaIndex = censusName.indexOf(",");
+        updates.lastName = censusName.slice(0, commaIndex).trim();
+        updates.firstName = censusName.slice(commaIndex + 1).trim();
+        updates.middleName = "";
+      } else if (linked?.firstName || linked?.lastName) {
+        updates.firstName = "";
+        updates.middleName = "";
+        updates.lastName = "";
+      }
     }
     if (census.sex && census.sex !== "N/A") {
       const gender = censusSexToAccountGender(census.sex);
@@ -169,7 +184,8 @@ export class ResidentCensusService {
     if (!account || !account.censusId) return null;
     const censusId = String(account.censusId);
     const updates: Record<string, any> = {};
-    if (account.name) updates.name = account.name;
+    if (account.lastName) updates.name = formatCensusName(account);
+    else if (account.name) updates.name = account.name;
     if (account.gender) {
       const sex = normalizeCensusSex(account.gender);
       if (sex !== "N/A") updates.sex = sex;
@@ -259,7 +275,8 @@ export class ResidentCensusService {
   }
 
   static async getAll(filter: Record<string, any> = {}) {
-    return await ResidentCensusModel.find(filter).sort({ purok: 1, householdNumber: 1 });
+    const records = await ResidentCensusModel.find(filter).sort({ purok: 1, householdNumber: 1 });
+    return records.sort((a, b) => compareCensusNames(a.name, b.name));
   }
 
   static async get(id: string) {

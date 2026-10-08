@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import useUserStore from "@/app/store/useUserStore";
+import { homeForRole } from "@/lib/constants/roles";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { SidebarSuperAdmin } from "@/components/ui/sidebar_superadmin";
 
@@ -22,7 +23,7 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
         return;
       }
       if (user.role !== "super_admin") {
-        router.replace("/pages/resident/home");
+        router.replace(homeForRole(user.role));
       }
     }, [user, router, _hasHydrated]);
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef } from "react";
-import { ReportResponse } from "@/app/types/report.type";
+import { CollectionPeriod, ReportResponse } from "@/app/types/report.type";
 import { BreakdownTable, ReportColumn, ReportRow, SummaryStat, breakdowns, summaryStats } from "./reportColumns";
 
 export const PRINT_PAGE = { width: 1123, height: 794 };
@@ -126,10 +126,11 @@ export const ReportPrintLayout = forwardRef<
     barangayName: string;
     logoUrl?: string;
     searchNote?: string;
+    collectionPeriod?: CollectionPeriod;
   }
->(function ReportPrintLayout({ report, title, rows, columns, filters, period, barangayName, logoUrl, searchNote }, ref) {
+>(function ReportPrintLayout({ report, title, rows, columns, filters, period, barangayName, logoUrl, searchNote, collectionPeriod }, ref) {
   const stats = summaryStats(report);
-  const tables = breakdowns(report);
+  const tables = breakdowns(report, collectionPeriod);
   const chunks: ReportRow[][] = [];
   for (let i = 0; i < rows.length; i += ROWS_PER_PAGE) chunks.push(rows.slice(i, i + ROWS_PER_PAGE));
   const totalPages = 1 + Math.max(chunks.length, 1);
@@ -169,7 +170,7 @@ export const ReportPrintLayout = forwardRef<
           ))}
         </div>
 
-        <div style={{ display: "flex", gap: 24 }}>
+        <div style={{ display: "flex", gap: tables.length > 2 ? 16 : 24 }}>
           {tables.map((t) => (
             <Breakdown key={t.title} table={t} />
           ))}

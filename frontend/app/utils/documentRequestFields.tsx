@@ -227,6 +227,19 @@ export const FIELD_CONFIGS: Record<string, FieldConfig> = {
     type: "text",
     placeholder: "e.g. Juan Dela Cruz",
   },
+  spouseDateOfBirth: {
+    key: "spouseDateOfBirth",
+    label: "Partner Date of Birth",
+    type: "date",
+    required: true,
+  },
+  cohabitationYear: {
+    key: "cohabitationYear",
+    label: "Living Together Since (Year)",
+    type: "number",
+    placeholder: "e.g. 2021",
+    required: true,
+  },
   annualIncome: {
     key: "annualIncome",
     label: "Annual Income (Php)",
@@ -273,6 +286,8 @@ export const FIELD_ICONS: Record<string, React.ElementType> = {
   treeType: FileText,
   age: UserRound,
   spouseName: UserRound,
+  spouseDateOfBirth: CalendarDays,
+  cohabitationYear: CalendarDays,
   annualIncome: FileText,
   purok: MapPin,
 };

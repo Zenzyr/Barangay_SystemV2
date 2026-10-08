@@ -26,6 +26,8 @@ const previewSample = () => ({
   purok: "Purok 1",
   age: 35,
   spouseName: "Maria Dela Cruz",
+  spouseDateOfBirth: "1991-03-20",
+  cohabitationYear: "2015",
   annualIncome: "120,000",
   businessName: "Dela Cruz Sari-Sari Store",
   documentNumber: "BR-2026-0001",
@@ -542,6 +544,32 @@ export class DocumentTemplateController {
     } catch (error) {
       console.error("[DOC-TEMPLATES RENDER-BY-TYPE ERROR]", error);
       response.status(500).send("Failed to render document");
+    }
+  };
+
+  static previewByType = async (request: AuthRequest, response: Response) => {
+    try {
+      const documentType = String(request.params.documentType || "");
+      if (!/^[A-Za-z0-9_-]{1,80}$/.test(documentType)) {
+        response.status(400).send("Invalid document type");
+        return;
+      }
+      const template = await DocumentTemplateService.getByDocumentType(documentType);
+      if (!template) {
+        response.status(404).send("No active template for this document type");
+        return;
+      }
+      const pdf = await DocumentTemplateRenderer.renderPDF(String(template._id), {
+        data: previewSample(),
+        lenient: true,
+        watermark: "SAMPLE PREVIEW - NOT VALID",
+      });
+      response.setHeader("Content-Type", "application/pdf");
+      response.setHeader("Content-Disposition", `inline; filename="${documentType}-preview.pdf"`);
+      response.send(pdf);
+    } catch (error) {
+      console.error("[DOC-TEMPLATES PREVIEW-BY-TYPE ERROR]", error);
+      response.status(500).send("Failed to render document template preview");
     }
   };
 

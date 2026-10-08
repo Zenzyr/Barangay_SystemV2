@@ -13,6 +13,7 @@ route.post("/to-pdf", authenticateJWT, uploadDocx.single("file"), handler(Docume
 // Document request data is no longer public — require an authenticated account.
 // Status updates (processing/generating/issuing) are operational staff only.
 route.get("/", authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_ADMIN), handler(DocumentRequestController.getAll))
+route.get("/daily-status", authenticateJWT, handler(DocumentRequestController.getDailyStatus))
 route.get("/:id", authenticateJWT, handler(DocumentRequestController.get))
 route.get("/resident/:residentId", authenticateJWT, handler(DocumentRequestController.getByResident))
 route.patch("/:id/status", authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_ADMIN), handler(DocumentRequestController.updateStatus))

@@ -32,7 +32,9 @@ import { purokApi } from "@/app/utils/barangayApi";
 import { successAlert, errorAlert } from "@/app/utils/alert";
 import { purokInterface, purokInput } from "@/app/types/purok.type";
 import { BackButton } from "@/components/ui/BackButton";
-import RequestActionsMenu, { RequestActionItem } from "@/components/documentRequest/RequestActionsMenu";
+import RequestActionsMenu, {
+  RequestActionItem,
+} from "@/components/documentRequest/RequestActionsMenu";
 
 import {
   Table,
@@ -42,7 +44,6 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table";
-
 
 interface ApiError {
   response?: { data?: { message?: string } };
@@ -56,7 +57,6 @@ interface PurokResident {
 }
 
 export default function Page() {
-
   const queryClient = useQueryClient();
   const router = useRouter();
 
@@ -96,8 +96,13 @@ export default function Page() {
   });
 
   const statusMut = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: "active" | "inactive" }) =>
-      purokApi.setStatus(id, status),
+    mutationFn: ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: "active" | "inactive";
+    }) => purokApi.setStatus(id, status),
     onSuccess: afterMutate,
     onError: (e: ApiError) =>
       errorAlert(e?.response?.data?.message || "Failed to update status."),
@@ -150,10 +155,16 @@ export default function Page() {
             Purok Management
           </h1>
           <p className="text-sm text-slate-500">
-            Maintain the purok list, assign a leader, and view residents under each purok.
+            Maintain the purok list, assign a leader, and view residents under
+            each purok.
           </p>
         </div>
-        <Button onClick={() => { setEditing(null); setModalOpen(true); }}>
+        <Button
+          onClick={() => {
+            setEditing(null);
+            setModalOpen(true);
+          }}
+        >
           <Plus className="size-4" /> Add Purok
         </Button>
       </div>
@@ -164,7 +175,7 @@ export default function Page() {
             <TableHeader>
               <TableRow className="border-b border-slate-100">
                 <TableHead className="p-4 md:p-2">Purok Name</TableHead>
-                <TableHead className="p-4 md:p-2">Leader</TableHead>
+                <TableHead className="p-4 md:p-2">Barangay Kagawad</TableHead>
                 <TableHead className="p-4 md:p-2">Contact</TableHead>
                 <TableHead className="p-4 md:p-2">Status</TableHead>
                 <TableHead className="p-4 md:p-2 text-right">Actions</TableHead>
@@ -172,15 +183,28 @@ export default function Page() {
             </TableHeader>
             <TableBody>
               {puroks.map((p) => (
-                <TableRow key={p._id} className="border-b border-slate-100 hover:bg-slate-50/50">
-                  <TableCell className="font-medium text-slate-800 p-4 md:p-2">{p.name}</TableCell>
-                  <TableCell className="text-sm text-slate-500 p-4 md:p-2">{p.leader || "—"}</TableCell>
-                  <TableCell className="text-sm text-slate-500 p-4 md:p-2">{p.contact || "—"}</TableCell>
+                <TableRow
+                  key={p._id}
+                  className="border-b border-slate-100 hover:bg-slate-50/50"
+                >
+                  <TableCell className="font-medium text-slate-800 p-4 md:p-2">
+                    {p.name}
+                  </TableCell>
+                  <TableCell className="text-sm text-slate-500 p-4 md:p-2">
+                    {p.leader || "—"}
+                  </TableCell>
+                  <TableCell className="text-sm text-slate-500 p-4 md:p-2">
+                    {p.contact || "—"}
+                  </TableCell>
                   <TableCell className="p-4 md:p-2">
-                    <span className={
-                      "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold " +
-                      (p.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500")
-                    }>
+                    <span
+                      className={
+                        "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold " +
+                        (p.status === "active"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-slate-100 text-slate-500")
+                      }
+                    >
                       {p.status.toUpperCase()}
                     </span>
                   </TableCell>
@@ -204,12 +228,14 @@ export default function Page() {
                         },
                         {
                           key: "status",
-                          label: p.status === "active" ? "Deactivate" : "Activate",
+                          label:
+                            p.status === "active" ? "Deactivate" : "Activate",
                           icon: Power,
                           onClick: () =>
                             statusMut.mutate({
                               id: p._id,
-                              status: p.status === "active" ? "inactive" : "active",
+                              status:
+                                p.status === "active" ? "inactive" : "active",
                             }),
                         },
                         {
@@ -226,7 +252,10 @@ export default function Page() {
               ))}
               {puroks.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-sm text-slate-500 py-8">
+                  <TableCell
+                    colSpan={5}
+                    className="text-center text-sm text-slate-500 py-8"
+                  >
                     No puroks yet. Add the puroks in your barangay.
                   </TableCell>
                 </TableRow>
@@ -249,7 +278,10 @@ export default function Page() {
         }}
       />
 
-      <ResidentDialog purok={viewing} onOpenChange={(o) => setViewing(o ? o : null)} />
+      <ResidentDialog
+        purok={viewing}
+        onOpenChange={(o) => setViewing(o ? o : null)}
+      />
     </div>
   );
 }
@@ -263,7 +295,12 @@ function PurokFormDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initial: purokInterface | null;
-  onSubmit: (values: { name: string; leader?: string; contact?: string; description?: string }) => void;
+  onSubmit: (values: {
+    name: string;
+    leader?: string;
+    contact?: string;
+    description?: string;
+  }) => void;
 }) {
   const [form, setForm] = useState({
     name: initial?.name ?? "",
@@ -315,27 +352,45 @@ function PurokFormDialog({
         <div className="grid gap-4">
           <div className="grid gap-2">
             <Label>Purok Name *</Label>
-            <Input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Purok 1" />
+            <Input
+              value={form.name}
+              onChange={(e) => set("name", e.target.value)}
+              placeholder="e.g. Purok 1"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
               <Label>Leader</Label>
-              <Input value={form.leader} onChange={(e) => set("leader", e.target.value)} />
+              <Input
+                value={form.leader}
+                onChange={(e) => set("leader", e.target.value)}
+              />
             </div>
             <div className="grid gap-2">
               <Label>Contact</Label>
-              <Input value={form.contact} onChange={(e) => set("contact", e.target.value)} />
+              <Input
+                value={form.contact}
+                onChange={(e) => set("contact", e.target.value)}
+              />
             </div>
           </div>
           <div className="grid gap-2">
             <Label>Description</Label>
-            <Textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={2} />
+            <Textarea
+              value={form.description}
+              onChange={(e) => set("description", e.target.value)}
+              rows={2}
+            />
           </div>
           {error && <p className="text-sm text-rose-600">{error}</p>}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={submit}>{initial ? "Save Changes" : "Add Purok"}</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={submit}>
+            {initial ? "Save Changes" : "Add Purok"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -360,7 +415,9 @@ function ResidentDialog({
       <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>Residents of {purok?.name}</DialogTitle>
-          <DialogDescription>{residents.length} household member(s) listed under this purok.</DialogDescription>
+          <DialogDescription>
+            {residents.length} household member(s) listed under this purok.
+          </DialogDescription>
         </DialogHeader>
         <div className="max-h-[50vh] overflow-y-auto">
           {isLoading ? (
@@ -368,11 +425,19 @@ function ResidentDialog({
               <Loader2 className="size-4 animate-spin" /> Loading residents…
             </div>
           ) : residents.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No residents assigned to this purok yet.</p>
+            <p className="text-sm text-muted-foreground">
+              No residents assigned to this purok yet.
+            </p>
           ) : (
             <div className="overflow-hidden rounded-lg border">
               {residents.map((r: PurokResident, i: number) => (
-                <div key={r._id} className={"px-4 py-2.5 text-sm " + (i % 2 ? "bg-slate-50/60" : "bg-white")}>
+                <div
+                  key={r._id}
+                  className={
+                    "px-4 py-2.5 text-sm " +
+                    (i % 2 ? "bg-slate-50/60" : "bg-white")
+                  }
+                >
                   <p className="font-medium text-slate-800">{r.name}</p>
                   <p className="text-xs text-slate-500">
                     {r.address || "—"} · {r.contact || "no contact"}
@@ -383,7 +448,9 @@ function ResidentDialog({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(null)}>Close</Button>
+          <Button variant="outline" onClick={() => onOpenChange(null)}>
+            Close
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

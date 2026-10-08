@@ -19,6 +19,8 @@ const AuditLogSchema = new Schema<{
     // Purposely a free string so the history endpoint can filter uniformly.
     // Do NOT reintroduce an enum here: it silently rejected workRequest/contract
     // writes for months (every failure was swallowed by .catch(() => null)).
+    // A free string also lets newer entities (payment, purok, ...) log without a
+    // schema change.
     entity: { type: String, required: true, maxlength: 60 },
     entityId: { type: String, default: '' },
     entityLabel: { type: String, default: '' },

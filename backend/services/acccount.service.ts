@@ -135,7 +135,7 @@ export class AccountService {
     const query: Record<string, any> = { status: 'approved' };
 
     // Barangay staff accounts are not service marketplace providers.
-    query.role = { $nin: [ROLES.SECRETARY, ROLES.SUPER_ADMIN] };
+    query.role = { $nin: [ROLES.SECRETARY, ROLES.SUPER_ADMIN, ROLES.TREASURER] };
 
     if (filter.availability) query.availability = filter.availability;
     if (filter.location) query.providerLocation = { $regex: filter.location, $options: "i" };
