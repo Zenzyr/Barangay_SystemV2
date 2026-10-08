@@ -15,6 +15,8 @@ const DOCUMENT_TYPES = [
   "firstTimeJobseekerOath",
   "certificateOfLowIncome",
   "endorsementLetter",
+  "certificationOfCohabitant",
+  "soloCertification",
 ];
 
 // Primary lifecycle: pending -> processing -> ready -> released (or cancelled
@@ -85,6 +87,8 @@ const DocumentSchema = new Schema({
     treeType : { type: String, required: false },
     age : { type: String, required: false },
     spouseName : { type: String, required: false },
+    spouseDateOfBirth : { type: String, required: false },
+    cohabitationYear : { type: String, required: false },
     annualIncome : { type: String, required: false },
     purok : { type: String, required: false },
 

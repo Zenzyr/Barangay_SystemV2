@@ -26,6 +26,8 @@ const previewSample = () => ({
   purok: "Purok 1",
   age: 35,
   spouseName: "Maria Dela Cruz",
+  spouseDateOfBirth: "1991-03-20",
+  cohabitationYear: "2015",
   annualIncome: "120,000",
   businessName: "Dela Cruz Sari-Sari Store",
   documentNumber: "BR-2026-0001",

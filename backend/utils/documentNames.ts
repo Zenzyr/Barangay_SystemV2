@@ -13,6 +13,8 @@ export const DOCUMENT_NAMES: Record<string, string> = {
   firstTimeJobseekerOath: "Oath of Undertaking (FTJ)",
   certificateOfLowIncome: "Certificate of Low Income",
   endorsementLetter: "Endorsement Letter",
+  certificationOfCohabitant: "Certification of Cohabitant",
+  soloCertification: "Solo Certification",
 };
 
 export const documentDisplayName = (key: string): string =>

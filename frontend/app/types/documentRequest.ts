@@ -39,6 +39,8 @@ export interface documentRequestInterfaceInput {
     treeType: string | null,
     age: string | null,
     spouseName: string | null,
+    spouseDateOfBirth?: string | null,
+    cohabitationYear?: string | null,
     annualIncome: string | null,
     purok: string | null,
 }
@@ -86,6 +88,8 @@ export interface documentRequestInterface {
     treeType: string | null,
     age: string | null,
     spouseName: string | null,
+    spouseDateOfBirth?: string | null,
+    cohabitationYear?: string | null,
     annualIncome: string | null,
     purok: string | null,
     requestDate?: string | null;

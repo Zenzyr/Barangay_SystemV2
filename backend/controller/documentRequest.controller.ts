@@ -166,6 +166,8 @@ export class DocumentRequestController {
         "firstTimeJobseekerOath",
         "certificateOfLowIncome",
         "endorsementLetter",
+        "certificationOfCohabitant",
+        "soloCertification",
       ];
       if (!validDocs.includes(documentData.document)) {
         response.status(400).send("Invalid document type");
@@ -440,7 +442,7 @@ export class DocumentRequestController {
     "businessName", "businessAddress", "businessType", "businessNature",
     "workStatus", "workplace", "monthlyIncome", "expenseType", "householdExpenses",
     "assistanceTo", "titleNo", "taxDeclarationNo", "landArea", "treeCount",
-    "treeType", "age", "spouseName", "annualIncome", "purok",
+    "treeType", "age", "spouseName", "spouseDateOfBirth", "cohabitationYear", "annualIncome", "purok",
   ];
 
   static update = async (request: AuthRequest, response: Response) => {

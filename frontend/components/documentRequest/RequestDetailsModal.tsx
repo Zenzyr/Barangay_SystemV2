@@ -68,6 +68,8 @@ const FIELD_META: Record<string, { label: string; icon: React.ElementType }> = {
   treeType:           { label: "Tree Type",           icon: Store },
   age:                { label: "Age",                 icon: UserRound },
   spouseName:         { label: "Spouse Name",         icon: UserRound },
+  spouseDateOfBirth:  { label: "Partner Date of Birth", icon: CalendarDays },
+  cohabitationYear:   { label: "Living Together Since", icon: CalendarDays },
   annualIncome:       { label: "Annual Income",       icon: Store },
   purok:              { label: "Purok",               icon: MapPin },
 };

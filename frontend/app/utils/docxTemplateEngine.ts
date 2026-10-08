@@ -727,6 +727,8 @@ const DOCX_FILE_NAMES: Record<string, string> = {
   firstTimeJobseekerOath: "Oath of Undertaking (FTJ).docx",
   certificationOfTreesCutting: "Certification of Trees Cutting.docx",
   certificateOfAttestation: "Certificate of Attestation.docx",
+  certificationOfCohabitant: "Certification of Cohabitant.docx",
+  soloCertification: "Solo Certification.docx",
 };
 
 export async function viewDocumentDOCX(doc: documentRequestInterface): Promise<void> {
@@ -812,6 +814,8 @@ const PDF_FILE_NAMES: Record<string, string> = {
   firstTimeJobseekerOath: "Oath of Undertaking (FTJ).pdf",
   certificationOfTreesCutting: "Certification of Trees Cutting.pdf",
   certificateOfAttestation: "Certificate of Attestation.pdf",
+  certificationOfCohabitant: "Certification of Cohabitant.pdf",
+  soloCertification: "Solo Certification.pdf",
 };
 
 async function renderSecretaryTemplatePDF(
