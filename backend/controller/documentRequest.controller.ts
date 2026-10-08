@@ -1,6 +1,7 @@
 import { Response } from "express";
 import { AuthRequest } from "../types/request.type";
 import { DocumentRequestService } from "../services/documentRequest.service";
+import { AuditLogService } from "../services/auditLog.service";
 import { UserActivityService } from "../services/userActivity.service";
 import { NotificationService } from "../services/notification.service";
 import { formattedDate } from "../utils/customFunc";
@@ -197,6 +198,17 @@ export class DocumentRequestController {
 
       sendNotification("request", account.contact, smsTemplates.requestReceived(account.name, documentData.document));
 
+      AuditLogService.create({
+        actor: account.name || "Resident",
+        actorId: account._id.toString(),
+        action: "create",
+        entity: "documentRequest",
+        entityId: document._id.toString(),
+        entityLabel: documentDisplayName(documentData.document),
+        field: "status",
+        newValue: document.status,
+      }).catch(() => null);
+
       response.status(201).send(document);
     } catch (error: any) {
       console.error("[CREATE DOCUMENT REQUEST ERROR]", error);
@@ -358,6 +370,18 @@ export class DocumentRequestController {
         return;
       }
 
+      AuditLogService.create({
+        actor: account.name || "System",
+        actorId: account._id.toString(),
+        action: "update",
+        entity: "documentRequest",
+        entityId: id,
+        entityLabel: documentDisplayName(document.document),
+        field: "status",
+        previousValue: currentDoc.status,
+        newValue: status,
+      }).catch(() => null);
+
       const resident = document.resident as any;
       if (resident?._id) {
         await NotificationService.create({
@@ -451,6 +475,29 @@ export class DocumentRequestController {
         return;
       }
 
+      const changedKeys = Object.keys(cleaned).filter(
+        (key) => String((current as any)[key] ?? "") !== String(cleaned[key] ?? ""),
+      );
+      if (changedKeys.length) {
+        const before: Record<string, unknown> = {};
+        const after: Record<string, unknown> = {};
+        for (const key of changedKeys) {
+          before[key] = (current as any)[key];
+          after[key] = cleaned[key];
+        }
+        AuditLogService.create({
+          actor: account.name || "Resident",
+          actorId: account._id.toString(),
+          action: "update",
+          entity: "documentRequest",
+          entityId: id,
+          entityLabel: documentDisplayName(document.document),
+          field: changedKeys.join(", "),
+          previousValue: before,
+          newValue: after,
+        }).catch(() => null);
+      }
+
       response.send(document);
     } catch (error) {
       console.error("[UPDATE DOCUMENT REQUEST ERROR]", error);
@@ -489,6 +536,17 @@ export class DocumentRequestController {
 
       if (!isPaid) {
         await DocumentRequestService.clearPayment(id);
+        AuditLogService.create({
+          actor: account.name,
+          actorId: account._id.toString(),
+          action: "payment_cleared",
+          entity: "documentRequest",
+          entityId: id,
+          entityLabel: documentDisplayName(current.document),
+          field: "isPaid",
+          previousValue: true,
+          newValue: false,
+        }).catch(() => null);
         response.send({ message: "Payment status updated to unpaid successfully" });
         return;
       }
@@ -543,6 +601,22 @@ export class DocumentRequestController {
         sendNotification("payment", resident.contact, smsTemplates.paymentReceived(resident.name, document.document));
       }
 
+      AuditLogService.create({
+        actor: account.name,
+        actorId: account._id.toString(),
+        action: "payment_recorded",
+        entity: "documentRequest",
+        entityId: id,
+        entityLabel: documentDisplayName(document.document),
+        field: "isPaid",
+        previousValue: false,
+        newValue: {
+          amountPaid: document.amountPaid,
+          receiptNumber: document.receiptNumber,
+          channel: "over-the-counter",
+        },
+      }).catch(() => null);
+
       response.send({ message: "Payment status updated to paid successfully", receiptNumber: document.receiptNumber });
     } catch (error) {
       response.status(500).send("Failed to update payment status");
@@ -590,6 +664,15 @@ export class DocumentRequestController {
       const TERMINAL_STATUSES = ["released", "completed"];
       if (isStaff && TERMINAL_STATUSES.includes(current.status)) {
         await DocumentRequestService.archive(id);
+        AuditLogService.create({
+          actor: account.name,
+          actorId: account._id.toString(),
+          action: "archive",
+          entity: "documentRequest",
+          entityId: id,
+          entityLabel: documentDisplayName(current.document),
+          previousValue: current.status,
+        }).catch(() => null);
         response.send({ message: "Released request archived. It remains visible in Request History.", archived: true });
         return;
       }
@@ -599,6 +682,17 @@ export class DocumentRequestController {
         response.status(404).send("Document request not found");
         return;
       }
+
+      AuditLogService.create({
+        actor: account.name,
+        actorId: account._id.toString(),
+        action: "delete",
+        entity: "documentRequest",
+        entityId: id,
+        entityLabel: documentDisplayName(current.document),
+        previousValue: current.status,
+      }).catch(() => null);
+
       response.send({ message: "Document request deleted successfully", archived: false });
     } catch (error) {
       response.status(500).send("Failed to delete document request");
@@ -741,6 +835,23 @@ export class DocumentRequestController {
             if (resident?.contact) {
                 sendNotification("payment", resident.contact, smsTemplates.paymentReceived(resident.name, document!.document));
             }
+
+            AuditLogService.create({
+                actor: account.name || "Resident",
+                actorId: account._id.toString(),
+                action: "payment_recorded",
+                entity: "documentRequest",
+                entityId: documentID,
+                entityLabel: documentDisplayName(document.document),
+                field: "isPaid",
+                previousValue: false,
+                newValue: {
+                    amountPaid: document.amountPaid,
+                    receiptNumber: document.receiptNumber,
+                    channel: "online",
+                    reference: document.paymentReference,
+                },
+            }).catch(() => null);
 
             response.send("success");
         } catch(e: any) {

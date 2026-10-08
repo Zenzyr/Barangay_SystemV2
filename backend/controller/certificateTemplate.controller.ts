@@ -3,6 +3,7 @@ import CertificateTemplate from "../model/certificateTemplate.model";
 import { CertificateGeneratorService } from "../services/certificateGenerator.service";
 import DocumentRequestModel from "../model/documentRequest.model";
 import { AuthRequest } from "../types/request.type";
+import { AuditLogService } from "../services/auditLog.service";
 import { isStaffRole } from "../utils/roles";
 import { isValidObjectId } from "mongoose";
 
@@ -66,7 +67,19 @@ export class CertificateTemplateController {
         return;
       }
       const pdfBytes = await CertificateGeneratorService.generatePDF(templateId, documentId);
-      
+
+      const template = await CertificateTemplate.findById(templateId).select("name title").lean();
+      AuditLogService.create({
+        actor: req.account?.name || "Resident",
+        actorId: req.account?._id.toString(),
+        action: "issue",
+        entity: "certificate",
+        entityId: documentId,
+        entityLabel:
+          (template as any)?.name || (template as any)?.title || "Barangay certificate",
+        newValue: { templateId },
+      }).catch(() => null);
+
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename=certificate_${documentId}.pdf`);
       res.send(Buffer.from(pdfBytes));

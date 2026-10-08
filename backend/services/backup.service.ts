@@ -12,6 +12,7 @@ if (!fs.existsSync(BACKUP_DIR)) {
 export interface RestoreCollectionResult {
   name: string;
   restored: number;
+  merged?: boolean;
   error?: string;
 }
 
@@ -101,6 +102,26 @@ export class BackupService {
       const records = collectionsPayload[name];
       if (!Array.isArray(records)) continue;
       try {
+        if (name === 'AuditLogs') {
+          // Never wipe the current trail on restore: merge the backup's entries
+          // in and keep everything already recorded after the backup was taken.
+          if (records.length) {
+            await model.bulkWrite(
+              records.map((doc: any) => {
+                const { _id, ...fields } = doc;
+                return {
+                  updateOne: {
+                    filter: { _id },
+                    update: { $setOnInsert: fields },
+                    upsert: true,
+                  },
+                };
+              })
+            );
+          }
+          results.push({ name, restored: records.length, merged: true });
+          continue;
+        }
         await model.deleteMany({});
         if (records.length) {
           await model.insertMany(records, { ordered: false });

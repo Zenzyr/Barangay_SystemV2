@@ -27,9 +27,27 @@ export const householdNumberError = (
     return null;
   }
   if (trimmed.toUpperCase() === "N/A") return null;
-  if (!/^HH-(20|1\d|[1-9])$/i.test(trimmed)) {
-    return "Household number must be in the format HH-1 to HH-20";
+  if (!/^HH-(?!0+$)\d{3,4}$/i.test(trimmed)) {
+    return "Household number must be HH-001 to HH-999 or HH-0001 to HH-9999";
   }
+  return null;
+};
+
+// Strict census cellphone rule: exactly 11 digits starting with 09. An empty or
+// "N/A" value is allowed (unknown). When a previous value is supplied (edit),
+// an unchanged legacy value is accepted so untouched data is preserved.
+export const CELLPHONE_ERROR =
+  "Cellphone number must be exactly 11 digits and start with 09.";
+
+export const cellphoneError = (
+  value: unknown,
+  previousValue?: unknown,
+): string | null => {
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) return null;
+  if (raw.toUpperCase() === "N/A") return null;
+  if (typeof previousValue === "string" && previousValue.trim() === raw) return null;
+  if (!/^09\d{9}$/.test(raw)) return CELLPHONE_ERROR;
   return null;
 };
 

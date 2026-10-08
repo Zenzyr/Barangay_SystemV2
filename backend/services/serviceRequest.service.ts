@@ -9,19 +9,19 @@ export class ServiceRequestService {
 
   static async get(id: string) {
     return await ServiceRequestModel.findById(id)
-      .populate("client", "-password")
-      .populate("provider", "-password");
+      .populate("client", "name profile")
+      .populate("provider", "name profile");
   }
 
   static async getByClient(clientId: string) {
     return await ServiceRequestModel.find({ client: clientId })
-      .populate("provider", "-password")
+      .populate("provider", "name profile")
       .sort({ createdAt: -1 });
   }
 
   static async getByProvider(providerId: string) {
     return await ServiceRequestModel.find({ provider: providerId })
-      .populate("client", "-password")
+      .populate("client", "name profile")
       .sort({ createdAt: -1 });
   }
 

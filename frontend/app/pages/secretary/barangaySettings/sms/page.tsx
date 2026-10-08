@@ -57,7 +57,7 @@ export default function Page() {
   };
 
   const toggles: { key: "enabled" | "notifyOnRequest" | "notifyOnStatus" | "notifyOnPayment"; label: string; desc: string }[] = [
-    { key: "enabled", label: "Enable SMS notifications", desc: "Master switch for sending SMS via Semaphore." },
+    { key: "enabled", label: "Enable SMS notifications", desc: "Master switch for sending SMS via iProg SMS." },
     { key: "notifyOnRequest", label: "New document request", desc: "Notify the resident when a request is submitted." },
     { key: "notifyOnStatus", label: "Status updates", desc: "Notify the resident when the request status changes." },
     { key: "notifyOnPayment", label: "Payment confirmations", desc: "Notify the resident when a payment is recorded." },
@@ -87,7 +87,7 @@ export default function Page() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
             <Label>Provider</Label>
-            <Input value={form.provider} onChange={(e) => set("provider", e.target.value)} placeholder="Semaphore" />
+            <Input value={form.provider} onChange={(e) => set("provider", e.target.value)} placeholder="iProg SMS" />
           </div>
           <div className="grid gap-2">
             <Label>Sender Name</Label>

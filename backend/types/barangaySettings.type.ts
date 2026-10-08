@@ -71,7 +71,7 @@ export interface smsSettingsInterface {
   enabled: boolean;
   /** Public-facing sender name shown on messages. Secrets stay in env. */
   senderName: string;
-  /** Provider label for display ("Semaphore" is the only supported provider). */
+  /** Provider label for display ("iProg SMS" is the only supported provider). */
   provider: string;
   /** Notification events toggles supported by the backend. */
   notifyOnRequest: boolean;
@@ -107,7 +107,7 @@ export interface barangaySettingsInterface extends barangaySettingsInterfaceInpu
 export const DEFAULT_SMS_SETTINGS: smsSettingsInterface = {
   enabled: true,
   senderName: "",
-  provider: "Semaphore",
+  provider: "iProg SMS",
   notifyOnRequest: true,
   notifyOnStatus: true,
   notifyOnPayment: true,

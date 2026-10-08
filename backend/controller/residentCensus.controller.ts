@@ -1,8 +1,9 @@
 import { Response } from "express";
 import { AuthRequest } from "../types/request.type";
 import { ResidentCensusService } from "../services/residentCensus.service";
+import { AuditLogService } from "../services/auditLog.service";
 import { residentCensusInterfaceInput } from "../types/residentCensus.type";
-import { isObjectId, isName, isNonEmptyString, householdNumberError } from "../utils/validation";
+import { isObjectId, isName, isNonEmptyString, householdNumberError, cellphoneError } from "../utils/validation";
 import { matchPerson } from "../utils/duplicateCheck";
 import {
   normalizeCensusSex,
@@ -60,6 +61,11 @@ export class ResidentCensusController {
           return;
         }
       }
+      const cellphoneMsg = cellphoneError(request.body?.cellphone);
+      if (cellphoneMsg) {
+        response.status(400).send(cellphoneMsg);
+        return;
+      }
 
       // ── Duplicate guard ─────────────────────────────────────────
       // One person = one census record. Blocks a submission whose identity
@@ -81,6 +87,17 @@ export class ResidentCensusController {
       }
 
       const record = await ResidentCensusService.create(data);
+
+      AuditLogService.create({
+        actor: request.account?.name || "System",
+        actorId: request.account?._id.toString(),
+        action: "create",
+        entity: "residentCensus",
+        entityId: record._id.toString(),
+        entityLabel: record.name,
+        newValue: { purok: record.purok },
+      }).catch(() => null);
+
       response.status(201).send(record);
     } catch (error: any) {
       console.error(error);
@@ -141,6 +158,7 @@ export class ResidentCensusController {
         response.status(400).send("Invalid resident census id");
         return;
       }
+      const rawCellphone = request.body?.cellphone;
       const data: Partial<residentCensusInterfaceInput> = normalizeCensusInput(request.body);
       if (data.age !== undefined) {
         const ageOk =
@@ -162,6 +180,12 @@ export class ResidentCensusController {
           return;
         }
       }
+      const existingBefore = await ResidentCensusService.get(id);
+      const cellphoneMsg = cellphoneError(rawCellphone, existingBefore?.cellphone);
+      if (cellphoneMsg) {
+        response.status(400).send(cellphoneMsg);
+        return;
+      }
       const record = await ResidentCensusService.update(id, data);
       if (!record) {
         response.status(404).send("Resident census record not found");
@@ -171,6 +195,31 @@ export class ResidentCensusController {
       await ResidentCensusService.syncLinkedAccount(id).catch((err) =>
         console.error("[CENSUS-SYNC ERROR]", err)
       );
+
+      const changedKeys = Object.keys(data).filter(
+        (key) =>
+          String((existingBefore as any)?.[key] ?? "") !== String((data as any)[key] ?? ""),
+      );
+      if (changedKeys.length) {
+        const before: Record<string, unknown> = {};
+        const after: Record<string, unknown> = {};
+        for (const key of changedKeys) {
+          before[key] = (existingBefore as any)?.[key];
+          after[key] = (data as any)[key];
+        }
+        AuditLogService.create({
+          actor: request.account?.name || "System",
+          actorId: request.account?._id.toString(),
+          action: "update",
+          entity: "residentCensus",
+          entityId: id,
+          entityLabel: record.name,
+          field: changedKeys.join(", "),
+          previousValue: before,
+          newValue: after,
+        }).catch(() => null);
+      }
+
       response.send(record);
     } catch (error) {
       console.error(error);
@@ -197,6 +246,17 @@ export class ResidentCensusController {
         return;
       }
       const result = await ResidentCensusService.bulkImport(records);
+
+      AuditLogService.create({
+        actor: request.account?.name || "System",
+        actorId: request.account?._id.toString(),
+        action: "import",
+        entity: "residentCensus",
+        entityId: "",
+        entityLabel: "Bulk census import",
+        newValue: { imported: result.inserted, skipped: result.skipped },
+      }).catch(() => null);
+
       response.send({ ok: true, imported: result.inserted, skipped: result.skipped });
     } catch (error) {
       console.error("[CENSUS-IMPORT ERROR]", error);
@@ -218,6 +278,17 @@ export class ResidentCensusController {
         response.status(404).send("Resident census record not found");
         return;
       }
+
+      AuditLogService.create({
+        actor: request.account?.name || "System",
+        actorId: request.account?._id.toString(),
+        action: "archive",
+        entity: "residentCensus",
+        entityId: id,
+        entityLabel: record.name,
+        newValue: { isArchived: true },
+      }).catch(() => null);
+
       response.send({ message: "Resident census record archived successfully", archived: true });
     } catch (error) {
       console.error(error);
@@ -238,6 +309,17 @@ export class ResidentCensusController {
         response.status(404).send("Resident census record not found");
         return;
       }
+
+      AuditLogService.create({
+        actor: request.account?.name || "System",
+        actorId: request.account?._id.toString(),
+        action: "restore",
+        entity: "residentCensus",
+        entityId: id,
+        entityLabel: record.name,
+        newValue: { isArchived: false },
+      }).catch(() => null);
+
       response.send({ message: "Resident census record restored successfully", archived: false });
     } catch (error) {
       console.error(error);

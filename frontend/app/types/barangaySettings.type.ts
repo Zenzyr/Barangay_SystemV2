@@ -112,7 +112,7 @@ export const EMPTY_DOCUMENT_SETTINGS: documentSettings = {
 export const EMPTY_SMS_SETTINGS: smsSettings = {
   enabled: true,
   senderName: "",
-  provider: "Semaphore",
+  provider: "iProg SMS",
   notifyOnRequest: true,
   notifyOnStatus: true,
   notifyOnPayment: true,

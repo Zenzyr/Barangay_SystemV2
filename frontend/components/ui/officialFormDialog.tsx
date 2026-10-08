@@ -47,10 +47,6 @@ interface Props {
   title?: string;
   onSubmit: (values: OfficialFormValues) => void;
   submitLabel?: string;
-  /** Upload one image asset to the official record, returns the new URL. */
-  onUpload?: (kind: "photo" | "signature", file: File) => Promise<string>;
-  /** Tracks whether an asset upload is in flight. */
-  uploading?: boolean;
 }
 
 const EMPTY: OfficialFormValues = {
@@ -74,8 +70,6 @@ export function OfficialFormDialog({
   title = "Add Official",
   onSubmit,
   submitLabel = "Save Official",
-  onUpload,
-  uploading,
 }: Props) {
   const [form, setForm] = useState<OfficialFormValues>({
     ...EMPTY,
@@ -90,16 +84,6 @@ export function OfficialFormDialog({
     SINGLE_HOLDER_POSITIONS.includes(form.position as (typeof SINGLE_HOLDER_POSITIONS)[number]) || form.position === "";
 
   const isOtherPosition = form.position === "Other";
-
-  const handleFile = async (kind: "photo" | "signature", file: File | null) => {
-    if (!file || !onUpload) return;
-    try {
-      const url = await onUpload(kind, file);
-      set(kind === "photo" ? "photo" : "signatureImage", url);
-    } catch (e) {
-      setError(`Failed to upload ${kind}.`);
-    }
-  };
 
   const handleSubmit = () => {
     setError("");
@@ -174,35 +158,13 @@ export function OfficialFormDialog({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-2">
-              <Label>Contact Number</Label>
-              <Input
-                value={form.contact}
-                onChange={(e) => set("contact", e.target.value)}
-                placeholder="09xx xxx xxxx"
-              />
-            </div>
-            <div className="grid gap-2" />
-
-            <div className="grid gap-2">
-              <Label>Signature</Label>
-              <Input
-                type="file"
-                accept="image/*"
-                disabled={!onUpload || uploading}
-                onChange={(e) => handleFile("signature", e.target.files?.[0] || null)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>Photo</Label>
-              <Input
-                type="file"
-                accept="image/*"
-                disabled={!onUpload || uploading}
-                onChange={(e) => handleFile("photo", e.target.files?.[0] || null)}
-              />
-            </div>
+          <div className="grid gap-2">
+            <Label>Contact Number</Label>
+            <Input
+              value={form.contact}
+              onChange={(e) => set("contact", e.target.value)}
+              placeholder="09xx xxx xxxx"
+            />
           </div>
 
           <div className="flex items-center justify-between rounded-lg border p-3">
@@ -231,22 +193,6 @@ export function OfficialFormDialog({
               <Label>Term Label</Label>
               <Input value={form.termLabel} onChange={(e) => set("termLabel", e.target.value)} placeholder="2026–2029" />
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-2">
-              <Label>Signature Image URL</Label>
-              <Input value={form.signatureImage} onChange={(e) => set("signatureImage", e.target.value)} placeholder="https://..." />
-            </div>
-            <div className="grid gap-2">
-              <Label>Photo URL</Label>
-              <Input value={form.photo} onChange={(e) => set("photo", e.target.value)} placeholder="https://..." />
-            </div>
-          </div>
-
-          <div className="grid gap-2">
-            <Label>Notes</Label>
-            <Input value={form.notes} onChange={(e) => set("notes", e.target.value)} placeholder="Optional" />
           </div>
 
           {error && <p className="text-sm text-rose-600">{error}</p>}

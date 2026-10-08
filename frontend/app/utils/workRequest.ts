@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, MessageSquareText, Play, XCircle, Handshake, type LucideIcon } from "lucide-react";
+import { CheckCircle2, Clock, MessageSquareText, Play, XCircle, Handshake, Ban, type LucideIcon } from "lucide-react";
 import { WorkRequestKind } from "@/app/types/work.type";
 import { workScheduleSettings } from "@/app/types/barangaySettings.type";
 
@@ -7,8 +7,9 @@ export const WORK_STATUS_CONFIG: Record<string, { label: string; icon: LucideIco
   active: { label: "In Progress", icon: Play, bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200", accent: "from-sky-400 to-blue-500" },
   accepted: { label: "Accepted", icon: Handshake, bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-200", accent: "from-sky-400 to-emerald-400" },
   "to review": { label: "To Review", icon: MessageSquareText, bg: "bg-violet-50", text: "text-violet-700", border: "border-violet-200", accent: "from-violet-400 to-fuchsia-400" },
-  completed: { label: "Completed", icon: CheckCircle2, bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", accent: "from-emerald-400 to-teal-400" },
-  rejected: { label: "Rejected", icon: XCircle, bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200", accent: "from-rose-400 to-pink-400" },
+completed: { label: "Completed", icon: CheckCircle2, bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", accent: "from-emerald-400 to-teal-400" },
+  rejected: { label: "Rejected", icon: XCircle, bg: "bg-rose-50", text: "text-rose-700", border: "border-rose-200", accent: "from-rose-400 to-red-500" },
+  cancelled: { label: "Cancelled", icon: Ban, bg: "bg-gray-100", text: "text-gray-600", border: "border-gray-300", accent: "from-gray-400 to-slate-500" },
 };
 
 export const WORK_STATUS_OPTIONS = Object.entries(WORK_STATUS_CONFIG).map(([value, cfg]) => ({ value, label: cfg.label }));

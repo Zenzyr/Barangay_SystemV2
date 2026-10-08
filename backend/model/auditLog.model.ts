@@ -17,7 +17,9 @@ const AuditLogSchema = new Schema<{
     actorId: { type: String, default: '' },
     action: { type: String, required: true, maxlength: 100 },
     // Purposely a free string so the history endpoint can filter uniformly.
-    entity: { type: String, enum: ['official', 'barangaySettings', 'account', 'decisionSupport', 'residentCensus', 'analyticsSnapshot', 'documentTemplate'] },
+    // Do NOT reintroduce an enum here: it silently rejected workRequest/contract
+    // writes for months (every failure was swallowed by .catch(() => null)).
+    entity: { type: String, required: true, maxlength: 60 },
     entityId: { type: String, default: '' },
     entityLabel: { type: String, default: '' },
     field: { type: String, default: '' },
@@ -26,5 +28,11 @@ const AuditLogSchema = new Schema<{
   },
   { timestamps: { createdAt: true, updatedAt: false } }
 );
+
+// The history screen sorts by createdAt (optionally scoped to an entity) and
+// is the hottest query against a collection that only ever grows.
+AuditLogSchema.index({ createdAt: -1 });
+AuditLogSchema.index({ entity: 1, createdAt: -1 });
+AuditLogSchema.index({ action: 1, createdAt: -1 });
 
 export default mongoose.model('AuditLogs', AuditLogSchema);

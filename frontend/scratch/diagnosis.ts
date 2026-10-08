@@ -102,7 +102,7 @@ function buildSampleSettings() {
     sms: {
       enabled: true,
       senderName: "",
-      provider: "Semaphore",
+      provider: "iProg SMS",
       notifyOnRequest: true,
       notifyOnStatus: true,
       notifyOnPayment: true,

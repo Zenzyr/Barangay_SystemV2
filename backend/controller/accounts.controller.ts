@@ -54,7 +54,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SystemInfoService } from "../services/systemInfo.service";
 
 import { WorkService } from "../services/work.service";
-import { ScheduleError, WorkScheduleService } from "../services/workSchedule.service";
+import { ScheduleError, WorkScheduleService, formatSlotLabel } from "../services/workSchedule.service";
 import { AuditLogService } from "../services/auditLog.service";
 import { ROLES, ROLE_LIST, isStaffRole } from "../utils/roles";
 import {
@@ -79,6 +79,7 @@ import {
   MAX_NAME_LENGTH,
   MAX_ADDRESS_LENGTH,
   MAX_EMAIL_LENGTH,
+  MAX_TEXT_LENGTH,
   passwordStrengthError,
   MAX_DESCRIPTION_LENGTH,
 } from "../utils/validation";
@@ -496,6 +497,17 @@ export class AccountController {
         // memory and are discarded automatically once this request ends.
       }
 
+      AuditLogService.create({
+        actor: account.name || "Resident",
+        actorId: account._id.toString(),
+        action: "create",
+        entity: "account",
+        entityId: account._id.toString(),
+        entityLabel: account.name,
+        field: "status",
+        newValue: account.status,
+      }).catch(() => null);
+
       return response.status(201).json({ userId: account._id });
     } catch (error: any) {
       console.error("[REGISTER ERROR]", error);
@@ -700,6 +712,17 @@ export class AccountController {
         );
       }
 
+      AuditLogService.create({
+        actor: request.account?.name || "System",
+        actorId: request.account?._id.toString(),
+        action: "create",
+        entity: "account",
+        entityId: account._id.toString(),
+        entityLabel: account.name,
+        field: "status",
+        newValue: account.status,
+      }).catch(() => null);
+
       return response.status(201).json({ userId: account._id });
     } catch (error: any) {
       console.error("[ADMIN CREATE RESIDENT ERROR]", error);
@@ -903,6 +926,12 @@ export class AccountController {
         response.status(400).send("Invalid account id");
         return;
       }
+      // Activity logs are personal: only the account owner (or staff) may read them.
+      const viewer = request.account;
+      if (viewer?._id !== id && !isStaffRole(viewer?.role)) {
+        response.status(403).send("You are not authorized to view this activity");
+        return;
+      }
       const activity = await UserActivityService.getByAccount(id);
       response.send(activity);
     } catch (error) {
@@ -928,9 +957,35 @@ export class AccountController {
         return;
       }
 
-      const account = await AccountService.updateStatus(id, status);
+      const account = await AccountService.get(id);
       if (!account) {
         response.status(404).send("Account not found");
+        return;
+      }
+      const previousStatus = account.status;
+
+      // A secretary may not approve/reject a super admin account.
+      if (
+        account.role === ROLES.SUPER_ADMIN &&
+        request.account?.role !== ROLES.SUPER_ADMIN
+      ) {
+        response
+          .status(403)
+          .send("Only a super admin can change a super admin's status");
+        return;
+      }
+
+      // Conditional update: only one of two concurrent reviewers can win,
+      // so a stale approval page can never silently overwrite a decision.
+      const updated = await AccountService.updateStatusIf(
+        id,
+        previousStatus,
+        status,
+      );
+      if (!updated) {
+        response
+          .status(409)
+          .send("This account's status changed in another request. Refresh and try again.");
         return;
       }
 
@@ -941,13 +996,13 @@ export class AccountController {
       // match), and any resident who is already in the census is never
       // re-inserted.
       if (status === "approved") {
-        await ResidentCensusService.upsertFromAccount(account).catch((err) =>
+        await ResidentCensusService.upsertFromAccount(updated).catch((err) =>
           console.error("[CENSUS-SYNC ERROR]", err),
         );
       }
 
       await NotificationService.create({
-        accountId: account._id.toString(),
+        accountId: updated._id.toString(),
         title: status === "approved" ? "Account Approved" : "Account Rejected",
         message:
           status === "approved"
@@ -958,9 +1013,9 @@ export class AccountController {
 
       sendNotification(
         "status",
-        account.contact,
+        updated.contact,
         smsTemplates.accountStatus(
-          account.name,
+          updated.name,
           status as "approved" | "rejected",
         ),
       );
@@ -970,10 +1025,10 @@ export class AccountController {
         actorId: request.account?._id?.toString?.() ?? "",
         action: "verify",
         entity: "account",
-        entityId: account._id.toString(),
-        entityLabel: account.name,
+        entityId: updated._id.toString(),
+        entityLabel: updated.name,
         field: "status",
-        previousValue: "pending",
+        previousValue: previousStatus,
         newValue: status,
       }).catch(() => null);
 
@@ -1007,6 +1062,15 @@ export class AccountController {
 
       const currentRole = account.role || ROLES.RESIDENT;
 
+      // Nobody edits their own role: it prevents accidental self-lockout
+      // and keeps role changes as an explicit act between administrators.
+      if (request.account?._id === id) {
+        response
+          .status(400)
+          .send("You cannot change your own role. Ask another administrator.");
+        return;
+      }
+
       // Never allow demoting the last remaining super admin account.
       if (currentRole === ROLES.SUPER_ADMIN && role !== ROLES.SUPER_ADMIN) {
         const superAdminCount = await AccountService.countByRole(
@@ -1025,7 +1089,30 @@ export class AccountController {
         return;
       }
 
-      await AccountService.updateRole(id, role);
+      // Conditional on the role we just read, so two concurrent demotions of
+      // the last super admin cannot both slip through the count check.
+      const updated = await AccountService.updateRoleIf(id, currentRole, role);
+      if (!updated) {
+        response
+          .status(409)
+          .send("This account's role changed in another request. Refresh and try again.");
+        return;
+      }
+
+      // Verify after the fact: if this demotion left zero super admins,
+      // roll it back (the pre-check above can be raced).
+      if (currentRole === ROLES.SUPER_ADMIN && role !== ROLES.SUPER_ADMIN) {
+        const remaining = await AccountService.countByRole(
+          ROLES.SUPER_ADMIN,
+        );
+        if (remaining <= 0) {
+          await AccountService.updateRoleIf(id, role, currentRole);
+          response
+            .status(400)
+            .send("Cannot demote the last super admin account");
+          return;
+        }
+      }
 
       await AuditLogService.create({
         actor: request.account?.name ?? "System",
@@ -1062,6 +1149,12 @@ export class AccountController {
         response.status(400).send("A suspension reason is required");
         return;
       }
+      if (!withinLength(reason, MAX_TEXT_LENGTH)) {
+        response
+          .status(400)
+          .send(`Suspension reason must be at most ${MAX_TEXT_LENGTH} characters`);
+        return;
+      }
       if (request.account?._id === id) {
         response.status(400).send("You cannot suspend your own account");
         return;
@@ -1076,17 +1169,17 @@ export class AccountController {
         response.status(400).send("Super admin accounts cannot be suspended here");
         return;
       }
-      if (account.isSuspended) {
-        response.status(400).send("Account is already suspended");
+
+      // Conditional write: only one of two concurrent suspensions can win.
+      const suspended = await AccountService.suspendIf(
+        id,
+        request.account?.name || "Super Admin",
+        reason,
+      );
+      if (!suspended) {
+        response.status(409).send("Account is already suspended");
         return;
       }
-
-      await AccountService.update(id, {
-        isSuspended: true,
-        suspendedAt: new Date(),
-        suspendedBy: request.account?.name || "Super Admin",
-        suspensionReason: reason,
-      });
 
       AuditLogService.create({
         actor: request.account?.name ?? "System",
@@ -1097,7 +1190,7 @@ export class AccountController {
         entityLabel: account.name,
         field: "isSuspended",
         previousValue: false,
-        newValue: true,
+        newValue: { suspended: true, reason },
       }).catch(() => null);
 
       NotificationService.create({
@@ -1143,11 +1236,13 @@ export class AccountController {
         return;
       }
 
-      await AccountService.update(id, {
-        isSuspended: false,
-        suspendedBy: "",
-        suspensionReason: "",
-      });
+      // Conditional write (also clears suspendedAt): only one of two
+      // concurrent reinstatements can win, and a no-op is reported as such.
+      const reinstated = await AccountService.unsuspendIf(id);
+      if (!reinstated) {
+        response.status(409).send("Account is not suspended");
+        return;
+      }
 
       AuditLogService.create({
         actor: request.account?.name ?? "System",
@@ -1168,6 +1263,15 @@ export class AccountController {
         type: "security",
       }).catch(() => null);
 
+      sendEmail(
+        account.email,
+        "Your Barangay Rabon account has been reinstated",
+        `<div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; color: #1f2937;">
+          <h2>Account Reinstated</h2>
+          <p>Your account suspension has been lifted. You can now sign in and use the system normally.</p>
+        </div>`,
+      ).catch(() => null);
+
       response.send({ message: "Account unsuspended" });
     } catch (error) {
       console.error("[UNSUSPEND ERROR]", error);
@@ -1180,6 +1284,13 @@ export class AccountController {
       const { id } = request.params;
       if (!isObjectId(id)) {
         response.status(400).send("Invalid account id");
+        return;
+      }
+      // Only the account owner (or staff) may replace ID images.
+      if (request.account?._id !== id && !isStaffRole(request.account?.role)) {
+        response
+          .status(403)
+          .send("You are not allowed to resubmit ID images for this account");
         return;
       }
 
@@ -1234,6 +1345,18 @@ export class AccountController {
         status: "pending",
       });
 
+      AuditLogService.create({
+        actor: request.account?.name || existing.name || "Resident",
+        actorId: request.account?._id?.toString?.() || id,
+        action: "resubmit",
+        entity: "account",
+        entityId: id,
+        entityLabel: existing.name,
+        field: "status",
+        previousValue: existing.status,
+        newValue: "pending",
+      }).catch(() => null);
+
       response.send({
         message: "Images resubmitted successfully. Status set to pending.",
       });
@@ -1255,7 +1378,25 @@ export class AccountController {
         response.status(404).send("Account not found");
         return;
       }
-      response.send(account);
+
+      const viewer = request.account;
+      if (viewer?._id === id || isStaffRole(viewer?.role)) {
+        response.send(account);
+        return;
+      }
+
+      // Resident-to-resident view (marketplace / review dialog): expose only
+      // public profile fields — never email, contact, ID images or census data.
+      response.send({
+        _id: account._id,
+        name: account.name,
+        profile: account.profile ?? "",
+        role: account.role || "resident",
+        status: account.status,
+        purok: account.purok ?? "",
+        skills: account.skills ?? [],
+        reviews: account.reviews ?? [],
+      });
     } catch (error) {
       response.status(500).send("Failed to fetch profile");
     }
@@ -1525,6 +1666,29 @@ export class AccountController {
         console.error("[CENSUS-SYNC ERROR]", err),
       );
 
+      const changedKeys = Object.keys(updateData).filter(
+        (key) => String((existingAccount as any)[key] ?? "") !== updateData[key],
+      );
+      if (changedKeys.length) {
+        const before: Record<string, unknown> = {};
+        const after: Record<string, unknown> = {};
+        for (const key of changedKeys) {
+          before[key] = (existingAccount as any)[key];
+          after[key] = updateData[key];
+        }
+        AuditLogService.create({
+          actor: request.account?.name || account.name || "Resident",
+          actorId: request.account?._id?.toString?.() || id,
+          action: "update",
+          entity: "account",
+          entityId: id,
+          entityLabel: account.name,
+          field: changedKeys.join(", "),
+          previousValue: before,
+          newValue: after,
+        }).catch(() => null);
+      }
+
       response.send(account);
     } catch (error) {
       response.status(500).send("Failed to update profile");
@@ -1572,6 +1736,17 @@ export class AccountController {
         date: formattedDate(),
       });
 
+      AuditLogService.create({
+        actor: request.account?.name || account.name || "Resident",
+        actorId: request.account?._id?.toString?.() || id,
+        action: "password_change",
+        entity: "account",
+        entityId: id,
+        entityLabel: account.name,
+        field: "password",
+        newValue: "changed",
+      }).catch(() => null);
+
       response.send({ message: "Password changed successfully" });
     } catch (error) {
       response.status(500).send("Failed to change password");
@@ -1608,6 +1783,15 @@ export class AccountController {
 
       if (!isObjectId(id)) {
         response.status(400).send("Invalid account id");
+        return;
+      }
+      const actor = request.account;
+      if (!actor) {
+        response.status(401).send("Authentication required");
+        return;
+      }
+      if (actor._id.toString() !== id && !isStaffRole(actor.role)) {
+        response.status(403).send("You can only update your own availability");
         return;
       }
       if (!["AVAILABLE", "NOT_AVAILABLE"].includes(availability)) {
@@ -1704,7 +1888,27 @@ export class AccountController {
       }
 
       if (workId) {
-        await WorkService.updateStatusIf(workId, "to review", "completed");
+        const completed: any = await WorkService.updateStatusIf(workId, "to review", "completed");
+        if (completed) {
+          const label = String(completed.service || "Work request");
+          NotificationService.create({
+            accountId: account._id.toString(),
+            title: "Work Completed",
+            message: `Your work "${label}" was marked completed and a new review was posted.`,
+            type: "work",
+          }).catch(() => null);
+          AuditLogService.create({
+            actor: reviewerAccount.name || "Resident",
+            actorId: reviewer._id.toString(),
+            action: "update",
+            entity: "workRequest",
+            entityId: workId,
+            entityLabel: label,
+            field: "status",
+            previousValue: "to review",
+            newValue: "completed",
+          }).catch(() => null);
+        }
       }
 
       await UserActivityService.create({
@@ -1821,6 +2025,29 @@ export class AccountController {
           scheduleEndTime: slot.endTime,
           scheduleSlot: slot._id.toString(),
         });
+
+        const when = `${new Date(`${slot.date}T00:00:00`).toLocaleDateString("en-PH", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })}, ${formatSlotLabel(slot.startTime, slot.endTime)}`;
+        NotificationService.create({
+          accountId: worker,
+          title: "New Work Request",
+          message: `${account.name} requested "${service}" scheduled on ${when}. Review it from your Work Requests.`,
+          type: "work",
+        }).catch(() => null);
+        AuditLogService.create({
+          actor: account.name || "Resident",
+          actorId: clientId,
+          action: "create",
+          entity: "workRequest",
+          entityId: work._id.toString(),
+          entityLabel: `${skill} - ${service}`,
+          field: "status",
+          newValue: "pending",
+        }).catch(() => null);
+
         response.send(work);
       } catch (error) {
         await WorkScheduleService.release(slot._id);
@@ -2125,6 +2352,16 @@ export class AccountController {
 
       await EmailVerificationService.markVerified(normalized);
 
+      const verifiedAccount = await AccountService.checkEmailIfExist(normalized);
+      AuditLogService.create({
+        actor: verifiedAccount?.name || normalized,
+        actorId: verifiedAccount?._id.toString() || "",
+        action: "email_verified",
+        entity: "account",
+        entityId: verifiedAccount?._id.toString() || "",
+        entityLabel: verifiedAccount?.name || normalized,
+      }).catch(() => null);
+
       response.send({
         verified: true,
         emailToken: signEmailVerificationToken(normalized),
@@ -2170,13 +2407,27 @@ export class AccountController {
 
       if (!account || !isMatch) {
         const result = await LoginAttemptService.registerFailure(normalizedEmail);
+        const ip = String(request.ip || request.socket?.remoteAddress || "unknown");
+
+        // Failed sign-in is only attributable when the account exists —
+        // unknown emails are deliberately not logged (no oracle, no spam).
+        if (account) {
+          AuditLogService.create({
+            actor: account.name,
+            actorId: account._id.toString(),
+            action: "login_failed",
+            entity: "account",
+            entityId: account._id.toString(),
+            entityLabel: account.name,
+            newValue: { ip },
+          }).catch(() => null);
+        }
 
         // Notify the account owner once per lockout event (not per attempt)
         // so this can't be used to spam the inbox, and only when the
         // account actually exists (nothing to notify otherwise).
         if (result.justLocked && account) {
           const when = formattedDate();
-          const ip = String(request.ip || request.socket?.remoteAddress || "unknown");
           const userAgent = String(request.headers["user-agent"] || "unknown");
 
           NotificationService.create({
@@ -2237,6 +2488,18 @@ export class AccountController {
       }
 
       const token = jwt.sign({ id: account._id }, secret, { expiresIn: "3d" });
+
+      AuditLogService.create({
+        actor: account.name,
+        actorId: account._id.toString(),
+        action: "login",
+        entity: "account",
+        entityId: account._id.toString(),
+        entityLabel: account.name,
+        newValue: {
+          ip: String(request.ip || request.socket?.remoteAddress || "unknown"),
+        },
+      }).catch(() => null);
 
       const { password: _accountPassword, ...accountSafe } = account.toObject();
 
@@ -2438,6 +2701,18 @@ export class AccountController {
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       await AccountService.updatePassword(decoded.id, hashedPassword);
       await AccountService.clearResetCode(decoded.id);
+
+      const resetAccount = await AccountService.get(decoded.id);
+      AuditLogService.create({
+        actor: resetAccount?.name || "Resident",
+        actorId: decoded.id,
+        action: "password_reset",
+        entity: "account",
+        entityId: decoded.id,
+        entityLabel: resetAccount?.name || "",
+        field: "password",
+        newValue: "reset",
+      }).catch(() => null);
 
       response.send({ message: "Password reset successfully" });
     } catch (error) {

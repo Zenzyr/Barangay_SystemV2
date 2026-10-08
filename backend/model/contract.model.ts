@@ -19,6 +19,11 @@ const ContractSchema = new Schema({
     },
     completionRequestedAt: { type: Date, required: false },
     completedAt: { type: Date, required: false },
+    cancelledAt: { type: Date, required: false },
 }, { timestamps: true });
+
+ContractSchema.index({ client: 1, createdAt: -1 });
+ContractSchema.index({ provider: 1, createdAt: -1 });
+ContractSchema.index({ serviceRequest: 1 });
 
 export default mongoose.model("Contract", ContractSchema);

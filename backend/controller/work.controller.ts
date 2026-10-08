@@ -3,11 +3,12 @@ import { AuthRequest } from "../types/request.type";
 import { WorkService } from "../services/work.service";
 import { WorkRequestService, WorkRequestKind } from "../services/workRequest.service";
 import { ScheduleError, WorkScheduleService } from "../services/workSchedule.service";
+import { AuditLogService } from "../services/auditLog.service";
+import { NotificationService } from "../services/notification.service";
 import { isObjectId } from "../utils/validation";
-import { isStaffRole } from "../utils/roles";
 
-const WORK_STATUSES = ['pending', 'rejected', 'active', 'to review', 'completed'];
-const LIST_STATUSES = ['pending', 'active', 'accepted', 'to review', 'completed', 'rejected'];
+const WORK_STATUSES = ['pending', 'rejected', 'active', 'to review', 'completed', 'cancelled'];
+const LIST_STATUSES = ['pending', 'active', 'accepted', 'to review', 'completed', 'rejected', 'cancelled'];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const WORKER_TRANSITIONS: Record<string, string[]> = {
@@ -16,6 +17,7 @@ const WORKER_TRANSITIONS: Record<string, string[]> = {
 };
 
 const CLIENT_TRANSITIONS: Record<string, string[]> = {
+  pending: ['rejected', 'cancelled'],
   'to review': ['completed'],
 };
 
@@ -25,12 +27,6 @@ const sendScheduleError = (response: Response, error: unknown) => {
     return true;
   }
   return false;
-};
-
-const canAccessParticipant = (request: AuthRequest, participantId: string) => {
-  const account = request.account;
-  if (!account) return false;
-  return isStaffRole(account.role) || account._id.toString() === participantId;
 };
 
 const parseListFilters = (query: Record<string, any>) => {
@@ -43,42 +39,6 @@ const parseListFilters = (query: Record<string, any>) => {
 };
 
 export class WorkController {
-
-  static getByClient = async (request: AuthRequest, response: Response) => {
-    try {
-      const { clientId } = request.params;
-      if (!isObjectId(clientId)) {
-        response.status(400).send("Invalid client id");
-        return;
-      }
-      if (!canAccessParticipant(request, clientId)) {
-        response.status(403).send("You can only view your own work requests");
-        return;
-      }
-      const works = await WorkService.getByClient(clientId);
-      response.send(works);
-    } catch (error) {
-      response.status(500).send("Failed to fetch work records");
-    }
-  }
-
-  static getByWorker = async (request: AuthRequest, response: Response) => {
-    try {
-      const { workerId } = request.params;
-      if (!isObjectId(workerId)) {
-        response.status(400).send("Invalid worker id");
-        return;
-      }
-      if (!canAccessParticipant(request, workerId)) {
-        response.status(403).send("You can only view your own work requests");
-        return;
-      }
-      const works = await WorkService.getByWorker(workerId);
-      response.send(works);
-    } catch (error) {
-      response.status(500).send("Failed to fetch work records");
-    }
-  }
 
   static getMyRequests = async (request: AuthRequest, response: Response) => {
     try {
@@ -152,7 +112,11 @@ export class WorkController {
         return;
       }
       const { scheduledDate, startTime } = request.body ?? {};
-      const updated = await WorkRequestService.reschedule(kind, id, scheduledDate, startTime);
+      const account = request.account;
+      const actor = account
+        ? { name: account.name || "Barangay staff", id: account._id.toString() }
+        : undefined;
+      const updated = await WorkRequestService.reschedule(kind, id, scheduledDate, startTime, actor);
       response.send(updated);
     } catch (error) {
       if (sendScheduleError(response, error)) return;
@@ -215,9 +179,53 @@ export class WorkController {
         return;
       }
 
-      if (status === "rejected" && current.scheduleSlot) {
+      if ((status === "rejected" || status === "cancelled") && current.scheduleSlot) {
         await WorkScheduleService.release(current.scheduleSlot);
       }
+
+      const label = String(current.service || "Work request");
+      const counterpart = isWorker
+        ? String(current.client?._id || current.client || "")
+        : String(current.worker?._id || current.worker || "");
+      const notificationByStatus: Record<string, { title: string; message: string }> = {
+        active: {
+          title: "Work Request Approved",
+          message: `Your work request "${label}" was approved and is now in progress.`,
+        },
+        rejected: {
+          title: "Work Request Rejected",
+          message: `Your work request "${label}" was rejected by the provider.`,
+        },
+        cancelled: {
+          title: "Work Request Cancelled",
+          message: `The work request "${label}" was cancelled by the client.`,
+        },
+        "to review": {
+          title: "Work Ready for Review",
+          message: `Your work request "${label}" is done. Leave a review to mark it completed.`,
+        },
+      };
+      const notice = notificationByStatus[status];
+      if (counterpart && notice) {
+        NotificationService.create({
+          accountId: counterpart,
+          title: notice.title,
+          message: notice.message,
+          type: "work",
+        }).catch(() => null);
+      }
+
+      AuditLogService.create({
+        actor: account.name || "Resident",
+        actorId: accountId,
+        action: status === "cancelled" ? "cancel" : "update",
+        entity: "workRequest",
+        entityId: id,
+        entityLabel: label,
+        field: "status",
+        previousValue: current.status,
+        newValue: status,
+      }).catch(() => null);
 
       response.send(work);
     } catch (error) {

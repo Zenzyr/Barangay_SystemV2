@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { AccountService } from "../services/acccount.service";
 import { accountInterface } from "../types/accounts.type";
 import { isObjectId } from "../utils/validation";
+import { isStaffRole } from "../utils/roles";
 
 dotenv.config();
 
@@ -74,6 +75,32 @@ export const authenticateJWT = async (request: AuthRequest, response: Response, 
           message: "Your account has been suspended. You may submit an appeal for review.",
           suspended: true,
           suspensionReason: accountDoc.suspensionReason || "",
+        });
+        return;
+      }
+    }
+
+    // Registration approval gate: residents must be approved before they may
+    // call the API at all. Pending/rejected residents can still SIGN IN (the
+    // resident layout shows the pending / rejected screens), and a rejected
+    // resident may still resubmit their own ID images to re-enter review.
+    const requestRole = accountDoc.role || "resident";
+    if (
+      !isStaffRole(requestRole) &&
+      (accountDoc.status === "pending" || accountDoc.status === "rejected")
+    ) {
+      const reqPath = request.originalUrl.split("?")[0];
+      const allowedWhileUnapproved =
+        request.method === "PUT" &&
+        reqPath === `/account/${accountDoc._id.toString()}/resubmit`;
+      if (!allowedWhileUnapproved) {
+        response.status(403).json({
+          message:
+            accountDoc.status === "rejected"
+              ? "Your account registration was rejected. Please resubmit your ID images."
+              : "Your account is pending verification by barangay staff.",
+          approvalRequired: true,
+          status: accountDoc.status,
         });
         return;
       }

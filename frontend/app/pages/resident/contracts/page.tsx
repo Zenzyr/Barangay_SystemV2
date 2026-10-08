@@ -98,6 +98,20 @@ export default function ContractsPage() {
     },
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: async (id: string) => axiosInstance.patch(`/contracts/${id}/cancel`),
+    onSuccess: () => {
+      successAlert("Contract cancelled — the reserved slot was released");
+      queryClient.invalidateQueries({ queryKey: ["contracts"] });
+      queryClient.invalidateQueries({ queryKey: ["work-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["residents"] });
+    },
+    onError: (err: ApiError) => {
+      const message = err?.response?.data;
+      errorAlert(typeof message === "string" ? message : "Failed to cancel the contract");
+    },
+  });
+
   const reviewMutation = useMutation({
     mutationFn: async (review: { star: number; skill: string; message: string }) => {
       await axiosInstance.post("/reviews", { contractId: reviewContract?._id, star: review.star, message: review.message });
@@ -106,6 +120,7 @@ export default function ContractsPage() {
       successAlert("Review submitted — thank you!");
       queryClient.invalidateQueries({ queryKey: ["contracts"] });
       queryClient.invalidateQueries({ queryKey: ["residents"] });
+      queryClient.invalidateQueries({ queryKey: ["review-exists", reviewContract?._id] });
     },
     onError: (err: ApiError) => {
       const message = err?.response?.data || "Failed to submit review";
@@ -124,6 +139,14 @@ export default function ContractsPage() {
     confirmAlert("Confirm that this service was completed to your satisfaction? This unlocks leaving a review.", "Confirm Completion", () => {
       confirmCompletionMutation.mutate(id);
     });
+  };
+
+  const handleCancel = (id: string) => {
+    confirmAlert(
+      "Cancel this contract? The reserved schedule slot will be released and the provider becomes available again.",
+      "Cancel Contract",
+      () => cancelMutation.mutate(id),
+    );
   };
 
   const openReview = (contract: ContractItem) => {
@@ -238,6 +261,20 @@ export default function ContractsPage() {
                   >
                     {confirmCompletionMutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCircle2 className="size-3.5" />}
                     Confirm Completion
+                  </Button>
+                )}
+
+                {/* Either party: cancel while the contract is still running */}
+                {(contract.status === "ACTIVE" || contract.status === "COMPLETION_REQUESTED") && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleCancel(contract._id)}
+                    disabled={cancelMutation.isPending}
+                    className="mt-4 h-8 text-xs border-rose-200 text-rose-600 hover:bg-rose-50"
+                  >
+                    {cancelMutation.isPending ? <Loader2 className="size-3.5 animate-spin" /> : <Ban className="size-3.5" />}
+                    Cancel Contract
                   </Button>
                 )}
 

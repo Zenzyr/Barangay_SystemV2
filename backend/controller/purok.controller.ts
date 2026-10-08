@@ -1,6 +1,7 @@
 import { Response } from "express";
 import { AuthRequest } from "../types/request.type";
 import { PurokService } from "../services/purok.service";
+import { AuditLogService } from "../services/auditLog.service";
 import { purokInterfaceInput } from "../types/purok.type";
 import { isObjectId, isNonEmptyString } from "../utils/validation";
 
@@ -26,6 +27,17 @@ export class PurokController {
         return;
       }
       const purok = await PurokService.create(data);
+
+      AuditLogService.create({
+        actor: request.account?.name || "System",
+        actorId: request.account?._id.toString(),
+        action: "create",
+        entity: "purok",
+        entityId: purok._id.toString(),
+        entityLabel: purok.name,
+        newValue: purok.status,
+      }).catch(() => null);
+
       response.status(201).send(purok);
     } catch (error: any) {
       console.error("[PUROK CREATE ERROR]", error);
@@ -44,11 +56,29 @@ export class PurokController {
         response.status(400).send("Invalid purok identifier");
         return;
       }
+      const existing = await PurokService.get(id);
       const purok = await PurokService.update(id, request.body || {});
       if (!purok) {
         response.status(404).send("Purok not found");
         return;
       }
+
+      AuditLogService.create({
+        actor: request.account?.name || "System",
+        actorId: request.account?._id.toString(),
+        action: "update",
+        entity: "purok",
+        entityId: id,
+        entityLabel: purok.name,
+        field: Object.keys(request.body || {}).join(", "),
+        previousValue: existing
+          ? Object.fromEntries(
+              Object.keys(request.body || {}).map((key) => [key, (existing as any)[key]]),
+            )
+          : undefined,
+        newValue: request.body,
+      }).catch(() => null);
+
       response.send(purok);
     } catch (error: any) {
       console.error("[PUROK UPDATE ERROR]", error);
@@ -72,11 +102,25 @@ export class PurokController {
         response.status(400).send("Status must be active or inactive");
         return;
       }
+      const existing = await PurokService.get(id);
       const purok = await PurokService.update(id, { status });
       if (!purok) {
         response.status(404).send("Purok not found");
         return;
       }
+
+      AuditLogService.create({
+        actor: request.account?.name || "System",
+        actorId: request.account?._id.toString(),
+        action: "update",
+        entity: "purok",
+        entityId: id,
+        entityLabel: purok.name,
+        field: "status",
+        previousValue: existing?.status,
+        newValue: status,
+      }).catch(() => null);
+
       response.send(purok);
     } catch (error: any) {
       console.error("[PUROK STATUS ERROR]", error);
@@ -126,6 +170,17 @@ export class PurokController {
         response.status(404).send("Purok not found");
         return;
       }
+
+      AuditLogService.create({
+        actor: request.account?.name || "System",
+        actorId: request.account?._id.toString(),
+        action: "delete",
+        entity: "purok",
+        entityId: id,
+        entityLabel: purok.name,
+        previousValue: purok.status,
+      }).catch(() => null);
+
       response.send({ message: "Purok deleted" });
     } catch (error: any) {
       console.error("[PUROK DELETE ERROR]", error);

@@ -4,6 +4,8 @@ import { ServiceRequestService } from "../services/serviceRequest.service";
 import { ContractService } from "../services/contract.service";
 import { AccountService } from "../services/acccount.service";
 import { UserActivityService } from "../services/userActivity.service";
+import { NotificationService } from "../services/notification.service";
+import { AuditLogService } from "../services/auditLog.service";
 import { formattedDate } from "../utils/customFunc";
 import { isObjectId, isNonEmptyString, MAX_DESCRIPTION_LENGTH } from "../utils/validation";
 import { ScheduleError, WorkScheduleService, formatSlotLabel } from "../services/workSchedule.service";
@@ -113,6 +115,28 @@ export class ServiceRequestController {
         date: formattedDate(),
       });
 
+      const when = `${new Date(`${slot.date}T00:00:00`).toLocaleDateString("en-PH", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })}, ${formatSlotLabel(slot.startTime, slot.endTime)}`;
+      NotificationService.create({
+        accountId: provider,
+        title: "New Service Request",
+        message: `${client.name} requested "${serviceType}" scheduled on ${when}. Review it from your Work Requests.`,
+        type: "work",
+      }).catch(() => null);
+      AuditLogService.create({
+        actor: client.name || "Resident",
+        actorId: client._id.toString(),
+        action: "create",
+        entity: "workRequest",
+        entityId: serviceRequest._id.toString(),
+        entityLabel: serviceType,
+        field: "status",
+        newValue: "PENDING",
+      }).catch(() => null);
+
       response.status(201).send(serviceRequest);
     } catch (error) {
       console.error(error);
@@ -186,21 +210,31 @@ export class ServiceRequestController {
         return;
       }
 
-      await ServiceRequestService.updateStatus(id, "ACCEPTED");
+      const accepted = await ServiceRequestService.updateStatusIf(id, "PENDING", "ACCEPTED");
+      if (!accepted) {
+        response.status(409).send("This request was already updated. Please reload and try again.");
+        return;
+      }
 
-      const contract = await ContractService.create({
-        serviceRequest: id,
-        client: serviceRequest.client._id.toString(),
-        provider: provider._id.toString(),
-        skill: serviceRequest.skill,
-        serviceType: serviceRequest.serviceType,
-        description: serviceRequest.description,
-        agreedPrice: serviceRequest.budget,
-        startDate: serviceRequest.preferredDate,
-        location: serviceRequest.location,
-        notes: serviceRequest.notes,
-        status: "ACTIVE",
-      });
+      let contract;
+      try {
+        contract = await ContractService.create({
+          serviceRequest: id,
+          client: serviceRequest.client._id.toString(),
+          provider: provider._id.toString(),
+          skill: serviceRequest.skill,
+          serviceType: serviceRequest.serviceType,
+          description: serviceRequest.description,
+          agreedPrice: serviceRequest.budget,
+          startDate: serviceRequest.preferredDate,
+          location: serviceRequest.location,
+          notes: serviceRequest.notes,
+          status: "ACTIVE",
+        });
+      } catch (error) {
+        await ServiceRequestService.updateStatusIf(id, "ACCEPTED", "PENDING");
+        throw error;
+      }
 
       await AccountService.updateAvailability(provider._id.toString(), "BUSY");
 
@@ -209,6 +243,24 @@ export class ServiceRequestController {
         activity: `Accepted service request: ${serviceRequest.serviceType}`,
         date: formattedDate(),
       });
+
+      NotificationService.create({
+        accountId: serviceRequest.client._id.toString(),
+        title: "Service Request Accepted",
+        message: `${provider.name} accepted your "${serviceRequest.serviceType}" request. A service contract has been created.`,
+        type: "work",
+      }).catch(() => null);
+      AuditLogService.create({
+        actor: provider.name || "Resident",
+        actorId: provider._id.toString(),
+        action: "update",
+        entity: "workRequest",
+        entityId: id,
+        entityLabel: serviceRequest.serviceType,
+        field: "status",
+        previousValue: serviceRequest.status,
+        newValue: "ACCEPTED",
+      }).catch(() => null);
 
       response.send({ message: "Request accepted", contract });
     } catch (error) {
@@ -256,10 +308,98 @@ export class ServiceRequestController {
         await WorkScheduleService.release((serviceRequest as any).scheduleSlot);
       }
 
+      NotificationService.create({
+        accountId: serviceRequest.client._id.toString(),
+        title: "Service Request Declined",
+        message: `${provider.name} declined your "${serviceRequest.serviceType}" request. You can request another provider.`,
+        type: "work",
+      }).catch(() => null);
+      AuditLogService.create({
+        actor: provider.name || "Resident",
+        actorId: provider._id.toString(),
+        action: "update",
+        entity: "workRequest",
+        entityId: id,
+        entityLabel: serviceRequest.serviceType,
+        field: "status",
+        previousValue: serviceRequest.status,
+        newValue: "REJECTED",
+      }).catch(() => null);
+
       response.send({ message: "Request rejected" });
     } catch (error) {
       console.error(error);
       response.status(500).send("Failed to reject service request");
+    }
+  };
+
+  static cancel = async (request: AuthRequest, response: Response) => {
+    try {
+      const client = request.account;
+      if (!client) {
+        response.status(401).send("User not authenticated");
+        return;
+      }
+
+      const { id } = request.params;
+      if (!isObjectId(id)) {
+        response.status(400).send("Invalid service request id");
+        return;
+      }
+      const serviceRequest = await ServiceRequestService.get(id);
+
+      if (!serviceRequest) {
+        response.status(404).send("Service request not found");
+        return;
+      }
+
+      if (serviceRequest.client._id.toString() !== client._id.toString()) {
+        response.status(403).send("You are not authorized to act on this request");
+        return;
+      }
+
+      if (serviceRequest.status !== "PENDING") {
+        response.status(400).send(`Request has already been ${serviceRequest.status.toLowerCase()}`);
+        return;
+      }
+
+      const cancelled = await ServiceRequestService.updateStatusIf(id, "PENDING", "CANCELLED");
+      if (!cancelled) {
+        response.status(409).send("This request was already updated. Please reload and try again.");
+        return;
+      }
+      if ((serviceRequest as any).scheduleSlot) {
+        await WorkScheduleService.release((serviceRequest as any).scheduleSlot);
+      }
+
+      await UserActivityService.create({
+        accountId: client._id.toString(),
+        activity: `Cancelled service request: ${serviceRequest.serviceType}`,
+        date: formattedDate(),
+      });
+
+      NotificationService.create({
+        accountId: serviceRequest.provider._id.toString(),
+        title: "Service Request Cancelled",
+        message: `${client.name} cancelled their "${serviceRequest.serviceType}" request. The reserved time slot has been released.`,
+        type: "work",
+      }).catch(() => null);
+      AuditLogService.create({
+        actor: client.name || "Resident",
+        actorId: client._id.toString(),
+        action: "cancel",
+        entity: "workRequest",
+        entityId: id,
+        entityLabel: serviceRequest.serviceType,
+        field: "status",
+        previousValue: serviceRequest.status,
+        newValue: "CANCELLED",
+      }).catch(() => null);
+
+      response.send({ message: "Request cancelled" });
+    } catch (error) {
+      console.error(error);
+      response.status(500).send("Failed to cancel service request");
     }
   };
 }

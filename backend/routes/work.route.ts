@@ -13,8 +13,6 @@ route.get("/schedule/availability", authenticateJWT, handler(WorkController.getA
 route.get("/requests/mine", authenticateJWT, handler(WorkController.getMyRequests))
 route.get("/requests", ...staffOnly, handler(WorkController.getAllRequests))
 route.patch("/requests/:kind/:id/schedule", ...staffOnly, handler(WorkController.reschedule))
-route.get("/client/:clientId", authenticateJWT, handler(WorkController.getByClient))
-route.get("/worker/:workerId", authenticateJWT, handler(WorkController.getByWorker))
 route.patch("/:id/status", authenticateJWT, handler(WorkController.updateStatus))
 
 export default route

@@ -72,6 +72,7 @@ route.get(
 );
 route.get(
   "/residents/skills",
+  authenticateJWT,
   handler(AccountController.getResidentsWithSkills),
 );
 route.patch(
@@ -95,8 +96,11 @@ route.patch(
   ...superAdminOnly,
   handler(AccountController.unsuspend),
 );
+// Rejected/pending residents may resubmit their OWN ID images (carved out of
+// the approval gate in authenticateJWT); staff may resubmit on their behalf.
 route.put(
   "/:id/resubmit",
+  authenticateJWT,
   uploadIdImages,
   handler(AccountController.resubmitImages),
 );

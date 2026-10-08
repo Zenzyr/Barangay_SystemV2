@@ -55,14 +55,25 @@ export class ReviewController {
         return;
       }
 
-      const review = await ReviewService.create({
-        contract: contractId,
-        client: client._id.toString(),
-        provider: contract.provider._id.toString(),
-        skill: contract.skill,
-        star: Number(star),
-        message,
-      });
+      let review;
+      try {
+        review = await ReviewService.create({
+          contract: contractId,
+          client: client._id.toString(),
+          provider: contract.provider._id.toString(),
+          skill: contract.skill,
+          star: Number(star),
+          message,
+        });
+      } catch (error: any) {
+        // The unique index on Review.contract is the real race guard; a
+        // concurrent double-submit lands here instead of a confusing 500.
+        if (error?.code === 11000) {
+          response.status(409).send("A review has already been submitted for this contract");
+          return;
+        }
+        throw error;
+      }
 
       // Keep the existing denormalized reviews[] cache on the provider's
       // Account in sync, so existing display components (average rating,

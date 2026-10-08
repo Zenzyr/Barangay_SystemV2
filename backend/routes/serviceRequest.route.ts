@@ -10,5 +10,6 @@ route.get("/mine", authenticateJWT, handler(ServiceRequestController.getMine));
 route.get("/received", authenticateJWT, handler(ServiceRequestController.getReceived));
 route.patch("/:id/accept", authenticateJWT, handler(ServiceRequestController.accept));
 route.patch("/:id/reject", authenticateJWT, handler(ServiceRequestController.reject));
+route.patch("/:id/cancel", authenticateJWT, handler(ServiceRequestController.cancel));
 
 export default route;

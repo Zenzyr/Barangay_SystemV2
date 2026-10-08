@@ -34,7 +34,7 @@ community analytics.
 - File Upload: Multer → Cloudinary
 - Email: Nodemailer (Gmail SMTP)
 - AI: Google Generative AI (Gemini)
-- SMS: Semaphore API
+- SMS: iProg SMS API (iprogsms / iprogtech)
 
 ================================================================================
 3. PROJECT STRUCTURE
@@ -103,8 +103,9 @@ Create a .env file in the root directory with the following variables:
   # AI (Google Gemini)
   GEMINI_API_KEY=your_gemini_api_key
 
-  # SMS (Semaphore)
-  SEMAPHORE_API_KEY=your_semaphore_api_key
+  # SMS (iProg SMS)
+  IPROG_API_TOKEN=your_iprog_api_token
+  IPROG_SENDER_NAME=your_sender_name
 
 ================================================================================
 6. API ENDPOINTS

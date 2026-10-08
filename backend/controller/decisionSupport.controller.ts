@@ -38,7 +38,7 @@ export class DecisionSupportController {
         await AuditLogService.create({
           actor: actor.name,
           actorId: actor.id,
-          action: "Analytics Snapshot Created",
+          action: "create",
           entity: "analyticsSnapshot",
           entityId: snapshotId,
           entityLabel: "Analytics snapshot",
@@ -47,10 +47,11 @@ export class DecisionSupportController {
       await AuditLogService.create({
         actor: actor.name,
         actorId: actor.id,
-        action: "Decision Support Generated",
+        action: "create",
         entity: "decisionSupport",
         entityId: record._id.toString(),
-        entityLabel: record.summary || "Decision Support analysis",
+        entityLabel: "Decision Support analysis",
+        newValue: record.summary || "",
       }).catch(() => null);
       response.status(201).send(record);
     } catch (error) {

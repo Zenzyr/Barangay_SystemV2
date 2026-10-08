@@ -151,10 +151,12 @@ const validators: {
   purok: (v) => (!v ? "Please select a purok" : ""),
   voterStatus: (v) => (!v ? "Please select a voter status" : ""),
   houseHoldNumber: (v) => {
-    if (!v.trim()) return "Household number is required";
-    if (!/^HH-(20|1\d|[1-9])$/i.test(v.trim())) {
-      return "Format must be HH-1 to HH-20 (e.g. HH-5)";
-    }
+    const value = v.trim();
+    if (!value) return "Household number is required";
+    if (!/^HH-(?!0+$)\d{3,4}$/.test(value))
+      return "Format must be HH-001 to HH-999 or HH-0001 to HH-9999 (e.g. HH-020 or HH-0011)";
+    const num = parseInt(value.slice(3), 10);
+    if (num < 1 || num > 9999) return "Household number must be between HH-001 and HH-9999";
     return "";
   },
   idType: (v) => (!v ? "Please select the type of ID you are uploading" : ""),
@@ -440,6 +442,12 @@ export default function SignUpPage() {
     };
         console.log("Fetching puroks from:", axiosInstance.defaults.baseURL + "/barangay/puroks?status=active");
     fetchPuroks();
+  }, []);
+
+  // Hide the browser's vertical scrollbar strip on this page (scrolling still works).
+  useEffect(() => {
+    document.documentElement.classList.add("no-scrollbar");
+    return () => document.documentElement.classList.remove("no-scrollbar");
   }, []);
 
   const [showPassword, setShowPassword] = useState(false);
@@ -939,7 +947,7 @@ export default function SignUpPage() {
       </nav>
 
       {/* Main Content */}
-      <div className="relative max-w-3xl mx-auto px-4 py-8 sm:py-12 overflow-x-hidden">
+      <div className="relative w-full px-4 sm:px-6 lg:px-10 py-8 sm:py-12 overflow-x-hidden">
         <div className="pointer-events-none absolute -top-20 -left-20 size-72 rounded-full bg-sky-200/40 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-20 -right-20 size-72 rounded-full bg-emerald-200/40 blur-3xl" />
 
@@ -962,14 +970,14 @@ export default function SignUpPage() {
 
         {/* Form Card */}
         <div className="glass-card">
-          <form onSubmit={handleSubmit} noValidate className="p-6 sm:p-8 space-y-8">
+          <form onSubmit={handleSubmit} noValidate className="p-4 sm:p-6 lg:p-8 space-y-8">
             {/* Personal Information */}
             <div>
               <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <div className="size-2 rounded-full bg-gradient-to-r from-sky-400 to-emerald-400" />
                 Personal Information
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 w-full">
                 <div className="space-y-1.5 min-w-0">
                   <Label htmlFor="name" className="text-sm font-medium text-gray-700">
                     Full Name
@@ -1029,7 +1037,7 @@ export default function SignUpPage() {
                 </div>
 
                 {/* ── Email ownership verification (OTP) ── */}
-                <div className="sm:col-span-2 rounded-xl border border-sky-100 bg-sky-50/40 p-3 sm:p-4 space-y-3">
+                <div className="sm:col-span-2 xl:col-span-3 rounded-xl border border-sky-100 bg-sky-50/40 p-3 sm:p-4 space-y-3">
                   {emailVerified ? (
                     <div className="flex items-center gap-2 text-sm text-emerald-700">
                       <CheckCircle2 className="size-4 shrink-0" />
@@ -1140,7 +1148,7 @@ export default function SignUpPage() {
                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
                     <Input
                       id="address"
-                      placeholder="123 Barangay St., Rabon"
+                      placeholder="Barangay Rabon, Purok 1"
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
                       onBlur={handleBlur("address")}
@@ -1235,7 +1243,7 @@ export default function SignUpPage() {
                 <div className="size-2 rounded-full bg-gradient-to-r from-sky-400 to-emerald-400" />
                 Profile Details
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Gender */}
                 <div className="space-y-1.5">
                   <Label htmlFor="gender" className="text-sm font-medium text-gray-700">
@@ -1388,9 +1396,12 @@ export default function SignUpPage() {
                     <input
                       id="houseHoldNumber"
                       type="text"
-                      placeholder="e.g. HH-5 (max HH-20)"
+                      placeholder="e.g. HH-020 or HH-0011"
                       value={houseHoldNumber}
-                      onChange={(e) => setHouseHoldNumber(e.target.value)}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+                        setHouseHoldNumber(digits ? `HH-${digits}` : "");
+                      }}
                       onBlur={handleBlur("houseHoldNumber")}
                       className={`w-full h-10 pl-10 pr-3 rounded-lg border bg-white text-sm text-gray-700 focus:ring-2 transition-all ${
                         touched.houseHoldNumber && errors.houseHoldNumber
@@ -1445,7 +1456,7 @@ export default function SignUpPage() {
                 <FieldError message={touched.idType ? errors.idType : undefined} />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <UploadBox
                   label="Front of ID"
                   icon={IdCard}

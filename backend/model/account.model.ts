@@ -121,14 +121,19 @@ const AccountSchema = new Schema(
         message: { type: String, required: true },
       },
     ],
-  },
-  {
+
+    // Data Privacy Act consent record. Must live INSIDE the schema — as a
+    // SchemaOptions key it was silently dropped and never persisted.
     legalConsent: {
+      privacyPolicy: { type: Boolean, required: false },
+      termsOfService: { type: Boolean, required: false },
       privacyPolicyVersion: { type: String, required: false },
       termsOfServiceVersion: { type: String, required: false },
       acceptedAt: { type: Date, required: false },
     },
+  },
 
+  {
     // Creation timestamp for the verification register (new registrations).
     timestamps: true,
   },

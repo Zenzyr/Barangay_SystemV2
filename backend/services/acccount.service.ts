@@ -53,12 +53,58 @@ export class AccountService {
     );
   }
 
+  /** Race-safe status change: only applies when the status is still `fromStatus`. */
+  static async updateStatusIf(id: string, fromStatus: string, status: string) {
+    return await AccountModel.findOneAndUpdate(
+      { _id: id, status: fromStatus },
+      { $set: { status } },
+      { new: true }
+    ).select("-password");
+  }
+
   static async updateRole(id: string, role: string) {
     return await AccountModel.findByIdAndUpdate(
       id,
       { role },
       { new: true }
     );
+  }
+
+  /** Race-safe role change: only applies when the role is still `fromRole`. */
+  static async updateRoleIf(id: string, fromRole: string, role: string) {
+    return await AccountModel.findOneAndUpdate(
+      { _id: id, role: fromRole },
+      { $set: { role } },
+      { new: true }
+    ).select("-password");
+  }
+
+  /** Succeeds only when the account is not already suspended. */
+  static async suspendIf(id: string, suspendedBy: string, reason: string) {
+    return await AccountModel.findOneAndUpdate(
+      { _id: id, isSuspended: { $ne: true } },
+      {
+        $set: {
+          isSuspended: true,
+          suspendedAt: new Date(),
+          suspendedBy,
+          suspensionReason: reason,
+        },
+      },
+      { new: true }
+    ).select("-password");
+  }
+
+  /** Succeeds only when the account is currently suspended. */
+  static async unsuspendIf(id: string) {
+    return await AccountModel.findOneAndUpdate(
+      { _id: id, isSuspended: true },
+      {
+        $set: { isSuspended: false, suspendedBy: "", suspensionReason: "" },
+        $unset: { suspendedAt: "" },
+      },
+      { new: true }
+    ).select("-password");
   }
 
   static async countByRole(role: string) {
@@ -108,8 +154,12 @@ export class AccountService {
       ];
     }
 
+    // Project to public marketplace fields only: never leak ID images,
+    // hashes, census links or registration internals to resident clients.
     const accounts = await AccountModel.find(query)
-      .select('-password')
+      .select(
+        "name nickname profile email contact address purok providerLocation providerDescription availability completedServices skills reviews status role",
+      )
       .lean();
 
     return accounts.map((account) => {

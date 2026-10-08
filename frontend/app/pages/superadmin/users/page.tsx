@@ -365,6 +365,9 @@ function UsersContent() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
+                          {a._id === currentUser?._id ? (
+                            <span className="text-xs text-gray-500">{a.role === "super_admin" ? "Super Admin" : a.role} (you)</span>
+                          ) : (
                           <Select
                             value={pendingRole}
                             onValueChange={(v) =>
@@ -383,7 +386,8 @@ function UsersContent() {
                               ))}
                             </SelectContent>
                           </Select>
-                          {changed && (
+                          )}
+                          {changed && a._id !== currentUser?._id && (
                             <Button
                               size="sm"
                               className="h-8 text-xs bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white"

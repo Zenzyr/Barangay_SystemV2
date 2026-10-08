@@ -50,7 +50,7 @@ interface EditProfileModalProps {
   }) => Promise<void>;
 }
 
-const HOUSEHOLD_NUMBER_PATTERN = /^HH-(20|1\d|[1-9])$/i;
+const HOUSEHOLD_NUMBER_PATTERN = /^HH-(?!0+$)\d{3,4}$/i;
 
 export default function EditProfileModal({
   open,
@@ -110,7 +110,7 @@ export default function EditProfileModal({
     householdNumberChanged &&
     houseHoldNumber.trim().toUpperCase() !== "N/A" &&
     !HOUSEHOLD_NUMBER_PATTERN.test(houseHoldNumber.trim())
-      ? "Format must be HH-1 to HH-20 (e.g. HH-5)"
+      ? "Format must be HH-001 to HH-999 or HH-0001 to HH-9999 (e.g. HH-020 or HH-0011)"
       : "";
 
   const handleSubmit = async () => {
@@ -305,7 +305,7 @@ export default function EditProfileModal({
                         ? "border-red-400 focus:border-red-400"
                         : "border-gray-200 focus:border-sky-400"
                     }`}
-                    placeholder="e.g. HH-5 (max HH-20)"
+                    placeholder="e.g. HH-020 or HH-0011"
                   />
                 </div>
                 {householdNumberError && (

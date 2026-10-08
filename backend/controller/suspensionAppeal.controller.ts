@@ -32,6 +32,16 @@ export class SuspensionAppealController {
         return;
       }
 
+      // One open appeal at a time: resubmitting would duplicate the queue
+      // and let a resident bury their first appeal under fresh copies.
+      const openAppeal = await SuspensionAppealService.getOpenByAccount(account._id);
+      if (openAppeal) {
+        response
+          .status(409)
+          .send("You already have an appeal awaiting review. Please wait for a decision.");
+        return;
+      }
+
       const appeal = await SuspensionAppealService.create({
         accountId: account._id,
         reason,
@@ -45,6 +55,8 @@ export class SuspensionAppealController {
         entity: "account",
         entityId: account._id,
         entityLabel: freshAccount.name,
+        field: "status",
+        newValue: "pending",
       }).catch(() => null);
 
       response.status(201).send(appeal);
@@ -110,6 +122,11 @@ export class SuspensionAppealController {
         response.status(400).send("Status must be under_review, approved, or rejected");
         return;
       }
+      const note = decisionNote ? String(decisionNote).trim() : undefined;
+      if (note !== undefined && !withinLength(note, MAX_TEXT_LENGTH)) {
+        response.status(400).send(`Decision note must be at most ${MAX_TEXT_LENGTH} characters`);
+        return;
+      }
 
       const appeal = await SuspensionAppealService.get(id);
       if (!appeal) {
@@ -118,21 +135,33 @@ export class SuspensionAppealController {
       }
 
       const reviewer = request.account;
+      const targetAccount = await AccountService.get(appeal.accountId);
+
+      // A suspension applied AFTER this appeal was filed is a separate
+      // disciplinary action: approving the old appeal must not lift it.
+      const newerSuspension =
+        status === "approved" &&
+        !!targetAccount?.isSuspended &&
+        !!targetAccount.suspendedAt &&
+        targetAccount.suspendedAt > appeal.createdAt;
+
+      // Conditional on the appeal still being open: a decision that already
+      // happened can never be flipped by a second review.
       const updated = await SuspensionAppealService.updateStatus(
         id,
         status,
         reviewer?.name || "Super Admin",
-        decisionNote ? String(decisionNote).trim() : undefined,
+        note,
       );
+      if (!updated) {
+        response
+          .status(409)
+          .send("This appeal has already been reviewed. Refresh and try again.");
+        return;
+      }
 
-      const targetAccount = await AccountService.get(appeal.accountId);
-
-      if (status === "approved" && targetAccount) {
-        await AccountService.update(appeal.accountId, {
-          isSuspended: false,
-          suspendedBy: "",
-          suspensionReason: "",
-        });
+      if (status === "approved" && targetAccount && !newerSuspension) {
+        await AccountService.unsuspendIf(appeal.accountId).catch(() => null);
       }
 
       if (targetAccount) {
@@ -143,11 +172,16 @@ export class SuspensionAppealController {
           entity: "account",
           entityId: targetAccount._id.toString(),
           entityLabel: targetAccount.name,
+          field: "status",
+          previousValue: appeal.status,
+          newValue: status,
         }).catch(() => null);
 
         const message =
           status === "approved"
-            ? "Your appeal was approved. Your account access has been restored."
+            ? newerSuspension
+              ? "Your appeal was approved, but a newer suspension still applies to your account. Contact barangay staff for details."
+              : "Your appeal was approved. Your account access has been restored."
             : status === "rejected"
             ? "Your appeal was reviewed and rejected. Your account remains suspended."
             : "Your appeal is now under review.";

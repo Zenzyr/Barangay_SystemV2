@@ -59,6 +59,7 @@ import {
   Mail,
   Lock,
   UserPlus,
+  CalendarDays,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/BackButton";
 
@@ -167,22 +168,154 @@ function parseCsv(text: string): Record<string, string>[] {
 
 const EMPTY_FORM: Omit<ResidentCensusRecord, "_id"> = {
   name: "",
-  sex: "N/A",
-  birthday: "N/A",
-  age: "N/A",
-  occupation: "N/A",
-  education: "N/A",
+  sex: "",
+  birthday: "",
+  age: "",
+  occupation: "",
+  education: "",
   purok: "Purok 1",
-  householdNumber: "N/A",
-  is4Ps: "N/A",
-  soloParent: "N/A",
-  familyPlanning: "N/A",
-  isSenior: "N/A",
-  hpnMaintenance: "N/A",
-  pensioner: "N/A",
-  isPWD: "N/A",
-  cellphone: "N/A",
+  householdNumber: "",
+  is4Ps: "",
+  soloParent: "",
+  familyPlanning: "",
+  isSenior: "",
+  hpnMaintenance: "",
+  pensioner: "",
+  isPWD: "",
+  cellphone: "",
 };
+
+const isIsoDate = (value: string) =>
+  /^\d{4}-\d{2}-\d{2}$/.test(value) && !isNaN(new Date(`${value}T00:00:00`).getTime());
+
+function formatDateLabel(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString("en-PH", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function computeAgeFromDob(iso: string): string {
+  const birth = new Date(`${iso}T00:00:00`);
+  if (isNaN(birth.getTime())) return "";
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age -= 1;
+  return String(age);
+}
+
+// The census schema rejects empty strings, so blank fields are submitted as
+// the canonical unknown value "N/A"; a numeric age is sent as a number.
+function buildCensusPayload(values: Omit<ResidentCensusRecord, "_id">) {
+  const payload: Record<string, unknown> = { ...values };
+  for (const key of Object.keys(payload)) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim() === "") payload[key] = "N/A";
+  }
+  const ageNum = Number(payload.age);
+  if (payload.age !== "N/A" && !isNaN(ageNum)) payload.age = ageNum;
+  return payload;
+}
+
+// Pensioner type choices. "None / Not a Pensioner" is stored as the canonical
+// unknown value "N/A" — analytics exclude N/A/NONE from the pensioner count.
+const PENSIONER_OPTIONS: { value: string; label: string }[] = [
+  { value: "N/A", label: "None / Not a Pensioner" },
+  { value: "SSS Pensioner", label: "SSS Pensioner" },
+  { value: "GSIS Pensioner", label: "GSIS Pensioner" },
+  { value: "Senior Citizen Pensioner", label: "Senior Citizen Pensioner" },
+  { value: "PWD Pensioner", label: "PWD Pensioner" },
+  { value: "Private Pensioner", label: "Private Pensioner" },
+  { value: "Other", label: "Other" },
+];
+
+// Legacy rows store these free-text (e.g. "SSS PENSIONER") — map them onto the
+// option values so the select shows the saved choice when editing.
+function pensionerSelectValue(value: string): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const match = PENSIONER_OPTIONS.find((o) => o.value.toUpperCase() === raw.toUpperCase());
+  return match ? match.value : "";
+}
+
+// Family planning method choices. "None / Not Practicing" is stored as the
+// canonical unknown value "N/A" — analytics exclude N/A/NONE from the family
+// planning uptake count. "Select family planning method" is the placeholder
+// only and is never stored as a value.
+const FAMILY_PLANNING_OPTIONS: { value: string; label: string }[] = [
+  { value: "N/A", label: "None / Not Practicing" },
+  { value: "Pills", label: "Pills" },
+  { value: "Condom", label: "Condom" },
+  { value: "Injectable", label: "Injectable" },
+  { value: "Implant", label: "Implant" },
+  { value: "IUD", label: "IUD" },
+  { value: "Tubal Ligation", label: "Tubal Ligation" },
+  { value: "Vasectomy", label: "Vasectomy" },
+  { value: "Natural Family Planning", label: "Natural Family Planning" },
+  { value: "Other", label: "Other" },
+];
+
+// Maps a saved free-text family planning value to one of the option values so
+// an edited record shows its current method. Any non-empty value that is not a
+// predefined method (e.g. a legacy custom entry) is treated as "Other" so it
+// can be edited in the free-text input.
+function familyPlanningSelectValue(value: string): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const match = FAMILY_PLANNING_OPTIONS.find((o) => o.value.toUpperCase() === raw.toUpperCase());
+  if (match) return match.value;
+  return "Other";
+}
+
+// The custom method text shown in the free-text input when "Other" is chosen.
+// A bare "Other" (nothing typed yet) shows an empty input.
+function familyPlanningCustomText(value: string): string {
+  const raw = String(value ?? "").trim();
+  return raw.toUpperCase() === "OTHER" ? "" : raw;
+}
+
+// Educational attainment choices. Values are stored uppercase to match the
+// existing census data format (e.g. "COLLEGE GRADUATE"). "Select educational
+// attainment" is the placeholder only and is never stored as a value.
+const EDUCATION_OPTIONS: { value: string; label: string }[] = [
+  { value: "NO FORMAL EDUCATION", label: "No Formal Education" },
+  { value: "ELEMENTARY LEVEL", label: "Elementary Level" },
+  { value: "ELEMENTARY GRADUATE", label: "Elementary Graduate" },
+  { value: "JUNIOR HIGH SCHOOL LEVEL", label: "Junior High School Level" },
+  { value: "JUNIOR HIGH SCHOOL GRADUATE", label: "Junior High School Graduate" },
+  { value: "SENIOR HIGH SCHOOL LEVEL", label: "Senior High School Level" },
+  { value: "SENIOR HIGH SCHOOL GRADUATE", label: "Senior High School Graduate" },
+  { value: "COLLEGE LEVEL", label: "College Level" },
+  { value: "COLLEGE GRADUATE", label: "College Graduate" },
+  { value: "POSTGRADUATE", label: "Postgraduate" },
+  { value: "VOCATIONAL / TECHNICAL", label: "Vocational / Technical" },
+  { value: "OTHER", label: "Other" },
+];
+
+// Mirror of the backend's isUnknown set: these education values mean "unknown"
+// and show the placeholder instead of an option.
+const UNKNOWN_EDUCATION_VALUES = ["", "n/a", "na", "none", "null", "-", "undeclared", "not applicable"];
+
+// Maps a saved education value to an option value so an edited record shows its
+// current attainment. Unknown values show the placeholder; any other
+// non-matching legacy value (e.g. "HIGHSCHOOL GRADUATE") is shown via "Other"
+// with the original text preserved in the free-text input.
+function educationSelectValue(value: string): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  if (UNKNOWN_EDUCATION_VALUES.includes(raw.toLowerCase())) return "";
+  const match = EDUCATION_OPTIONS.find((o) => o.value.toUpperCase() === raw.toUpperCase());
+  if (match) return match.value;
+  return "OTHER";
+}
+
+// The custom text shown in the free-text input when "Other" is selected.
+function educationCustomText(value: string): string {
+  const raw = String(value ?? "").trim();
+  return raw.toUpperCase() === "OTHER" ? "" : raw;
+}
 
 function getPageItems(total: number, current: number): (number | "...")[] {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -397,7 +530,9 @@ export default function ResidentCensusPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const birthdayInputRef = useRef<HTMLInputElement>(null);
   const [editingOriginalHousehold, setEditingOriginalHousehold] = useState<string | null>(null);
+  const [editingOriginalCellphone, setEditingOriginalCellphone] = useState<string | null>(null);
 
   // Account-creation sub-section of the Add Resident modal (new records only).
   const [createAccount, setCreateAccount] = useState(false);
@@ -549,6 +684,7 @@ export default function ResidentCensusPage() {
     setEditingId(null);
     setForm(EMPTY_FORM);
     setEditingOriginalHousehold(null);
+    setEditingOriginalCellphone(null);
     resetAccountFields();
     setModalOpen(true);
   };
@@ -558,6 +694,7 @@ export default function ResidentCensusPage() {
     const { _id, ...rest } = record;
     setForm(rest);
     setEditingOriginalHousehold(record.householdNumber);
+    setEditingOriginalCellphone(record.cellphone);
     resetAccountFields();
     setModalOpen(true);
   };
@@ -567,18 +704,21 @@ export default function ResidentCensusPage() {
       errorAlert("Name is required");
       return;
     }
-    // Age must be a number 0-120 or "N/A"; birthday must be YYYY-MM-DD or N/A.
-    const ageNum = Number(form.age);
-    const ageOk = form.age === "N/A" || (form.age !== "" && !isNaN(ageNum) && ageNum >= 0 && ageNum <= 120);
+    // Age is optional but, when given, must be a number 0-120 (or N/A on
+    // records that already carry it). Birthday must be YYYY-MM-DD or blank.
+    const ageRaw = String(form.age ?? "").trim();
+    const ageNum = Number(ageRaw);
+    const ageOk =
+      ageRaw === "" || ageRaw === "N/A" || (!isNaN(ageNum) && ageNum >= 0 && ageNum <= 120);
     if (!ageOk) {
-      errorAlert("Age must be a number between 0 and 120, or N/A");
+      errorAlert("Age must be a number between 0 and 120");
       return;
     }
     const birthday = String(form.birthday || "").trim();
     if (birthday && birthday !== "N/A") {
       const isDate = /^\d{4}-\d{2}-\d{2}$/.test(birthday) && !isNaN(new Date(birthday).getTime());
       if (!isDate) {
-        errorAlert("Birthday must be in YYYY-MM-DD format or N/A");
+        errorAlert("Birthday must be a valid date (YYYY-MM-DD)");
         return;
       }
     }
@@ -588,18 +728,29 @@ export default function ResidentCensusPage() {
     }
     const householdTrimmed = form.householdNumber.trim();
     const householdChanged = !editingId || householdTrimmed !== (editingOriginalHousehold ?? "").trim();
-    if (householdChanged) {
-      if (!householdTrimmed) {
-        errorAlert("Household number is required");
-        return;
-      }
-      if (
-        householdTrimmed.toUpperCase() !== "N/A" &&
-        !/^HH-(20|1\d|[1-9])$/i.test(householdTrimmed)
-      ) {
-        errorAlert("Household number must be in the format HH-1 to HH-20");
-        return;
-      }
+    if (
+      householdChanged &&
+      householdTrimmed &&
+      householdTrimmed.toUpperCase() !== "N/A" &&
+      !/^HH-(?!0+$)\d{3,4}$/i.test(householdTrimmed)
+    ) {
+      errorAlert("Household number must be HH-001 to HH-999 or HH-0001 to HH-9999");
+      return;
+    }
+
+    // Cellphone, when given, must be exactly 11 digits starting with 09. An
+    // empty/"N/A" value is allowed (unknown); when editing, an unchanged legacy
+    // value is preserved rather than forcing the user to fix untouched data.
+    const cellphone = String(form.cellphone ?? "").trim();
+    const cellphoneChanged = !editingId || cellphone !== (editingOriginalCellphone ?? "").trim();
+    if (
+      cellphoneChanged &&
+      cellphone &&
+      cellphone.toUpperCase() !== "N/A" &&
+      !/^09\d{9}$/.test(cellphone)
+    ) {
+      errorAlert("Cellphone number must be exactly 11 digits and start with 09.");
+      return;
     }
 
     if (createAccount && !editingId) {
@@ -650,7 +801,7 @@ export default function ResidentCensusPage() {
     setSaving(true);
     try {
       if (editingId) {
-        await axiosInstance.put(`/resident-census/${editingId}`, form);
+        await axiosInstance.put(`/resident-census/${editingId}`, buildCensusPayload(form));
         successAlert("Record updated");
       } else if (createAccount) {
         await axiosInstance.post("/account/admin/create", {
@@ -664,11 +815,11 @@ export default function ResidentCensusPage() {
           civilStatus: accountCivilStatus,
           purok: accountPurok,
           voterStatus: accountVoterStatus,
-          houseHoldNumber: form.householdNumber,
+          houseHoldNumber: form.householdNumber.trim() || "N/A",
         });
         successAlert("Resident and login account created. A welcome email was sent.");
       } else {
-        await axiosInstance.post("/resident-census", form);
+        await axiosInstance.post("/resident-census", buildCensusPayload(form));
         successAlert("Record added");
       }
       queryClient.invalidateQueries({ queryKey: ["resident-census"] });
@@ -949,22 +1100,42 @@ export default function ResidentCensusPage() {
             <div className="space-y-1.5">
               <Label>Sex</Label>
               <Select value={form.sex} onValueChange={(v) => setForm({ ...form, sex: v })}>
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Select sex" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="M">M</SelectItem>
                   <SelectItem value="F">F</SelectItem>
-                  <SelectItem value="N/A">N/A</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Birthday</Label>
-              <Input
-                type="text"
-                value={form.birthday}
-                onChange={(e) => setForm({ ...form, birthday: e.target.value })}
-                placeholder="YYYY-MM-DD or N/A"
-              />
+              <div className="relative">
+                <div className="flex h-8 w-full items-center gap-2 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base md:text-sm">
+                  <CalendarDays className="size-4 shrink-0 text-muted-foreground" />
+                  {isIsoDate(form.birthday) ? (
+                    <span>{formatDateLabel(form.birthday)}</span>
+                  ) : (
+                    <span className="text-muted-foreground">Select date</span>
+                  )}
+                </div>
+                <input
+                  ref={birthdayInputRef}
+                  type="date"
+                  aria-label="Birthday"
+                  max={new Date().toISOString().slice(0, 10)}
+                  value={isIsoDate(form.birthday) ? form.birthday : ""}
+                  onChange={(e) => {
+                    const picked = e.target.value;
+                    setForm((prev) => ({
+                      ...prev,
+                      birthday: picked,
+                      age: picked ? computeAgeFromDob(picked) : prev.age,
+                    }));
+                  }}
+                  onClick={(e) => e.currentTarget.showPicker?.()}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label>Age</Label>
@@ -972,7 +1143,7 @@ export default function ResidentCensusPage() {
                 value={String(form.age)}
                 inputMode="numeric"
                 onChange={(e) => setForm({ ...form, age: e.target.value })}
-                placeholder="e.g. 45 or N/A"
+                placeholder="e.g. 45"
               />
             </div>
             <div className="space-y-1.5">
@@ -981,7 +1152,30 @@ export default function ResidentCensusPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Education</Label>
-              <Input value={form.education} onChange={(e) => setForm({ ...form, education: e.target.value })} />
+              <Select
+                value={educationSelectValue(form.education)}
+                onValueChange={(v) => setForm({ ...form, education: v })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select educational attainment" />
+                </SelectTrigger>
+                <SelectContent>
+                  {EDUCATION_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {educationSelectValue(form.education) === "OTHER" && (
+                <Input
+                  value={educationCustomText(form.education)}
+                  onChange={(e) =>
+                    setForm({ ...form, education: e.target.value || "OTHER" })
+                  }
+                  placeholder="Specify educational attainment"
+                />
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Purok</Label>
@@ -992,20 +1186,62 @@ export default function ResidentCensusPage() {
               <Input
                 value={form.householdNumber}
                 onChange={(e) => setForm({ ...form, householdNumber: e.target.value })}
-                placeholder="e.g. HH-5 (max HH-20) or N/A"
+                placeholder="e.g. HH-020 or HH-0011"
               />
             </div>
             <div className="space-y-1.5">
               <Label>Cellphone</Label>
-              <Input value={form.cellphone} onChange={(e) => setForm({ ...form, cellphone: e.target.value })} />
+              <Input
+                value={form.cellphone}
+                onChange={(e) => setForm({ ...form, cellphone: e.target.value })}
+                inputMode="numeric"
+                placeholder="09XXXXXXXXX (11 digits)"
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Family Planning</Label>
-              <Input value={form.familyPlanning} onChange={(e) => setForm({ ...form, familyPlanning: e.target.value })} />
+              <Select
+                value={familyPlanningSelectValue(form.familyPlanning)}
+                onValueChange={(v) => setForm({ ...form, familyPlanning: v })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select family planning method" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FAMILY_PLANNING_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {familyPlanningSelectValue(form.familyPlanning) === "Other" && (
+                <Input
+                  value={familyPlanningCustomText(form.familyPlanning)}
+                  onChange={(e) =>
+                    setForm({ ...form, familyPlanning: e.target.value || "Other" })
+                  }
+                  placeholder="Specify family planning method"
+                />
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Pensioner Type</Label>
-              <Input value={form.pensioner} onChange={(e) => setForm({ ...form, pensioner: e.target.value })} />
+              <Select
+                value={pensionerSelectValue(form.pensioner)}
+                onValueChange={(v) => setForm({ ...form, pensioner: v })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select pensioner type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PENSIONER_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {(
@@ -1020,7 +1256,7 @@ export default function ResidentCensusPage() {
               <div className="space-y-1.5" key={key}>
                 <Label>{label}</Label>
                 <Select value={String(form[key])} onValueChange={(v) => setForm({ ...form, [key]: v })}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full"><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="YES">YES</SelectItem>
                     <SelectItem value="NO">NO</SelectItem>

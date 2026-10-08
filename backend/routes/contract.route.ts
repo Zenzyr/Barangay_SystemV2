@@ -10,5 +10,6 @@ route.get("/provider", authenticateJWT, handler(ContractController.getProvider))
 route.get("/:id", authenticateJWT, handler(ContractController.get));
 route.patch("/:id/request-completion", authenticateJWT, handler(ContractController.requestCompletion));
 route.patch("/:id/confirm-completion", authenticateJWT, handler(ContractController.confirmCompletion));
+route.patch("/:id/cancel", authenticateJWT, handler(ContractController.cancel));
 
 export default route;

@@ -35,7 +35,6 @@ export default function Page() {
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<officialInterface | null>(null);
-  const [uploading, setUploading] = useState(false);
 
   const { data: officials = [], isLoading } = useQuery({
     queryKey: ["officials"],
@@ -94,18 +93,6 @@ export default function Page() {
   const openEdit = (o: officialInterface) => {
     setEditing(o);
     setModalOpen(true);
-  };
-
-  const handleUpload = async (kind: "photo" | "signature", file: File) => {
-    if (!editing) return "";
-    setUploading(true);
-    try {
-      const updated = await officialsApi.uploadAsset(editing._id, kind, file);
-      afterMutate();
-      return updated[kind === "photo" ? "photo" : "signatureImage"] || "";
-    } finally {
-      setUploading(false);
-    }
   };
 
   const handleSubmit = (values: OfficialFormValues) => {
@@ -292,8 +279,6 @@ const isSingle = SINGLE_HOLDER_POSITIONS.includes(
         } : null}
         title={editing ? "Edit Official" : "Add Official"}
         onSubmit={handleSubmit}
-        onUpload={editing ? handleUpload : undefined}
-        uploading={uploading}
       />
     </div>
   );

@@ -46,7 +46,7 @@ const smsSettingsSubSchema = new Schema(
   {
     enabled: { type: Boolean, default: true },
     senderName: { type: String, trim: true, maxlength: 60, default: '' },
-    provider: { type: String, trim: true, maxlength: 60, default: 'Semaphore' },
+    provider: { type: String, trim: true, maxlength: 60, default: 'iProg SMS' },
     notifyOnRequest: { type: Boolean, default: true },
     notifyOnStatus: { type: Boolean, default: true },
     notifyOnPayment: { type: Boolean, default: true },

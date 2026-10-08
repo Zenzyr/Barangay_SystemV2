@@ -135,11 +135,32 @@ const isOfficial = (log: auditLog) => log.entity === "official";
 
 const isAccount = (log: auditLog) => log.entity === "account";
 
+const isWorkLog = (log: auditLog) => log.entity === "workRequest" || log.entity === "contract";
+
+/** Readable labels for work request / contract statuses (both casing styles). */
+const workStatusText = (value: unknown): string => {
+  const s = String(value ?? "");
+  if (!s) return "Not set";
+  const key = s.toUpperCase().replace(/\s+/g, "_");
+  const known: Record<string, string> = {
+    PENDING: "Pending",
+    ACTIVE: "Active",
+    ACCEPTED: "Accepted",
+    REJECTED: "Rejected",
+    COMPLETION_REQUESTED: "Completion Requested",
+    COMPLETED: "Completed",
+    CANCELLED: "Cancelled",
+  };
+  if (known[key]) return known[key];
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
 /** Readable labels for account statuses and roles. */
 const humanizeValue = (value: unknown): string => {
   if (value === "approved") return "Approved";
   if (value === "rejected") return "Rejected";
   if (value === "pending") return "Pending";
+  if (value === "under_review") return "Under Review";
   if (value === "resident") return "Resident";
   if (value === "secretary") return "Secretary";
   if (value === "super_admin") return "Super Admin";
@@ -176,23 +197,72 @@ function actionTitle(log: auditLog): string {
     }
   }
   if (isAccount(log)) {
-    if (log.action === "verify") {
-      return log.newValue === "rejected"
-        ? "Rejected a User's Account"
-        : log.newValue === "approved"
-        ? "Verified a User's Account"
-        : "Updated a User's Account Status";
+    switch (log.action) {
+      case "verify":
+        return log.newValue === "rejected"
+          ? "Rejected a User's Account"
+          : log.newValue === "approved"
+          ? "Verified a User's Account"
+          : "Updated a User's Account Status";
+      case "role":
+        return "Changed a User's Role";
+      case "create":
+        return "Created a User Account";
+      case "suspend":
+        return "Suspended a User Account";
+      case "unsuspend":
+        return "Reinstated a User Account";
+      case "resubmit":
+        return "Resubmitted ID Photos";
+      case "appeal_submit":
+        return "Appealed a Suspension";
+      case "appeal_approved":
+        return "Approved a Suspension Appeal";
+      case "appeal_rejected":
+        return "Rejected a Suspension Appeal";
+      case "appeal_under_review":
+        return "Started Reviewing a Suspension Appeal";
+      case "login":
+        return "Signed In";
+      case "login_failed":
+        return "Failed Sign-In Attempt";
+      case "login_locked":
+        return "Locked Out After Failed Sign-Ins";
+      case "password_change":
+        return "Changed Password";
+      case "password_reset":
+        return "Reset Password";
+      case "email_verified":
+        return "Verified Email Address";
+      default:
+        return "Updated a User Account";
     }
-    if (log.action === "role") {
-      return "Changed a User's Role";
-    }
-    return "Updated a User Account";
+  }
+  if (isWorkLog(log)) {
+    const label = log.entityLabel || (log.entity === "contract" ? "Contract" : "Work Request");
+    if (log.action === "create") return `Submitted "${label}"`;
+    if (log.action === "reschedule") return `Rescheduled "${label}"`;
+    if (log.action === "cancel") return `Cancelled "${label}"`;
+    if (log.action === "update") return log.entity === "contract" ? "Updated a Contract" : "Updated a Work Request";
+    return `Updated "${label}"`;
   }
   const label = log.entityLabel || "Settings";
   if (log.action === "remove") {
     const { name: clean } = parseEntityLabel(label);
     return `Removed ${clean || label}`;
   }
+  if (log.action === "delete") {
+    const { name: clean } = parseEntityLabel(label);
+    return `Deleted ${clean || label}`;
+  }
+  if (log.action === "create" || log.action === "import") return `Added ${label}`;
+  if (log.action === "archive") return `Archived ${label}`;
+  if (log.action === "restore") return `Restored ${label}`;
+  if (log.action === "download") return `Downloaded ${label}`;
+  if (log.action === "restore_failed") return `Failed to Restore ${label}`;
+  if (log.action === "issue") return `Issued ${label}`;
+  if (log.action === "payment_recorded") return "Recorded a Payment";
+  if (log.action === "payment_cleared") return "Cleared a Payment";
   if (log.action === "upload") {
     const { name: clean } = parseEntityLabel(label);
     return `Updated ${clean || label}`;
@@ -213,6 +283,23 @@ function actionSummary(log: auditLog): string {
     if (log.action === "role") {
       return `${person} role changed from ${humanizeValue(log.previousValue)} to ${humanizeValue(log.newValue)}`;
     }
+    if (log.action === "create") return `${person} registered`;
+    if (log.action === "suspend") {
+      const reason = toObj(log.newValue).reason;
+      return reason ? `${person} was suspended — ${String(reason)}` : `${person} was suspended`;
+    }
+    if (log.action === "unsuspend") return `${person}'s suspension was lifted`;
+    if (log.action === "resubmit") return `${person} resubmitted ID photos (status → pending)`;
+    if (log.action === "appeal_submit") return `${person} appealed their suspension`;
+    if (log.action === "appeal_approved") return `${person}'s suspension appeal was approved`;
+    if (log.action === "appeal_rejected") return `${person}'s suspension appeal was rejected`;
+    if (log.action === "appeal_under_review") return `${person}'s suspension appeal is under review`;
+    if (log.action === "login") return `${person} signed in`;
+    if (log.action === "login_failed") return `${person} entered incorrect credentials`;
+    if (log.action === "login_locked") return `${person}'s account was locked after failed attempts`;
+    if (log.action === "password_change") return `${person}'s password was changed`;
+    if (log.action === "password_reset") return `${person}'s password was reset`;
+    if (log.action === "email_verified") return `${person}'s email address was verified`;
     return person;
   }
 
@@ -229,11 +316,30 @@ function actionSummary(log: auditLog): string {
     }
   }
 
+  if (isWorkLog(log)) {
+    const label = log.entityLabel || "Work Request";
+    if (log.action === "create") return `${label} was submitted`;
+    if (log.action === "reschedule") {
+      return `${label} moved from ${formatValue(log.previousValue, "schedule")} to ${formatValue(log.newValue, "schedule")}`;
+    }
+    if (log.action === "cancel") return `${label}: ${workStatusText(log.previousValue)} → Cancelled`;
+    if (log.action === "update") return `${label}: ${workStatusText(log.previousValue)} → ${workStatusText(log.newValue)}`;
+    return `${label} updated`;
+  }
+
   if (log.action === "update") {
     const fields = changedFields(log.previousValue, log.newValue);
     return fields.length ? `Changed: ${fields.map((f) => fieldLabel(f.field)).join(", ")}` : log.entityLabel;
   }
-  if (log.action === "remove") return `${log.entityLabel} removed`;
+  if (log.action === "remove" || log.action === "delete") return `${log.entityLabel} removed`;
+  if (log.action === "create" || log.action === "import") return `${log.entityLabel} added`;
+  if (log.action === "archive") return `${log.entityLabel} archived`;
+  if (log.action === "restore") return `${log.entityLabel} restored`;
+  if (log.action === "download") return `${log.entityLabel} downloaded`;
+  if (log.action === "restore_failed") return `${log.entityLabel} could not be restored`;
+  if (log.action === "issue") return `${log.entityLabel} issued`;
+  if (log.action === "payment_recorded") return `Payment recorded for ${log.entityLabel}`;
+  if (log.action === "payment_cleared") return `Payment cleared for ${log.entityLabel}`;
   return `${log.entityLabel} updated`;
 }
 
@@ -321,7 +427,73 @@ function detailRows(log: auditLog): DetailRow[] {
         { label: "Role", before: humanizeValue(log.previousValue), after: humanizeValue(log.newValue) },
       ];
     }
+    if (log.action === "suspend") {
+      const reason = toObj(log.newValue).reason;
+      return [
+        { label: "User", before: "", after: person },
+        { label: "Suspended", before: "No", after: "Yes" },
+        ...(reason ? [{ label: "Reason", before: "", after: String(reason) }] : []),
+      ];
+    }
+    if (log.action === "unsuspend") {
+      return [
+        { label: "User", before: "", after: person },
+        { label: "Suspended", before: "Yes", after: "No" },
+      ];
+    }
+    if (log.action === "resubmit") {
+      return [
+        { label: "User", before: "", after: person },
+        { label: "Status", before: humanizeValue(log.previousValue), after: "Pending" },
+      ];
+    }
+    if (log.action.startsWith("appeal_")) {
+      return [
+        { label: "User", before: "", after: person },
+        { label: "Appeal Status", before: humanizeValue(log.previousValue), after: humanizeValue(log.newValue) },
+      ];
+    }
+    if (log.action === "login" || log.action === "login_failed" || log.action === "login_locked") {
+      const ip = toObj(log.newValue).ip;
+      return [
+        { label: "User", before: "", after: person },
+        ...(ip ? [{ label: "IP Address", before: "", after: String(ip) }] : []),
+      ];
+    }
+    if (log.action === "password_change" || log.action === "password_reset") {
+      return [
+        { label: "User", before: "", after: person },
+        { label: "Password", before: "unchanged", after: log.action === "password_reset" ? "reset" : "changed" },
+      ];
+    }
+    if (log.action === "email_verified") {
+      return [
+        { label: "User", before: "", after: person },
+        { label: "Email", before: "unverified", after: "verified" },
+      ];
+    }
     return [{ label: "User", before: "", after: person }];
+  }
+
+  if (isWorkLog(log)) {
+    const label = log.entityLabel || (log.entity === "contract" ? "Contract" : "Work Request");
+    const kindLabel = log.entity === "contract" ? "Contract" : "Request";
+    if (log.action === "reschedule") {
+      return [
+        { label: kindLabel, before: "", after: label },
+        { label: "Schedule", before: formatValue(log.previousValue, "schedule"), after: formatValue(log.newValue, "schedule") },
+      ];
+    }
+    if (log.action === "create") {
+      return [
+        { label: kindLabel, before: "", after: label },
+        { label: "Status", before: "", after: "Pending" },
+      ];
+    }
+    return [
+      { label: kindLabel, before: "", after: label },
+      { label: "Status", before: workStatusText(log.previousValue), after: workStatusText(log.newValue) },
+    ];
   }
 
   if (log.action === "update") {
@@ -370,13 +542,35 @@ interface ActionFilterOption {
 }
 const ACTION_FILTERS: ActionFilterOption[] = [
   { value: "all", label: "All actions", codes: null },
-  { value: "created", label: "Created", codes: ["create"] },
+  { value: "created", label: "Created", codes: ["create", "import", "issue"] },
   { value: "updated", label: "Updated", codes: ["update"] },
   { value: "deleted", label: "Deleted", codes: ["delete"] },
   { value: "activated", label: "Activated", codes: ["activate"] },
   { value: "deactivated", label: "Deactivated", codes: ["deactivate"] },
   { value: "replaced", label: "Replaced", codes: ["replace"] },
   { value: "uploaded", label: "Uploaded / Removed", codes: ["upload", "remove"] },
+  { value: "archived", label: "Archived", codes: ["archive", "restore"] },
+  { value: "verification", label: "Verification", codes: ["verify", "role", "email_verified"] },
+  {
+    value: "security",
+    label: "Suspensions / Appeals",
+    codes: ["suspend", "unsuspend", "appeal_submit", "appeal_approved", "appeal_rejected", "appeal_under_review"],
+  },
+  {
+    value: "auth",
+    label: "Sign-ins & Passwords",
+    codes: ["login", "login_failed", "login_locked", "password_change", "password_reset", "resubmit"],
+  },
+  {
+    value: "payments",
+    label: "Payments",
+    codes: ["payment_recorded", "payment_cleared"],
+  },
+  {
+    value: "backups",
+    label: "Backups",
+    codes: ["download", "restore", "restore_failed"],
+  },
 ];
 
 interface DateFilterOption {
@@ -497,7 +691,7 @@ export default function Page() {
         </Button>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">Audit Trail</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Every change to officials or barangay settings is recorded for accountability.
+          Every change to settings, officials, accounts, documents and backups is recorded for accountability.
         </p>
       </div>
 

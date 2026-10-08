@@ -1,4 +1,4 @@
-export type ServiceRequestStatus = "PENDING" | "ACCEPTED" | "REJECTED";
+export type ServiceRequestStatus = "PENDING" | "ACCEPTED" | "REJECTED" | "COMPLETED" | "CANCELLED";
 
 export interface serviceRequestInterfaceInput {
   client: string;

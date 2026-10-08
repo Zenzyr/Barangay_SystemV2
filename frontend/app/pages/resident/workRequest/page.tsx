@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 
 type Tab = "client" | "provider";
 
-const STATUS_FILTERS = ["all", "pending", "active", "accepted", "to review", "completed", "rejected"] as const;
+const STATUS_FILTERS = ["all", "pending", "active", "accepted", "to review", "completed", "rejected", "cancelled"] as const;
 
 function toSkillItems(skills: accountInterface["skills"] | undefined) {
   return (skills || []).map((s) => ({
@@ -70,12 +70,13 @@ export default function Page() {
   };
 
   const actionMutation = useMutation({
-    mutationFn: async ({ item, action }: { item: WorkRequestItem; action: "approve" | "reject" | "complete" }) => {
+    mutationFn: async ({ item, action }: { item: WorkRequestItem; action: "approve" | "reject" | "complete" | "cancel" }) => {
       if (item.kind === "service") {
-        await axiosInstance.patch(`/service-requests/${item._id}/${action === "approve" ? "accept" : "reject"}`);
+        const path = action === "approve" ? "accept" : action === "cancel" ? "cancel" : "reject";
+        await axiosInstance.patch(`/service-requests/${item._id}/${path}`);
         return action;
       }
-      const status = action === "approve" ? "active" : action === "reject" ? "rejected" : "to review";
+      const status = action === "approve" ? "active" : action === "cancel" ? "cancelled" : action === "reject" ? "rejected" : "to review";
       await axiosInstance.patch(`/work/${item._id}/status`, { status });
       return action;
     },
@@ -86,7 +87,15 @@ export default function Page() {
         queryClient.invalidateQueries({ queryKey: ["contracts"] });
         successAlert("Request accepted — a contract has been created");
       } else {
-        successAlert(action === "reject" ? "Request rejected" : action === "complete" ? "Marked as complete" : "Request approved");
+        successAlert(
+          action === "reject"
+            ? "Request rejected"
+            : action === "cancel"
+              ? "Request cancelled"
+              : action === "complete"
+                ? "Marked as complete"
+                : "Request approved",
+        );
       }
     },
     onError: (err: unknown) => errorAlert(apiErrorMessage(err, "Failed to update the work request")),
@@ -114,6 +123,26 @@ export default function Page() {
 
   const renderActions = (item: WorkRequestItem) => {
     const busy = busyId === item._id && actionMutation.isPending;
+    if (tab === "client" && item.status === "pending") {
+      return (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={() =>
+            confirmAlert(
+              "Cancel this work request? The reserved time slot will be released.",
+              "Cancel Request",
+              () => actionMutation.mutate({ item, action: "cancel" }),
+            )
+          }
+          className="h-8 text-xs border-rose-200 text-rose-600 hover:bg-rose-50"
+        >
+          {busy ? <Loader2 className="size-3.5 animate-spin" /> : <XCircle className="size-3.5" />}
+          Cancel Request
+        </Button>
+      );
+    }
     if (tab === "provider" && item.status === "pending") {
       return (
         <>

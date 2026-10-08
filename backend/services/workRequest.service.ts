@@ -3,6 +3,8 @@ import WorkModel from "../model/work.model";
 import ServiceRequestModel from "../model/serviceRequest.model";
 import { ScheduleError, WorkScheduleService, formatSlotLabel } from "./workSchedule.service";
 import { NotificationService } from "./notification.service";
+import { AuditLogService } from "./auditLog.service";
+import { ContractService } from "./contract.service";
 
 export type WorkRequestKind = "booking" | "service";
 
@@ -75,6 +77,12 @@ const scheduleOf = (doc: any) => {
     scheduleEndTime: hasSchedule ? doc.scheduleEndTime : null,
     scheduleLabel: hasSchedule ? formatSlotLabel(doc.scheduleStartTime, doc.scheduleEndTime) : null,
   };
+};
+
+const formatDateKey = (dateKey: string): string => {
+  const parsed = new Date(`${dateKey}T00:00:00`);
+  if (isNaN(parsed.getTime())) return String(dateKey);
+  return parsed.toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" });
 };
 
 const splitService = (service: string, skill?: string) => {
@@ -214,7 +222,13 @@ export class WorkRequestService {
     return ServiceRequestModel.findById(id).populate("client", PARTY_FIELDS).populate("provider", PARTY_FIELDS);
   }
 
-  static async reschedule(kind: WorkRequestKind, id: string, date: unknown, startTime: unknown) {
+  static async reschedule(
+    kind: WorkRequestKind,
+    id: string,
+    date: unknown,
+    startTime: unknown,
+    actor?: { name: string; id?: string },
+  ) {
     const record: any = await this.getRecord(kind, id);
     if (!record) throw new ScheduleError("Work request not found", 404, "NOT_FOUND");
 
@@ -225,6 +239,9 @@ export class WorkRequestService {
     if (view.scheduledDate === date && view.scheduleStartTime === startTime) {
       throw new ScheduleError("The work request is already scheduled for this slot", 400, "SAME_SLOT");
     }
+    const previousWhen = view.scheduledDate && view.scheduleStartTime
+      ? `${formatDateKey(view.scheduledDate)}, ${view.scheduleLabel}`
+      : "Not scheduled";
 
     const providerId = view.provider?._id;
     if (!providerId) throw new ScheduleError("The provider for this request no longer exists", 400, "NO_PROVIDER");
@@ -257,12 +274,12 @@ export class WorkRequestService {
 
     if (previousSlot) await WorkScheduleService.release(previousSlot);
 
+    if (kind === "service") {
+      await ContractService.syncStartDateByServiceRequest(id, newSlot.date).catch(() => null);
+    }
+
     const result = kind === "booking" ? toWorkRequestViewFromWork(updated.toObject()) : toWorkRequestViewFromService(updated.toObject());
-    const when = `${new Date(`${result.scheduledDate}T00:00:00`).toLocaleDateString("en-PH", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })}, ${result.scheduleLabel}`;
+    const when = `${formatDateKey(result.scheduledDate!)}, ${result.scheduleLabel}`;
 
     for (const target of [result.client, result.provider]) {
       if (!target?._id) continue;
@@ -273,6 +290,18 @@ export class WorkRequestService {
         type: "work",
       }).catch(() => null);
     }
+
+    await AuditLogService.create({
+      actor: actor?.name || "Barangay staff",
+      actorId: actor?.id,
+      action: "reschedule",
+      entity: "workRequest",
+      entityId: id,
+      entityLabel: result.title,
+      field: "schedule",
+      previousValue: previousWhen,
+      newValue: when,
+    }).catch(() => null);
 
     return result;
   }

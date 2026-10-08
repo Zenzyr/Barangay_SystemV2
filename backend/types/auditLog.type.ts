@@ -1,4 +1,19 @@
-export type AuditEntity = "official" | "barangaySettings" | "account" | "decisionSupport" | "residentCensus" | "analyticsSnapshot" | "documentTemplate";
+export type AuditEntity =
+  | "official"
+  | "barangaySettings"
+  | "account"
+  | "decisionSupport"
+  | "residentCensus"
+  | "analyticsSnapshot"
+  | "documentTemplate"
+  | "workRequest"
+  | "contract"
+  | "backup"
+  | "business"
+  | "documentRequest"
+  | "transaction"
+  | "purok"
+  | "certificate";
 
 export interface auditLogInterfaceInput {
   /** Display identity of the actor (from the authenticated account). */

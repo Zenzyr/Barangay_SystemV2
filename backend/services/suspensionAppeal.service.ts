@@ -14,6 +14,14 @@ export class SuspensionAppealService {
     return await SuspensionAppealModel.find({ accountId }).sort({ createdAt: -1 });
   }
 
+  /** An appeal that is still waiting on a decision. */
+  static async getOpenByAccount(accountId: string) {
+    return await SuspensionAppealModel.findOne({
+      accountId,
+      status: { $in: ["pending", "under_review"] },
+    }).sort({ createdAt: -1 });
+  }
+
   static async get(id: string) {
     return await SuspensionAppealModel.findById(id);
   }
@@ -24,13 +32,16 @@ export class SuspensionAppealService {
     reviewedBy: string,
     decisionNote?: string
   ) {
-    return await SuspensionAppealModel.findByIdAndUpdate(
-      id,
+    // Conditional so a decided appeal can never be flipped a second time.
+    return await SuspensionAppealModel.findOneAndUpdate(
+      { _id: id, status: { $in: ["pending", "under_review"] } },
       {
-        status,
-        reviewedBy,
-        reviewedAt: new Date(),
-        ...(decisionNote !== undefined ? { decisionNote } : {}),
+        $set: {
+          status,
+          reviewedBy,
+          reviewedAt: new Date(),
+          ...(decisionNote !== undefined ? { decisionNote } : {}),
+        },
       },
       { new: true }
     );

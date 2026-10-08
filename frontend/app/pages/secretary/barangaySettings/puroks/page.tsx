@@ -145,9 +145,6 @@ export default function Page() {
 
       <div className="flex items-center justify-between">
         <div>
-          <Button variant="ghost" size="sm" className="-ml-2 text-slate-500" onClick={() => router.push("/pages/secretary/barangaySettings")}>
-            <ArrowLeft className="size-4" /> Back to Settings
-          </Button>
           <h1 className="text-2xl font-bold tracking-tight text-slate-800">
             <MapPin className="mr-2 inline size-6 text-sky-600" />
             Purok Management

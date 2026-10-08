@@ -1,6 +1,7 @@
 import { Response } from "express";
 import { AuthRequest } from "../types/request.type";
 import { BusinessService } from "../services/business.service";
+import { AuditLogService } from "../services/auditLog.service";
 import { uploadToCloudinary } from "../utils/cloudinaryUpload";
 import { businessInterfaceInput } from "../types/business.type";
 import { isObjectId, isName, isNonEmptyString, withinLength, MAX_NAME_LENGTH, MAX_TEXT_LENGTH } from "../utils/validation";
@@ -52,6 +53,18 @@ export class BusinessController {
       businessData.status = "pending";
 
       const business = await BusinessService.create(businessData);
+
+      AuditLogService.create({
+        actor: request.account?.name || "Resident",
+        actorId: request.account?._id.toString(),
+        action: "create",
+        entity: "business",
+        entityId: business._id.toString(),
+        entityLabel: business.businessName,
+        field: "status",
+        newValue: business.status,
+      }).catch(() => null);
+
       response.send(business);
     } catch (error) {
       console.error(error);
@@ -147,6 +160,17 @@ export class BusinessController {
         response.status(404).send("Business not found");
         return;
       }
+
+      AuditLogService.create({
+        actor: request.account?.name || "System",
+        actorId: request.account?._id.toString(),
+        action: "delete",
+        entity: "business",
+        entityId: id,
+        entityLabel: business.businessName,
+        previousValue: business.status,
+      }).catch(() => null);
+
       response.send({ message: "Business deleted successfully" });
     } catch (error) {
       response.status(500).send("Failed to delete business");
@@ -167,11 +191,30 @@ export class BusinessController {
         return;
       }
 
+      const existing = await BusinessService.get(id);
+      if (!existing) {
+        response.status(404).send("Business not found");
+        return;
+      }
+
       const business = await BusinessService.updateStatus(id, status);
       if (!business) {
         response.status(404).send("Business not found");
         return;
       }
+
+      AuditLogService.create({
+        actor: request.account?.name || "System",
+        actorId: request.account?._id.toString(),
+        action: "update",
+        entity: "business",
+        entityId: id,
+        entityLabel: existing.businessName,
+        field: "status",
+        previousValue: existing.status,
+        newValue: status,
+      }).catch(() => null);
+
       response.send({ message: `Business ${status} successfully` });
     } catch (error) {
       response.status(500).send("Failed to update business status");

@@ -4,7 +4,7 @@ import mongoose, { Schema } from 'mongoose';
 const WorkSchema = new Schema({
     client : { type: mongoose.Schema.Types.ObjectId, ref: "Accounts", required: true },
     worker : { type: mongoose.Schema.Types.ObjectId, ref: "Accounts", required: true },
-    status : { type: String, required: true },
+    status : { type: String, required: true, enum: ["pending", "active", "accepted", "to review", "completed", "rejected", "cancelled"] },
     service : { type: String, required: true },
     skill : { type: String, required: false },
     description : { type: String, required: true },

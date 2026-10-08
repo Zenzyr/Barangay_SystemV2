@@ -11,7 +11,7 @@ const ServiceRequestSchema = new Schema({
     location: { type: String, required: true },
     budget: { type: Number, required: false, default: 0 },
     notes: { type: String, required: false, default: "" },
-    status: { type: String, enum: ["PENDING", "ACCEPTED", "REJECTED"], default: "PENDING" },
+    status: { type: String, enum: ["PENDING", "ACCEPTED", "REJECTED", "COMPLETED", "CANCELLED"], default: "PENDING" },
     scheduledDate: { type: String, required: false },
     scheduleStartTime: { type: String, required: false },
     scheduleEndTime: { type: String, required: false },
