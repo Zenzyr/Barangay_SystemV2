@@ -135,6 +135,32 @@ const isOfficial = (log: auditLog) => log.entity === "official";
 
 const isAccount = (log: auditLog) => log.entity === "account";
 
+const isPayment = (log: auditLog) => log.entity === "payment";
+
+const PAYMENT_ACTION_TITLES: Record<string, string> = {
+  payment_verified: "Verified a Payment",
+  payment_rejected: "Rejected a Payment",
+  payment_corrected: "Corrected a Payment Transaction",
+  receipt_reprinted: "Reprinted a Receipt",
+};
+
+const PAYMENT_FIELD_LABELS: Record<string, string> = {
+  paymentVerificationStatus: "Verification",
+  paymentReference: "Payment reference",
+  paymentChannel: "Payment channel",
+  amountTendered: "Amount tendered",
+  changeGiven: "Change",
+  receiptNumber: "Receipt",
+};
+
+const paymentValue = (value: unknown): string => {
+  if (value && typeof value === "object") {
+    const v = value as { status?: unknown; reason?: unknown };
+    return [humanizeValue(v.status), v.reason ? `(${String(v.reason)})` : ""].filter(Boolean).join(" ");
+  }
+  return humanizeValue(value);
+};
+
 /** Readable labels for account statuses and roles. */
 const humanizeValue = (value: unknown): string => {
   if (value === "approved") return "Approved";
@@ -143,6 +169,8 @@ const humanizeValue = (value: unknown): string => {
   if (value === "resident") return "Resident";
   if (value === "secretary") return "Secretary";
   if (value === "super_admin") return "Super Admin";
+  if (value === "treasurer") return "Treasurer";
+  if (value === "verified") return "Verified";
   return statusText(value);
 };
 
@@ -175,6 +203,9 @@ function actionTitle(log: auditLog): string {
         return "Changed an Official";
     }
   }
+  if (isPayment(log)) {
+    return PAYMENT_ACTION_TITLES[log.action] || "Updated a Payment";
+  }
   if (isAccount(log)) {
     if (log.action === "verify") {
       return log.newValue === "rejected"
@@ -204,6 +235,13 @@ function actionTitle(log: auditLog): string {
 function actionSummary(log: auditLog): string {
   const { name, position } = parseEntityLabel(log.entityLabel);
   const who = name ? `${name} · ${position}`.replace(/·\s*$/, "").trim() : log.entityLabel;
+
+  if (isPayment(log)) {
+    if (log.action === "payment_corrected") {
+      return `${log.entityLabel} — ${PAYMENT_FIELD_LABELS[log.field || ""] || log.field}: ${paymentValue(log.previousValue)} → ${paymentValue(log.newValue)}`;
+    }
+    return log.entityLabel;
+  }
 
   if (isAccount(log)) {
     const person = log.entityLabel || "User";
@@ -305,6 +343,17 @@ function detailRows(log: auditLog): DetailRow[] {
           { label: "Position", before: "", after: position || "—" },
         ];
     }
+  }
+
+  if (isPayment(log)) {
+    return [
+      { label: "Transaction", before: "", after: log.entityLabel || "—" },
+      {
+        label: PAYMENT_FIELD_LABELS[log.field || ""] || log.field || "Value",
+        before: paymentValue(log.previousValue),
+        after: paymentValue(log.newValue),
+      },
+    ];
   }
 
   if (isAccount(log)) {

@@ -41,6 +41,8 @@ export interface documentRequestInterfaceInput {
     treeType: string | null,
     age: string | null,
     spouseName: string | null,
+    spouseDateOfBirth?: string | null,
+    cohabitationYear?: string | null,
     annualIncome: string | null,
     purok: string | null,
     officialsSnapshot?: Record<string, any>,
@@ -61,6 +63,13 @@ export interface documentRequestInterfaceInput {
     receiptNumber?: string,
     paymentReference?: string,
     paymentProcessedBy?: string,
+    paymentVerificationStatus?: "pending" | "verified" | "rejected",
+    paymentVerifiedBy?: string,
+    paymentVerifiedAt?: Date | string,
+    paymentRejectedBy?: string,
+    paymentRejectedAt?: Date | string,
+    paymentRejectionReason?: string,
+    paymentHistory?: paymentHistoryEntry[],
 
 }
 
@@ -106,6 +115,8 @@ export interface documentRequestInterface {
     treeType: string | null,
     age: string | null,
     spouseName: string | null,
+    spouseDateOfBirth?: string | null,
+    cohabitationYear?: string | null,
     annualIncome: string | null,
     purok: string | null,
     officialsSnapshot?: Record<string, any>,
@@ -127,4 +138,22 @@ export interface documentRequestInterface {
     receiptNumber?: string,
     paymentReference?: string,
     paymentProcessedBy?: string,
+    paymentVerificationStatus?: "pending" | "verified" | "rejected",
+    paymentVerifiedBy?: string,
+    paymentVerifiedAt?: Date | string,
+    paymentRejectedBy?: string,
+    paymentRejectedAt?: Date | string,
+    paymentRejectionReason?: string,
+    paymentHistory?: paymentHistoryEntry[],
+}
+
+
+export interface paymentHistoryEntry {
+    action: "recorded" | "verified" | "rejected" | "corrected" | "cleared" | "receipt_reprinted",
+    at: Date | string,
+    by?: string,
+    byName?: string,
+    note?: string,
+    changes?: Record<string, { from: unknown; to: unknown }>,
+    snapshot?: Record<string, unknown>,
 }

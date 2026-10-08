@@ -1,6 +1,6 @@
 import { Response } from "express";
 import { AuthRequest } from "../types/request.type";
-import { DocumentRequestService } from "../services/documentRequest.service";
+import { DocumentRequestService, DailyRequestStatus } from "../services/documentRequest.service";
 import { UserActivityService } from "../services/userActivity.service";
 import { NotificationService } from "../services/notification.service";
 import { formattedDate } from "../utils/customFunc";
@@ -8,7 +8,7 @@ import { sendNotification } from "../utils/sms";
 import { smsTemplates } from "../utils/smsTemplates";
 import { isObjectId } from "../utils/validation";
 import { convertDocxToPdf } from "../utils/docxToPdf";
-import { isStaffRole } from "../utils/roles";
+import { ROLES, isStaffRole } from "../utils/roles";
 import { getPayMongoCheckoutDetails } from "../services/payment.service";
 import { AccountService } from "../services/acccount.service";
 import { ResidentCensusService } from "../services/residentCensus.service";
@@ -37,6 +37,11 @@ const amountDueOf = (doc: any): number => {
   return Number.isFinite(price) && price >= 0 ? price : 0;
 };
 
+const wasRejectedSession = (doc: any, checkoutSessionId: string): boolean =>
+  (doc?.paymentHistory ?? []).some(
+    (entry: any) => entry?.action === "rejected" && entry?.snapshot?.checkoutSessionId === checkoutSessionId,
+  );
+
 const DOC_STATUSES = ["pending", "processing", "ready", "released", "cancelled", "to claim", "completed", "rejected"];
 
 // Allowed forward moves per status. A request can only move along these edges;
@@ -56,7 +61,27 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
 
 // ... (other parts of the file remain the same, just keeping the imports correct)
 
+const dailyLimitPayload = (daily: DailyRequestStatus) => ({
+  message: "Your document request limit for today has been reached. You can submit another request tomorrow.",
+  error: "daily_limit_reached",
+  daily,
+});
+
 export class DocumentRequestController {
+
+  static getDailyStatus = async (request: AuthRequest, response: Response) => {
+    try {
+      const account = request.account;
+      if (!account) {
+        response.status(401).send("Authentication required");
+        return;
+      }
+      const daily = await DocumentRequestService.getDailyStatus(account._id);
+      response.send(daily);
+    } catch (error) {
+      response.status(500).send("Failed to fetch daily request status");
+    }
+  }
 
   static create = async (request: AuthRequest, response: Response) => {
     try {
@@ -71,12 +96,20 @@ export class DocumentRequestController {
       // An account-linked request must reference a real account. A walk-in
       // without an account (resident field omitted) is allowed as long as a
       // denormalized fullName is provided for the snapshot fields.
+      if (account.role === ROLES.TREASURER) {
+        response.status(403).send("Treasurer accounts cannot file document requests");
+        return;
+      }
       const requesterIsStaff = isStaffRole(account.role);
       if (!requesterIsStaff) delete documentData.census;
       for (const key of ["paymentMethod", "paymentChannel", "amountPaid", "amountTendered", "changeGiven", "paidAt", "receiptNumber", "paymentReference", "paymentProcessedBy", "checkoutSessionId"]) {
         delete documentData[key];
       }
+      for (const key of ["templateId", "templateVersion", "feeAtRequest", "isArchived", "archivedAt", "statusHistory", "officialsSnapshot"]) {
+        delete documentData[key];
+      }
       documentData.isPaid = false;
+      documentData.status = "pending";
 
       if (documentData.resident && !isObjectId(documentData.resident)) {
         response.status(400).send("A valid resident is required");
@@ -133,6 +166,8 @@ export class DocumentRequestController {
         "firstTimeJobseekerOath",
         "certificateOfLowIncome",
         "endorsementLetter",
+        "certificationOfCohabitant",
+        "soloCertification",
       ];
       if (!validDocs.includes(documentData.document)) {
         response.status(400).send("Invalid document type");
@@ -166,9 +201,18 @@ export class DocumentRequestController {
       // ── Normalize the single request timestamp + source ──
       const isWalkIn = isStaff && account._id !== documentData.resident;
       documentData.source = isWalkIn ? "walk-in" : "online";
-      const stamp = DocumentRequestService.getRequestStamp();
+      const requestedAt = new Date();
+      const stamp = DocumentRequestService.getRequestStamp(requestedAt);
       documentData.requestDate = stamp.requestDate;
       documentData.requestTime = stamp.requestTime;
+
+      if (!isStaff) {
+        const daily = await DocumentRequestService.getDailyStatus(account._id, requestedAt);
+        if (daily.limitReached) {
+          response.status(429).json(dailyLimitPayload(daily));
+          return;
+        }
+      }
 
       // ── Duplicate prevention (normalized key) ──
       const existing = await DocumentRequestService.findExistingDuplicate(
@@ -188,6 +232,16 @@ export class DocumentRequestController {
       }
 
       const document = await DocumentRequestService.create(documentData);
+
+      if (!isStaff) {
+        const withinLimit = await DocumentRequestService.isWithinDailyLimit(account._id, stamp.requestDate, String(document._id));
+        if (!withinLimit) {
+          await DocumentRequestService.delete(String(document._id));
+          const daily = await DocumentRequestService.getDailyStatus(account._id, requestedAt);
+          response.status(429).json(dailyLimitPayload(daily));
+          return;
+        }
+      }
 
       await UserActivityService.create({
         accountId: account._id.toString(),
@@ -388,7 +442,7 @@ export class DocumentRequestController {
     "businessName", "businessAddress", "businessType", "businessNature",
     "workStatus", "workplace", "monthlyIncome", "expenseType", "householdExpenses",
     "assistanceTo", "titleNo", "taxDeclarationNo", "landArea", "treeCount",
-    "treeType", "age", "spouseName", "annualIncome", "purok",
+    "treeType", "age", "spouseName", "spouseDateOfBirth", "cohabitationYear", "annualIncome", "purok",
   ];
 
   static update = async (request: AuthRequest, response: Response) => {
@@ -488,7 +542,11 @@ export class DocumentRequestController {
       }
 
       if (!isPaid) {
-        await DocumentRequestService.clearPayment(id);
+        if (current.paymentVerificationStatus === "verified") {
+          response.status(409).send("This payment has been verified by the treasurer and can no longer be cleared");
+          return;
+        }
+        await DocumentRequestService.clearPayment(id, { id: account._id.toString(), name: account.name });
         response.send({ message: "Payment status updated to unpaid successfully" });
         return;
       }
@@ -524,6 +582,7 @@ export class DocumentRequestController {
         amountTendered: tendered ?? amountDue,
         changeGiven: Math.round(((tendered ?? amountDue) - amountDue) * 100) / 100,
         paymentProcessedBy: account._id.toString(),
+        recordedByName: account.name,
       });
       if (!document) {
         response.status(409).send("This request has already been paid");
@@ -658,6 +717,10 @@ export class DocumentRequestController {
                 response.status(409).send("This request has already been paid");
                 return;
             }
+            if (wasRejectedSession(current, checkoutSessionId)) {
+                response.status(400).send("This payment session was rejected by the treasurer. Please start a new payment.");
+                return;
+            }
             await DocumentRequestService.update(id, { checkoutSessionId });
             response.send({ message: "Checkout session ID saved" });
         } catch (error) {
@@ -700,6 +763,10 @@ export class DocumentRequestController {
                 response.send("success");
                 return;
             }
+            if (wasRejectedSession(current, checkoutSessionId)) {
+                response.status(400).send("This payment session was rejected by the treasurer. Please start a new payment.");
+                return;
+            }
 
             const details = await getPayMongoCheckoutDetails(checkoutSessionId);
             if (!details.paid) {
@@ -713,6 +780,7 @@ export class DocumentRequestController {
                 amountPaid: details.amount ?? amountDueOf(current),
                 paidAt: details.paidAt ?? new Date(),
                 paymentReference: details.reference ?? checkoutSessionId,
+                recordedByName: account.name,
             });
             if (!document) {
                 response.send("success");

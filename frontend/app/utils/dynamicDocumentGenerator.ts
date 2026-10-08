@@ -892,6 +892,8 @@ const DOCUMENT_NAMES: Record<string, string> = {
   certificateOfFirstTimeJobseeker: "Barangay Certification (First-Time Jobseeker)",
   certificateOfLowIncome: "Certificate of Low Income",
   endorsementLetter: "Endorsement Letter",
+  certificationOfCohabitant: "Certification of Cohabitant",
+  soloCertification: "Solo Certification",
 };
 
 export async function viewDocumentPDF(doc: documentRequestInterface): Promise<void> {

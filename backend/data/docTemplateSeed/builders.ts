@@ -99,6 +99,7 @@ const IMAGE_PX: Record<string, [number, number]> = {
   "33a295.png": [245, 245], "3c31c8.jpeg": [180, 235], "3f45b0.jpeg": [167, 220], "4577f2.png": [167, 156],
   "6cf151.jpeg": [156, 156], "89dbf7.jpeg": [195, 190], "8dd33b.jpeg": [324, 432], "ac6ab4.png": [278, 290],
   "c27702.png": [172, 193], "e05e85.jpeg": [225, 224], "ed9f16.jpeg": [238, 223],
+  "45a70c.png": [232, 245], "c029f7.jpeg": [197, 190],
 };
 
 /** Inline image `widthPt` wide (height follows the image). `name` is a file under /assets/docx-templates/shared/. */

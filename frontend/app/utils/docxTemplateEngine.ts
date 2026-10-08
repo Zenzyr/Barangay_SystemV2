@@ -8,6 +8,7 @@ import { formatDateParts, formatFieldValue, formatDateMDY } from "./documentForm
 import { getDocumentLayout, DocumentLayout } from "./documentLayouts";
 import { viewDocumentPDF, generateDocumentPDF, buildDynamicDocumentPDF } from "./dynamicDocumentGenerator";
 import { renderDocxByType } from "./docxTemplateService";
+import { renderPdfByType } from "./documentTemplateService";
 
 /**
  * DOCX template engine (docxtemplater + PizZip).
@@ -726,6 +727,8 @@ const DOCX_FILE_NAMES: Record<string, string> = {
   firstTimeJobseekerOath: "Oath of Undertaking (FTJ).docx",
   certificationOfTreesCutting: "Certification of Trees Cutting.docx",
   certificateOfAttestation: "Certificate of Attestation.docx",
+  certificationOfCohabitant: "Certification of Cohabitant.docx",
+  soloCertification: "Solo Certification.docx",
 };
 
 export async function viewDocumentDOCX(doc: documentRequestInterface): Promise<void> {
@@ -811,11 +814,34 @@ const PDF_FILE_NAMES: Record<string, string> = {
   firstTimeJobseekerOath: "Oath of Undertaking (FTJ).pdf",
   certificationOfTreesCutting: "Certification of Trees Cutting.pdf",
   certificateOfAttestation: "Certificate of Attestation.pdf",
+  certificationOfCohabitant: "Certification of Cohabitant.pdf",
+  soloCertification: "Solo Certification.pdf",
 };
+
+async function renderSecretaryTemplatePDF(
+  doc: documentRequestInterface
+): Promise<{ blob: Blob; fileName: string; snapshot: Record<string, string> } | null> {
+  if (!doc._id) return null;
+  const bytes = await renderPdfByType(doc._id);
+  if (!bytes) return null;
+  const store = useBarangaySettingsStore.getState();
+  if (!store.loaded) await store.refresh();
+  const snapshot: Record<string, string> = {
+    ...useBarangaySettingsStore.getState().activeByPosition(),
+    dateIssued: new Date().toISOString(),
+  };
+  return {
+    blob: new Blob([bytes as unknown as BlobPart], { type: "application/pdf" }),
+    fileName: PDF_FILE_NAMES[doc.document] || `${doc.document}.pdf`,
+    snapshot,
+  };
+}
 
 async function convertDocumentDOCXToPDF(
   doc: documentRequestInterface
 ): Promise<{ blob: Blob; fileName: string; snapshot: Record<string, string> }> {
+  const secretaryTemplate = await renderSecretaryTemplatePDF(doc);
+  if (secretaryTemplate) return secretaryTemplate;
   const { bytes, header, snapshot } = await buildDynamicDocumentDOCX(doc);
   const form = new FormData();
   // @ts-expect-error — Uint8Array is a valid BlobPart

@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { AccountService } from "../services/acccount.service";
 import { accountInterface } from "../types/accounts.type";
 import { isObjectId } from "../utils/validation";
+import { Permission, hasPermission } from "../utils/roles";
 
 dotenv.config();
 
@@ -21,6 +22,17 @@ export const requireRoles = (...roles: string[]) => {
   return (request: AuthRequest, response: Response, next: NextFunction) => {
     const role = request.account?.role;
     if (!role || !roles.includes(role)) {
+      response.status(403).json({ message: "Access denied" });
+      return;
+    }
+    next();
+  };
+};
+
+export const requirePermissions = (...permissions: Permission[]) => {
+  return (request: AuthRequest, response: Response, next: NextFunction) => {
+    const role = request.account?.role;
+    if (!role || !permissions.every((permission) => hasPermission(role, permission))) {
       response.status(403).json({ message: "Access denied" });
       return;
     }

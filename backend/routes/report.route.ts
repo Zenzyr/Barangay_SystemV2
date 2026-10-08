@@ -6,6 +6,6 @@ import { handler } from "../utils/handler";
 
 const route = Router();
 
-route.get("/", authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_ADMIN), handler(ReportController.generate));
+route.get("/", authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_ADMIN, ROLES.TREASURER), handler(ReportController.generate));
 
 export default route;

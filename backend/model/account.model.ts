@@ -4,6 +4,9 @@ const AccountSchema = new Schema(
   {
     profile: { type: String, required: false, default: "" },
     name: { type: String, required: true, trim: true, maxlength: 100 },
+    firstName: { type: String, required: false, trim: true, maxlength: 50 },
+    middleName: { type: String, required: false, trim: true, maxlength: 50 },
+    lastName: { type: String, required: false, trim: true, maxlength: 50 },
     nickname: {
       type: String,
       required: false,
@@ -45,7 +48,7 @@ const AccountSchema = new Schema(
     status: { type: String, required: true },
     role: {
       type: String,
-      enum: ["resident", "secretary", "super_admin"],
+      enum: ["resident", "secretary", "super_admin", "treasurer"],
       default: "resident",
     },
 

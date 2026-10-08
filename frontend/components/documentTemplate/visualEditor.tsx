@@ -65,6 +65,8 @@ export const DOCUMENT_TYPE_OPTIONS = [
   { value: "firstTimeJobseekerOath", label: "First-Time Jobseeker Oath" },
   { value: "certificateOfLowIncome", label: "Certificate of Low Income" },
   { value: "endorsementLetter", label: "Endorsement Letter" },
+  { value: "certificationOfCohabitant", label: "Certification of Cohabitant" },
+  { value: "soloCertification", label: "Solo Certification" },
 ];
 
 const LIST_HREF = "/pages/secretary/document-templates";

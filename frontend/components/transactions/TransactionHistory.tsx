@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
+import useUserStore from "@/app/store/useUserStore";
 import { accountInterface } from "@/app/types/account.type";
 import { TransactionFilters, TransactionItem, TransactionListResponse } from "@/app/types/transaction.type";
 import { DOCUMENT_OPTIONS, STATUS_CONFIG } from "@/app/utils/documentRequestOptions";
@@ -21,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/ui/shared/StatusBadge";
+import { PAYMENT_VERIFICATION_CONFIG } from "@/lib/constants/status";
 import { ReceiptDialog } from "./ReceiptDialog";
 import {
   ArrowDown,
@@ -112,8 +114,27 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
   );
 }
 
-export function TransactionHistory({ scope }: { scope: "staff" | "mine" }) {
+const FILTER_GRID: Record<number, string> = {
+  5: "lg:grid-cols-5",
+  6: "lg:grid-cols-6",
+  7: "lg:grid-cols-4 2xl:grid-cols-7",
+};
+
+export function TransactionHistory({
+  scope,
+  showVerification = false,
+  baseFilters,
+  hiddenFilters = [],
+  onViewDetails,
+}: {
+  scope: "staff" | "mine";
+  showVerification?: boolean;
+  baseFilters?: Partial<TransactionFilters>;
+  hiddenFilters?: (keyof TransactionFilters)[];
+  onViewDetails?: (item: TransactionItem) => void;
+}) {
   const isStaff = scope === "staff";
+  const shows = (key: keyof TransactionFilters) => !hiddenFilters.includes(key) && !baseFilters?.[key];
   const [searchInput, setSearchInput] = useState("");
   const [filters, setFilters] = useState<TransactionFilters>({});
   const [sortBy, setSortBy] = useState<SortKey>("date");
@@ -139,9 +160,9 @@ export function TransactionHistory({ scope }: { scope: "staff" | "mine" }) {
 
   const params = useMemo(() => {
     const p: Record<string, string | number> = { page, limit: PAGE_SIZE, sortBy, sortDir };
-    for (const [k, v] of Object.entries(filters)) if (v) p[k] = v;
+    for (const [k, v] of Object.entries({ ...filters, ...baseFilters })) if (v) p[k] = v;
     return p;
-  }, [filters, page, sortBy, sortDir]);
+  }, [filters, baseFilters, page, sortBy, sortDir]);
 
   const { data, isLoading, isError, error, isFetching } = useQuery<TransactionListResponse>({
     queryKey: ["transactions", scope, params],
@@ -150,9 +171,12 @@ export function TransactionHistory({ scope }: { scope: "staff" | "mine" }) {
     enabled: !rangeInvalid,
   });
 
-  const { data: residents = [] } = useQuery<accountInterface[]>({
-    queryKey: ["accounts", "approved"],
+  const role = useUserStore((s) => s.user?.role);
+  const usesAccountList = role === "secretary" || role === "super_admin";
+  const { data: residents = [] } = useQuery<{ _id: string; name: string }[]>({
+    queryKey: usesAccountList ? ["accounts", "approved"] : ["transactions", "residents"],
     queryFn: async () => {
+      if (!usesAccountList) return (await axiosInstance.get("/transactions/residents")).data || [];
       const res = await axiosInstance.get("/account", { params: { status: "approved" } });
       return (res.data || []).filter((a: accountInterface) => a.role === "resident");
     },
@@ -195,19 +219,29 @@ export function TransactionHistory({ scope }: { scope: "staff" | "mine" }) {
 
   const items = data?.items ?? [];
   const colSpan = isStaff ? 8 : 7;
+  const filterCount = 2 + [shows("paymentMethod"), shows("paymentStatus"), shows("document"), isStaff && shows("resident"), showVerification && shows("verificationStatus")].filter(Boolean).length;
+  const summaryCards = showVerification
+    ? [
+        { label: "Verified Collections", value: formatCurrency(data?.summary.verifiedAmount), hint: `${data?.summary.verifiedCount ?? 0} verified`, tone: "text-emerald-700" },
+        { label: "Pending Verification", value: formatCurrency(data?.summary.pendingVerificationAmount), hint: `${data?.summary.pendingVerificationCount ?? 0} awaiting review`, tone: "text-amber-700" },
+        { label: "Outstanding", value: formatCurrency(data?.summary.unpaidAmount), hint: `${data?.summary.unpaidCount ?? 0} unpaid`, tone: "text-sky-700" },
+        { label: "Rejected Payments", value: data?.summary.rejectedCount ?? 0, hint: "Excluded from collections", tone: "text-rose-700" },
+      ]
+    : [
+        { label: "Total Paid", value: formatCurrency(data?.summary.paidAmount), hint: "", tone: "text-emerald-700" },
+        { label: "Paid Transactions", value: data?.summary.paidCount ?? 0, hint: "", tone: "text-sky-700" },
+        { label: "Outstanding", value: formatCurrency(data?.summary.unpaidAmount), hint: "", tone: "text-amber-700" },
+        { label: "Unpaid Requests", value: data?.summary.unpaidCount ?? 0, hint: "", tone: "text-rose-700" },
+      ];
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { label: "Total Paid", value: formatCurrency(data?.summary.paidAmount), tone: "text-emerald-700" },
-          { label: "Paid Transactions", value: data?.summary.paidCount ?? 0, tone: "text-sky-700" },
-          { label: "Outstanding", value: formatCurrency(data?.summary.unpaidAmount), tone: "text-amber-700" },
-          { label: "Unpaid Requests", value: data?.summary.unpaidCount ?? 0, tone: "text-rose-700" },
-        ].map((card) => (
+        {summaryCards.map((card) => (
           <div key={card.label} className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <p className="text-[11px] font-medium uppercase tracking-wider text-gray-500">{card.label}</p>
             {isLoading ? <Skeleton className="h-6 w-20 mt-2" /> : <p className={cn("text-lg sm:text-xl font-bold mt-1", card.tone)}>{card.value}</p>}
+            {card.hint && !isLoading && <p className="text-[11px] text-gray-400">{card.hint}</p>}
           </div>
         ))}
       </div>
@@ -217,7 +251,7 @@ export function TransactionHistory({ scope }: { scope: "staff" | "mine" }) {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
             <Input
-              placeholder={isStaff ? "Search receipt no., reference, resident, or email..." : "Search receipt or reference number..."}
+              placeholder={isStaff ? "Search receipt no., transaction no., reference, resident, or email..." : "Search receipt or reference number..."}
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="pl-9 h-9 border-gray-200"
@@ -229,7 +263,7 @@ export function TransactionHistory({ scope }: { scope: "staff" | "mine" }) {
             </Button>
           )}
         </div>
-        <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-3", isStaff ? "lg:grid-cols-6" : "lg:grid-cols-5")}>
+        <div className={cn("grid grid-cols-1 sm:grid-cols-2 gap-3", FILTER_GRID[filterCount] ?? "lg:grid-cols-4")}>
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-gray-500">From</label>
             <Input type="date" value={filters.from || ""} max={filters.to || undefined} onChange={(e) => updateFilter("from", e.target.value)} className="h-9 border-gray-200" />
@@ -238,6 +272,7 @@ export function TransactionHistory({ scope }: { scope: "staff" | "mine" }) {
             <label className="text-[11px] font-medium text-gray-500">To</label>
             <Input type="date" value={filters.to || ""} min={filters.from || undefined} onChange={(e) => updateFilter("to", e.target.value)} className="h-9 border-gray-200" />
           </div>
+          {shows("paymentMethod") && (
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-gray-500">Payment method</label>
             <FilterSelect
@@ -250,6 +285,8 @@ export function TransactionHistory({ scope }: { scope: "staff" | "mine" }) {
               ]}
             />
           </div>
+          )}
+          {shows("paymentStatus") && (
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-gray-500">Payment status</label>
             <FilterSelect
@@ -262,11 +299,25 @@ export function TransactionHistory({ scope }: { scope: "staff" | "mine" }) {
               ]}
             />
           </div>
+          )}
+          {shows("document") && (
           <div className="space-y-1">
             <label className="text-[11px] font-medium text-gray-500">Document</label>
             <FilterSelect value={filters.document || ""} onChange={(v) => updateFilter("document", v)} placeholder="All documents" options={[...DOCUMENT_OPTIONS]} />
           </div>
-          {isStaff && (
+          )}
+          {showVerification && shows("verificationStatus") && (
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-gray-500">Verification</label>
+              <FilterSelect
+                value={filters.verificationStatus || ""}
+                onChange={(v) => updateFilter("verificationStatus", v)}
+                placeholder="All verification"
+                options={["pending", "verified", "rejected"].map((v) => ({ value: v, label: PAYMENT_VERIFICATION_CONFIG[v].label }))}
+              />
+            </div>
+          )}
+          {isStaff && shows("resident") && (
             <div className="space-y-1">
               <label className="text-[11px] font-medium text-gray-500">Resident</label>
               <FilterSelect value={filters.resident || ""} onChange={(v) => updateFilter("resident", v)} placeholder="All residents" options={residentOptions} />
@@ -323,8 +374,11 @@ export function TransactionHistory({ scope }: { scope: "staff" | "mine" }) {
                 items.map((t) => (
                   <TableRow key={t._id} className={cn("hover:bg-slate-50/60 transition-colors", isFetching && "opacity-70")}>
                     <TableCell>
-                      <p className="font-mono text-xs font-semibold text-gray-900">{t.receiptNumber || `REQ-${t._id.slice(-6).toUpperCase()}`}</p>
-                      <p className="text-[11px] text-gray-400">{REQUEST_SOURCE_LABELS[t.requestSource]} request</p>
+                      <p className="font-mono text-xs font-semibold text-gray-900">{t.receiptNumber || t.transactionNumber}</p>
+                      <p className="text-[11px] text-gray-400">
+                        {showVerification && t.receiptNumber ? `${t.transactionNumber} · ` : ""}
+                        {REQUEST_SOURCE_LABELS[t.requestSource]} request
+                      </p>
                     </TableCell>
                     {isStaff && (
                       <TableCell>
@@ -338,23 +392,27 @@ export function TransactionHistory({ scope }: { scope: "staff" | "mine" }) {
                     </TableCell>
                     <TableCell className="text-sm font-semibold text-gray-900">{formatCurrency(t.amount)}</TableCell>
                     <TableCell>
-                      <PaymentStatusBadge status={t.paymentStatus} />
+                      {showVerification && t.verificationStatus ? (
+                        <StatusBadge status={t.verificationStatus} config={PAYMENT_VERIFICATION_CONFIG} className="whitespace-nowrap" />
+                      ) : (
+                        <PaymentStatusBadge status={t.paymentStatus} />
+                      )}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell text-xs text-gray-500">{formatDateTime(t.transactionDate)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={() => setDetail(t)}
+                          onClick={() => (onViewDetails ? onViewDetails(t) : setDetail(t))}
                           className="inline-flex h-7 items-center gap-1 px-2 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-100"
                         >
                           <Eye className="size-3" /> Details
                         </button>
                         <button
                           type="button"
-                          disabled={!t.receiptAvailable}
+                          disabled={!t.receiptAvailable && !(showVerification && t.receiptVoided)}
                           onClick={() => setReceiptId(t._id)}
-                          title={t.receiptAvailable ? "View receipt" : "Receipt available once paid"}
+                          title={t.receiptAvailable ? "View receipt" : showVerification && t.receiptVoided ? "View voided receipt" : "Receipt available once paid"}
                           className="inline-flex h-7 items-center gap-1 px-2 rounded-lg text-xs font-medium text-sky-700 hover:bg-sky-50 disabled:text-gray-300 disabled:hover:bg-transparent"
                         >
                           <Receipt className="size-3" /> Receipt

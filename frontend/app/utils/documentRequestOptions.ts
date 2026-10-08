@@ -27,6 +27,8 @@ export const DOCUMENT_ICONS: Record<string, React.ElementType> = {
   firstTimeJobseekerOath: ScrollText,
   certificateOfLowIncome: ScrollText,
   endorsementLetter: FileText,
+  certificationOfCohabitant: FileText,
+  soloCertification: ScrollText,
 };
 
 // ─── Document display names ───────────────────────────────────────
@@ -43,6 +45,8 @@ export const DOCUMENT_NAMES: Record<string, string> = {
   firstTimeJobseekerOath: "Oath of Undertaking (FTJ)",
   certificateOfLowIncome: "Certificate of Low Income",
   endorsementLetter: "Endorsement Letter",
+  certificationOfCohabitant: "Certification of Cohabitant",
+  soloCertification: "Solo Certification",
 };
 
 // Canonical, selectable document types (no Barangay Clearance — it is
@@ -58,6 +62,8 @@ export const SELECTABLE_DOCUMENT_TYPES = [
   "firstTimeJobseekerOath",
   "certificateOfLowIncome",
   "endorsementLetter",
+  "certificationOfCohabitant",
+  "soloCertification",
 ] as const;
 
 export const DOCUMENT_OPTIONS = SELECTABLE_DOCUMENT_TYPES.map((value) => ({
@@ -78,6 +84,8 @@ export const DOCUMENT_DESCRIPTIONS: Record<string, string> = {
   firstTimeJobseekerOath: "Oath of Undertaking signed under RA 11261",
   certificateOfLowIncome: "Certification of low income for assistance",
   endorsementLetter: "Endorsement letter for scholarship applicants",
+  certificationOfCohabitant: "Certification that you live together as spouses",
+  soloCertification: "Certification for solo parents with sole custody",
 };
 
 // ─── Status config ────────────────────────────────────────────────
@@ -110,4 +118,15 @@ export function formatRequestTime(doc: {
   requestTime?: string | null;
 }): string {
   return doc.requestTime || "";
+}
+export function formatBusinessDate(dateKey: string, timeZone = "Asia/Manila"): string {
+  const date = new Date(`${dateKey}T12:00:00+08:00`);
+  if (isNaN(date.getTime())) return dateKey;
+  return date.toLocaleDateString("en-PH", {
+    timeZone,
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
 }

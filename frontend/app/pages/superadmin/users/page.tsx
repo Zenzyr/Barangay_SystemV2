@@ -66,6 +66,7 @@ interface DuplicateEntry {
 const ROLE_OPTIONS = [
   { value: "resident", label: "Resident" },
   { value: "secretary", label: "Secretary" },
+  { value: "treasurer", label: "Treasurer" },
   { value: "super_admin", label: "Super Admin" },
 ] as const;
 
@@ -73,6 +74,7 @@ const ROLE_BADGES: Record<string, string> = {
   resident: "bg-sky-50 text-sky-700 ring-sky-100",
   secretary: "bg-emerald-50 text-emerald-700 ring-emerald-100",
   super_admin: "bg-indigo-50 text-indigo-700 ring-indigo-100",
+  treasurer: "bg-amber-50 text-amber-700 ring-amber-100",
 };
 
 const STATUS_BADGES: Record<string, string> = {
@@ -86,6 +88,7 @@ const TABS = [
   { value: "pending", label: "Pending" },
   { value: "residents", label: "Residents" },
   { value: "secretaries", label: "Secretaries" },
+  { value: "treasurers", label: "Treasurers" },
   { value: "super_admins", label: "Super Admins" },
   { value: "duplicates", label: "Duplicates" },
   { value: "appeals", label: "Suspension Appeals" },
@@ -145,6 +148,7 @@ function UsersContent() {
       if (tab === "pending" && a.status !== "pending") return false;
       if (tab === "residents" && a.role !== "resident") return false;
       if (tab === "secretaries" && a.role !== "secretary") return false;
+      if (tab === "treasurers" && a.role !== "treasurer") return false;
       if (tab === "super_admins" && a.role !== "super_admin") return false;
       if (q && !`${a.name} ${a.email}`.toLowerCase().includes(q)) return false;
       return true;

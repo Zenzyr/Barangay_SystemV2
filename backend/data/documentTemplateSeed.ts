@@ -10,7 +10,7 @@
  * used to be both "Barangay Certificate" and "Barangay Clearance". There is
  * NO separate clearance template.
  */
-import { Style, doc, gap, img, letterhead, p, rule, t, v } from "./docTemplateSeed/builders";
+import { Style, doc, gap, img, letterhead, p, rule, t, table, v } from "./docTemplateSeed/builders";
 import { legacyKeyToVariable, TEMPLATE_VARIABLE_KEYS } from "../utils/templateVariables";
 import { TiptapNode } from "../utils/tiptapDoc";
 
@@ -22,7 +22,143 @@ export interface SeedTemplateDef {
   title: string;
   body: string;
   signaturePosition: string;
+  layout?: { editorContent: TiptapNode; page: SeedPage };
 }
+
+const shaded = (text: string, style: Style, fill: string): TiptapNode => {
+  const node = t(text, style);
+  return { ...node, marks: [...(node.marks || []), { type: "highlight", attrs: { color: fill } }] };
+};
+
+const sealDivider = (seal: TiptapNode, width: number, sealWidth: number): TiptapNode => {
+  const px = (pt: number) => Math.round((pt * 4) / 3);
+  const side = (width - sealWidth) / 2;
+  const line = [p([], { before: 16 }), rule()];
+  return table(
+    [
+      [
+        { content: line, width: px(side) },
+        { content: [p([seal], { align: "center" })], width: px(sealWidth) },
+        { content: line, width: px(side) },
+      ],
+    ],
+    { borders: "none" },
+  );
+};
+
+const cohabitantLayout = (): { editorContent: TiptapNode; page: SeedPage } => {
+  const width = 451;
+  const head: Style = { font: "Aptos", size: 14 };
+  const body: Style = { font: "Aptos", size: 11 };
+  const gray: Style = { font: "Aptos Display", size: 11, color: "#3A3A3A" };
+  const sig: Style = { font: "Times New Roman", size: 12, color: "#3A3A3A" };
+  const name: Style = { ...body, caps: true };
+  return {
+    page: {
+      size: "A4",
+      orientation: "portrait",
+      margins: { top: 72, right: 72, bottom: 72, left: 72 },
+    },
+    editorContent: doc([
+      letterhead({
+        width,
+        leftWidth: 90,
+        rightWidth: 90,
+        left: [img("2b39a1.jpeg", 62, "Seal of the Municipality of Rosario")],
+        right: [img("45a70c.png", 72, "Bagong Pilipinas")],
+        lines: [
+          p("Republic of the Philippines", { align: "center", style: head }),
+          p("Province of La Union", { align: "center", style: head }),
+          p("Municipality of Rosario", { align: "center", style: head }),
+          p("Barangay Rabon", { align: "center", style: head }),
+          p("Office of the Punong Barangay", { align: "center", style: { ...head, i: true } }),
+        ],
+      }),
+      sealDivider(img("8dd33b.jpeg", 47, "Barangay Rabon seal"), width, 90),
+      ...gap(1, 8),
+      p([shaded(" CERTIFICATION OF COHABITATION ", { font: "Aptos", size: 14, color: "#FFFFFF" }, "#0C0C0C")], {
+        align: "center",
+        after: 8,
+      }),
+      ...gap(1, 8),
+      p("To whom it may concern.", { align: "justify", after: 8, line: 1.08, style: body }),
+      p(
+        [
+          "This is to certify that ", v("resident_name", name), ", born on ", v("birth_date", body),
+          ", and ", v("spouse_name", name), ", born on ", v("spouse_birth_date", body),
+          ", have been living as a spouses in good faith, taking on all of the tasks and responsibilities that follow with being in the relationship, cohabiting the same household at ",
+          v("purok", body),
+          ", Rabon, Rosario, La Union, and both holding themselves out to the community as spouses since ",
+          v("cohabitation_year", body), ".",
+        ],
+        { align: "justify", indent: 72, after: 8, line: 1.08, style: body },
+      ),
+      p("This certification is issued upon request of the said herein person for whatever legal intents and purposes it may serve.", {
+        align: "justify",
+        indent: 72,
+        style: gray,
+      }),
+      ...gap(1),
+      p(
+        ["Issued this ", v("issue_day_ordinal", { ...gray, b: true }), " day of ", v("issue_month", gray), ", ", v("issue_year", gray), " at Barangay Rabon, Rosario, La Union."],
+        { align: "justify", indent: 36, style: gray },
+      ),
+      ...gap(3),
+      p("Certified by:", { left: 180, style: sig }),
+      ...gap(2),
+      p([t("HON. ", { ...sig, u: true }), v("punong_barangay", { ...sig, u: true, caps: true })], { align: "center", left: 252 }),
+      p("Barangay Captain", { align: "center", left: 252, style: sig }),
+    ]),
+  };
+};
+
+const soloLayout = (): { editorContent: TiptapNode; page: SeedPage } => {
+  const width = 468;
+  const head: Style = { font: "Calibri", size: 14 };
+  const body: Style = { font: "Calibri Light", size: 14 };
+  const para = (content: (TiptapNode | string)[]) =>
+    p(content, { align: "justify", indent: 36, after: 10, line: 1.15, style: body });
+  return {
+    page: {
+      size: "LETTER",
+      orientation: "portrait",
+      margins: { top: 72, right: 72, bottom: 72, left: 72 },
+      background: "/assets/docx-templates/shared/59c67f.png",
+    },
+    editorContent: doc([
+      letterhead({
+        width,
+        leftWidth: 90,
+        rightWidth: 90,
+        left: [],
+        right: [img("45a70c.png", 72, "Bagong Pilipinas")],
+        lines: [
+          p("Republic of the Philippines", { align: "center", style: head }),
+          p("Province of La Union", { align: "center", style: head }),
+          p("Municipality of Rosario", { align: "center", style: head }),
+          p([shaded(" Barangay Rabon ", { ...head, color: "#FFFFFF" }, "#000000")], { align: "center" }),
+          p("Office of the Punong Barangay", { align: "center", style: { ...head, i: true } }),
+        ],
+      }),
+      sealDivider(img("c029f7.jpeg", 64, "Barangay Rabon seal"), width, 90),
+      ...gap(1, 10),
+      p("CERTIFICATION", { align: "center", after: 10, style: { font: "Arial Rounded MT Bold", size: 18, b: true } }),
+      p("To Whom It May Concern;", { align: "justify", after: 10, style: { font: "Calibri", size: 14, b: true } }),
+      para([
+        "This is to certify that as per record available in this office ",
+        v("resident_name", { ...body, b: true, u: true, caps: true }), ", ", v("age", body),
+        " years old, Filipino Citizen, and a bonafide resident here in Barangay Rabon, Rosario, La Union.",
+      ]),
+      para(["Further certify that above named person \u201Csolo parent\u201D having sole custody care and support of his/her child."]),
+      para(["This certification is issued upon request of the above mentioned for whatever legal purposes it may serve."]),
+      para(["Issued this ", v("issue_day_ordinal", body), " day of ", v("issue_month", body), ", ", v("issue_year", body), " At Barangay Rabon, Rosario, La Union."]),
+      ...gap(1, 10),
+      p("Certified by:", { left: 252, after: 24, style: body }),
+      p([v("punong_barangay", { ...body, b: true, u: true, caps: true })], { align: "center", left: 252 }),
+      p("Punong Barangay", { align: "center", left: 252, style: body }),
+    ]),
+  };
+};
 
 export const seedTemplateDefinitions: SeedTemplateDef[] = [
   {
@@ -177,6 +313,33 @@ export const seedTemplateDefinitions: SeedTemplateDef[] = [
       "Furthermore, I hereby endorse the said person to your good office for {{resident.purpose}} as one of your scholars.\n\n" +
       "Given this {{certificate.date}} at {{barangay.name}}, {{barangay.municipality}}, {{barangay.province}}, for all legal intents and purposes it may serve.",
   },
+  {
+    documentType: "certificationOfCohabitant",
+    name: "Certification of Cohabitant",
+    description: "Certification that two residents live together as spouses.",
+    fee: 30,
+    title: "Certification of Cohabitation",
+    signaturePosition: "Punong Barangay",
+    body:
+      "This is to certify that {{resident.fullName}}, born on {{resident.birthDate}}, and {{resident.spouseName}}, born on {{resident.spouseBirthDate}}, have been living as spouses, cohabiting the same household at {{resident.purok}}, {{barangay.name}}, {{barangay.municipality}}, {{barangay.province}} since {{resident.cohabitationYear}}.\n\n" +
+      "This certification is issued upon request of the said herein person for whatever legal intents and purposes it may serve.\n\n" +
+      "Issued this {{certificate.date}} at {{barangay.name}}, {{barangay.municipality}}, {{barangay.province}}.",
+    layout: cohabitantLayout(),
+  },
+  {
+    documentType: "soloCertification",
+    name: "Solo Certification",
+    description: "Certification of a solo parent with sole custody of a child.",
+    fee: 30,
+    title: "Certification",
+    signaturePosition: "Punong Barangay",
+    body:
+      "This is to certify that as per record available in this office {{resident.fullName}}, {{resident.age}} years old, Filipino Citizen, and a bonafide resident here in {{barangay.name}}, {{barangay.municipality}}, {{barangay.province}}.\n\n" +
+      "Further certify that above named person \u201Csolo parent\u201D having sole custody care and support of his/her child.\n\n" +
+      "This certification is issued upon request of the above mentioned for whatever legal purposes it may serve.\n\n" +
+      "Issued this {{certificate.date}} at {{barangay.name}}, {{barangay.municipality}}, {{barangay.province}}.",
+    layout: soloLayout(),
+  },
 ];
 
 // ── Rich Tiptap generator ───────────────────────────────────────────────
@@ -229,13 +392,15 @@ export interface SeedPage {
   size: "A4" | "LETTER";
   orientation: "portrait";
   margins: { top: number; right: number; bottom: number; left: number };
+  background?: string;
 }
 
 /** Rich Tiptap editor content + page setup for a seeded default template. */
-export function buildSeedEditorContent(def: Pick<SeedTemplateDef, "title" | "body">): {
+export function buildSeedEditorContent(def: Pick<SeedTemplateDef, "title" | "body" | "layout">): {
   editorContent: TiptapNode;
   page: SeedPage;
 } {
+  if (def.layout) return def.layout;
   const editorContent = doc([
     letterhead({
       width: LETTERHEAD_WIDTH,

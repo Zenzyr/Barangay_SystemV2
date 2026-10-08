@@ -1,8 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
+import useUserStore from "@/app/store/useUserStore";
+import { PERMISSIONS, hasPermission } from "@/lib/constants/roles";
 import { ReceiptData } from "@/app/types/transaction.type";
 import { apiErrorMessage } from "@/app/utils/transactionFormat";
 import { exportElementToFittedPdf, printElementAsImage } from "@/app/utils/pdfExport";
@@ -25,6 +27,9 @@ export function ReceiptPanel({ requestId, enabled = true, actions }: { requestId
   const receiptRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState<"print" | "download" | null>(null);
   const { data: receipt, isLoading, isError, error, refetch } = useReceipt(requestId, enabled);
+  const queryClient = useQueryClient();
+  const role = useUserStore((s) => s.user?.role);
+  const logsReprints = hasPermission(role, PERMISSIONS.RECEIPTS_REPRINT);
 
   const run = async (kind: "print" | "download") => {
     if (!receiptRef.current || !receipt) return;
@@ -32,6 +37,12 @@ export function ReceiptPanel({ requestId, enabled = true, actions }: { requestId
     try {
       if (kind === "print") await printElementAsImage(receiptRef.current, `Receipt ${receipt.receiptNumber}`);
       else await exportElementToFittedPdf(receiptRef.current, `receipt-${receipt.receiptNumber}.pdf`, `Receipt ${receipt.receiptNumber}`);
+      if (logsReprints && requestId) {
+        axiosInstance
+          .post(`/transactions/${requestId}/receipt/reprint`)
+          .then(() => queryClient.invalidateQueries({ queryKey: ["transactions", "detail", requestId] }))
+          .catch(() => null);
+      }
     } catch {
       toast.error(kind === "print" ? "Failed to print the receipt" : "Failed to download the receipt");
     } finally {

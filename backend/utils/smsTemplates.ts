@@ -12,6 +12,8 @@ const DOCUMENT_NAMES: Record<string, string> = {
   firstTimeJobseekerOath: "Oath of Undertaking (FTJ)",
   certificateOfLowIncome: "Certificate of Low Income",
   endorsementLetter: "Endorsement Letter",
+  certificationOfCohabitant: "Certification of Cohabitant",
+  soloCertification: "Solo Certification",
 };
 
 export const documentLabel = (doc: string): string => DOCUMENT_NAMES[doc] || doc;
@@ -47,6 +49,9 @@ export const smsTemplates = {
 
   paymentReceived: (name: string, doc: string) =>
     `Hi ${firstName(name)}, we've received your payment for ${documentLabel(doc)}. Thank you!`,
+
+  paymentRejected: (name: string, doc: string) =>
+    `Hi ${firstName(name)}, your payment for ${documentLabel(doc)} could not be verified by the barangay treasurer. Please check your notifications or visit the barangay hall.`,
 
   accountStatus: (name: string, status: "approved" | "rejected") =>
     status === "approved"
