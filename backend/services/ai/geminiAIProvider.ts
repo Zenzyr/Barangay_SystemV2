@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { AnalyticsSummary } from "../../types/analytics.type";
 import {
   AIInsightOutput,
@@ -76,14 +76,10 @@ export class GeminiAIProvider implements AIInsightProvider {
       (process.env.AI_ANALYTICS_MODEL as string) ||
       (process.env.GEMINI_MODEL as string) ||
       "gemini-3.6-flash";
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel(
-      {
-        model: modelName,
-        generationConfig: { temperature: 0.3, maxOutputTokens: 8192 },
-      },
-      { apiVersion: process.env.GEMINI_API_VERSION || "v1beta" },
-    );
+    const ai = new GoogleGenAI({
+      apiKey,
+      apiVersion: process.env.GEMINI_API_VERSION || "v1beta",
+    });
 
     const payload = JSON.stringify({
       period: analyticsData.period,
@@ -99,8 +95,12 @@ export class GeminiAIProvider implements AIInsightProvider {
 
     let text: string;
     try {
-      const result = await model.generateContent(prompt);
-      text = result.response.text();
+      const result = await ai.models.generateContent({
+        model: modelName,
+        contents: prompt,
+        config: { temperature: 0.3, maxOutputTokens: 8192 },
+      });
+      text = result.text ?? "";
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       throw new Error(
