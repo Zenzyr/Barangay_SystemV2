@@ -50,6 +50,7 @@ export interface WorkRequestFilter {
 
 const PARTY_FIELDS = "name profile email contact address purok";
 const OPEN_STATUSES = ["pending", "active", "accepted", "to review"];
+export const CLIENT_RESCHEDULE_STATUSES = ["pending", "active", "accepted"];
 
 const party = (value: any): WorkRequestParty | null => {
   if (!value || typeof value !== "object" || !value._id) return null;
@@ -227,13 +228,17 @@ export class WorkRequestService {
     id: string,
     date: unknown,
     startTime: unknown,
-    actor?: { name: string; id?: string },
+    actor?: { name: string; id?: string; asClient?: boolean },
   ) {
     const record: any = await this.getRecord(kind, id);
     if (!record) throw new ScheduleError("Work request not found", 404, "NOT_FOUND");
 
     const view = kind === "booking" ? toWorkRequestViewFromWork(record.toObject()) : toWorkRequestViewFromService(record.toObject());
-    if (!OPEN_STATUSES.includes(view.status)) {
+    if (actor?.asClient && (!actor.id || view.client?._id !== actor.id)) {
+      throw new ScheduleError("You can only reschedule your own work requests", 403, "FORBIDDEN");
+    }
+    const eligible = actor?.asClient ? CLIENT_RESCHEDULE_STATUSES : OPEN_STATUSES;
+    if (!eligible.includes(view.status)) {
       throw new ScheduleError(`A ${view.status} work request can no longer be rescheduled`, 400, "INVALID_STATUS");
     }
     if (view.scheduledDate === date && view.scheduleStartTime === startTime) {
@@ -281,12 +286,14 @@ export class WorkRequestService {
     const result = kind === "booking" ? toWorkRequestViewFromWork(updated.toObject()) : toWorkRequestViewFromService(updated.toObject());
     const when = `${formatDateKey(result.scheduledDate!)}, ${result.scheduleLabel}`;
 
+    const rescheduledBy = actor?.asClient ? result.client?.name || "the requester" : "the barangay";
     for (const target of [result.client, result.provider]) {
       if (!target?._id) continue;
+      if (actor?.asClient && target._id === actor.id) continue;
       await NotificationService.create({
         accountId: target._id,
         title: "Work Request Rescheduled",
-        message: `The work request "${result.title}" has been rescheduled by the barangay to ${when}.`,
+        message: `The work request "${result.title}" has been rescheduled by ${rescheduledBy} to ${when}.`,
         type: "work",
       }).catch(() => null);
     }

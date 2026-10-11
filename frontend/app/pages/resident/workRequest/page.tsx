@@ -9,12 +9,14 @@ import { accountInterface } from "@/app/types/account.type";
 import { Button } from "@/components/ui/button";
 import { successAlert, errorAlert, confirmAlert } from "@/app/utils/alert";
 import { apiErrorMessage } from "@/app/utils/transactionFormat";
-import { WORK_STATUS_CONFIG } from "@/app/utils/workRequest";
+import { CLIENT_RESCHEDULE_STATUSES, WORK_STATUS_CONFIG } from "@/app/utils/workRequest";
 import AddReviewModal from "@/components/ui/addReviewModal";
 import { WorkRequestCard, WorkRequestCardSkeleton } from "@/components/workRequest/WorkRequestCard";
+import { RescheduleDialog } from "@/components/workRequest/RescheduleDialog";
 import {
   Briefcase,
   CalendarCheck,
+  CalendarClock,
   CheckCircle2,
   FileText,
   Hammer,
@@ -44,6 +46,7 @@ export default function Page() {
   const [tab, setTab] = useState<Tab>("client");
   const [statusFilter, setStatusFilter] = useState<(typeof STATUS_FILTERS)[number]>("all");
   const [reviewItem, setReviewItem] = useState<WorkRequestItem | null>(null);
+  const [rescheduleItem, setRescheduleItem] = useState<WorkRequestItem | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const { data: mine = [], isLoading: mineLoading } = useQuery<WorkRequestItem[]>({
@@ -121,7 +124,7 @@ export default function Page() {
   );
   const pendingReceived = received.filter((r) => r.status === "pending").length;
 
-  const renderActions = (item: WorkRequestItem) => {
+  const renderStatusActions = (item: WorkRequestItem) => {
     const busy = busyId === item._id && actionMutation.isPending;
     if (tab === "client" && item.status === "pending") {
       return (
@@ -212,6 +215,27 @@ export default function Page() {
       );
     }
     return null;
+  };
+
+  const renderActions = (item: WorkRequestItem) => {
+    const statusActions = renderStatusActions(item);
+    const canReschedule = tab === "client" && !!item.provider && CLIENT_RESCHEDULE_STATUSES.includes(item.status);
+    if (!canReschedule) return statusActions;
+    return (
+      <>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busyId === item._id && actionMutation.isPending}
+          onClick={() => setRescheduleItem(item)}
+          className="h-8 text-xs gap-1.5 border-sky-200 text-sky-700 hover:bg-sky-50"
+        >
+          <CalendarClock className="size-3.5" />
+          {item.scheduledDate ? "Reschedule" : "Schedule"}
+        </Button>
+        {statusActions}
+      </>
+    );
   };
 
   return (
@@ -324,6 +348,8 @@ export default function Page() {
           ))}
         </div>
       )}
+
+      <RescheduleDialog item={rescheduleItem} onOpenChange={(o) => !o && setRescheduleItem(null)} />
 
       {reviewItem && (
         <AddReviewModal
