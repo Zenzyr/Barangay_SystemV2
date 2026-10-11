@@ -491,16 +491,6 @@ export default function Home() {
                     Skills Directory
                   </button>
                 </li>
-                <li>
-                  <button className="hover:text-sky-300 transition-colors">
-                    Business Listings
-                  </button>
-                </li>
-                <li>
-                  <button className="hover:text-sky-300 transition-colors">
-                    Help Center
-                  </button>
-                </li>
               </ul>
             </div>
 

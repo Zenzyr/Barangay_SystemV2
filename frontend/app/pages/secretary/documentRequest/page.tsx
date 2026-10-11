@@ -22,7 +22,6 @@ import StatusHistoryModal from "@/components/documentRequest/StatusHistoryModal"
 import WalkInRequestModal from "@/components/documentRequest/WalkInRequestModal";
 import RequestActionsMenu from "@/components/documentRequest/RequestActionsMenu";
 import UpdateStatusModal from "./components/updateStatusModal";
-import PaymentModal from "./components/paymentModal";
 import {
   STATUS_CONFIG,
   DOCUMENT_NAMES,
@@ -84,8 +83,6 @@ export default function SecretaryDocumentRequestsPage() {
   const [histModalOpen, setHistModalOpen] = useState(false);
   const [statusDoc, setStatusDoc] = useState<documentRequestInterface | null>(null);
   const [statusModalOpen, setStatusModalOpen] = useState(false);
-  const [paymentDoc, setPaymentDoc] = useState<documentRequestInterface | null>(null);
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
 
   // ── Fetch all non-archived requests (active + completed + rejected) ──
   const { data: documents, isLoading } = useQuery<documentRequestInterface[]>({
@@ -461,12 +458,14 @@ export default function SecretaryDocumentRequestsPage() {
                                 key: "preview",
                                 label: "Preview PDF",
                                 icon: Eye,
+                                disabled: !doc.isPaid && Number(doc.feeAtRequest ?? doc.price ?? 0) > 0,
                                 onClick: () => previewPDF(doc),
                               },
                               {
                                 key: "print",
                                 label: "Print Document",
                                 icon: Printer,
+                                disabled: !doc.isPaid && Number(doc.feeAtRequest ?? doc.price ?? 0) > 0,
                                 onClick: () => printPDF(doc),
                               },
                               {
@@ -474,12 +473,6 @@ export default function SecretaryDocumentRequestsPage() {
                                 label: "Update Status",
                                 icon: ArrowUpRight,
                                 onClick: () => { setStatusDoc(doc); setStatusModalOpen(true); },
-                              },
-                              {
-                                key: "payment",
-                                label: doc.isPaid ? "Manage Payment" : "Mark as Paid",
-                                icon: Receipt,
-                                onClick: () => { setPaymentDoc(doc); setPaymentModalOpen(true); },
                               },
                               {
                                 key: "edit",
@@ -521,7 +514,6 @@ export default function SecretaryDocumentRequestsPage() {
       <DeleteRequestModal open={deleteModalOpen} onOpenChange={setDeleteModalOpen} document={deleteDoc} />
       <StatusHistoryModal open={histModalOpen} onOpenChange={setHistModalOpen} document={histDoc} />
       <UpdateStatusModal open={statusModalOpen} onOpenChange={setStatusModalOpen} document={statusDoc} />
-      <PaymentModal open={paymentModalOpen} onOpenChange={setPaymentModalOpen} document={paymentDoc} />
     </div>
   );
 }

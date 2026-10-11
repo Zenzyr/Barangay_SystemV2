@@ -1,7 +1,7 @@
 import { TransactionItem } from "./transaction.type";
 import { WorkRequestItem } from "./work.type";
 
-export type ReportType = "documents" | "payments" | "work" | "collections";
+export type ReportType = "documents" | "payments" | "work" | "collections" | "census";
 
 export type CollectionPeriod = "daily" | "weekly" | "monthly";
 
@@ -16,6 +16,8 @@ export interface ReportFilters {
   kind?: string;
   search?: string;
   verificationStatus?: string;
+  purok?: string;
+  segment?: string;
 }
 
 interface ReportBase {
@@ -114,4 +116,38 @@ export interface CollectionReport extends ReportBase {
   rows: TransactionItem[];
 }
 
-export type ReportResponse = DocumentReport | PaymentReport | WorkReport | CollectionReport;
+export interface CensusReportRow {
+  _id: string;
+  name: string;
+  sex: string;
+  age: number | string;
+  occupation: string;
+  education: string;
+  purok: string;
+  householdNumber: string;
+  cellphone: string;
+  isSenior: string;
+  isPWD: string;
+  is4Ps: string;
+  soloParent: string;
+  recordedAt?: string | null;
+}
+
+export interface CensusReport extends ReportBase {
+  type: "census";
+  summary: {
+    total: number;
+    households: number;
+    male: number;
+    female: number;
+    seniors: number;
+    pwd: number;
+    fourPs: number;
+    soloParents: number;
+  };
+  byPurok: { purok: string; residents: number; households: number }[];
+  byEducation: { education: string; count: number }[];
+  rows: CensusReportRow[];
+}
+
+export type ReportResponse = DocumentReport | PaymentReport | WorkReport | CollectionReport | CensusReport;

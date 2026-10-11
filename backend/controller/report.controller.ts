@@ -13,8 +13,8 @@ export class ReportController {
   static generate = async (request: AuthRequest, response: Response) => {
     try {
       const type = String(request.query.type || "documents");
-      if (!["documents", "payments", "work", "collections"].includes(type)) {
-        response.status(400).json({ message: "Report type must be documents, payments, work, or collections" });
+      if (!["documents", "payments", "work", "collections", "census"].includes(type)) {
+        response.status(400).json({ message: "Report type must be documents, payments, work, collections, or census" });
         return;
       }
       const role = request.account?.role;
@@ -43,6 +43,22 @@ export class ReportController {
         const search = typeof request.query.search === "string" ? request.query.search.slice(0, 100) : undefined;
         const report = await ReportService.workRequests({ from, to, status: status || undefined, kind, search });
         response.send({ ...report, generatedAt, filters: { from, to, status: status || undefined, kind, search } });
+        return;
+      }
+
+      if (type === "census") {
+        const purok = typeof request.query.purok === "string" ? request.query.purok.slice(0, 100) || undefined : undefined;
+        const search = typeof request.query.search === "string" ? request.query.search.slice(0, 100) || undefined : undefined;
+        const segment = typeof request.query.segment === "string" ? request.query.segment.trim().slice(0, 200) || undefined : undefined;
+        const from = typeof request.query.from === "string" && DATE_RE.test(request.query.from) ? request.query.from : undefined;
+        const to = typeof request.query.to === "string" && DATE_RE.test(request.query.to) ? request.query.to : undefined;
+        const rangeError = validateDateRange({ from, to });
+        if (rangeError) {
+          response.status(400).json({ message: rangeError });
+          return;
+        }
+        const report = await ReportService.census({ from, to, purok, search, segment });
+        response.send({ ...report, generatedAt, filters: { from, to, purok, search, segment } });
         return;
       }
 

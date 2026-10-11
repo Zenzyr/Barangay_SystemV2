@@ -39,6 +39,7 @@ import {
   Search,
   Wallet,
   Coins,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -51,9 +52,19 @@ const REPORT_TYPES: { value: ReportType; label: string; title: string; icon: typ
   { value: "payments", label: "Payments & Revenue", title: "Payments & Revenue Report", icon: Wallet, dateLabel: "Payment date" },
   { value: "work", label: "Work Requests", title: "Work Requests Report", icon: Hammer, dateLabel: "Created date" },
   { value: "collections", label: "Collections", title: "Collection Report", icon: Coins, dateLabel: "Payment date" },
+  { value: "census", label: "Resident Census", title: "Resident Census Report", icon: Users, dateLabel: "Recorded" },
 ];
 
 const COLLECTION_PERIODS: CollectionPeriod[] = ["daily", "weekly", "monthly"];
+
+const CENSUS_SEGMENT_OPTIONS = [
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+  { value: "senior", label: "Senior Citizen" },
+  { value: "pwd", label: "PWD" },
+  { value: "fourPs", label: "4Ps Beneficiary" },
+  { value: "soloParent", label: "Solo Parent" },
+];
 
 const TONE_CLASS: Record<string, string> = {
   default: "text-gray-900",
@@ -66,6 +77,10 @@ const TONE_CLASS: Record<string, string> = {
 function defaultFilters(): ReportFilters {
   const now = new Date();
   return { from: toDateKey(new Date(now.getFullYear(), now.getMonth(), 1)), to: toDateKey(now) };
+}
+
+function initialFilters(type: ReportType): ReportFilters {
+  return type === "census" ? {} : defaultFilters();
 }
 
 function FilterSelect({ label, value, onChange, placeholder, options }: { label: string; value?: string; onChange: (v: string) => void; placeholder: string; options: { value: string; label: string }[] }) {
@@ -110,6 +125,14 @@ function filterLabels(type: ReportType, filters: ReportFilters) {
   if (filters.paymentMethod) out.push({ label: "Payment method", value: filters.paymentMethod === "online" ? "Online" : "Over-the-Counter" });
   if (filters.verificationStatus) out.push({ label: "Verification", value: PAYMENT_VERIFICATION_CONFIG[filters.verificationStatus]?.label || filters.verificationStatus });
   if (filters.kind) out.push({ label: "Work type", value: filters.kind === "booking" ? "Booking" : "Service Contract" });
+  if (filters.purok) out.push({ label: "Purok", value: filters.purok });
+  if (filters.segment) {
+    const labels = filters.segment
+      .split(",")
+      .map((s) => CENSUS_SEGMENT_OPTIONS.find((o) => o.value === s)?.label || s)
+      .join(", ");
+    if (labels) out.push({ label: "Segments", value: labels });
+  }
   if (filters.search) out.push({ label: "Search", value: `"${filters.search}"` });
   return out;
 }
@@ -127,9 +150,10 @@ export function ReportWorkspace({
   const role = useUserStore((s) => s.user?.role);
   const availableTypes = REPORT_TYPES.filter((t) => types.includes(t.value));
   const [type, setType] = useState<ReportType>(types[0]);
+  const isTransactionReport = type === "documents" || type === "payments" || type === "collections";
   const [collectionPeriod, setCollectionPeriod] = useState<CollectionPeriod>("daily");
-  const [draft, setDraft] = useState<ReportFilters>(defaultFilters);
-  const [applied, setApplied] = useState<ReportFilters>(defaultFilters);
+  const [draft, setDraft] = useState<ReportFilters>(() => initialFilters(types[0]));
+  const [applied, setApplied] = useState<ReportFilters>(() => initialFilters(types[0]));
   const [tableSearch, setTableSearch] = useState("");
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -141,6 +165,12 @@ export function ReportWorkspace({
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  const { data: censusPuroks = [] } = useQuery<{ name: string }[]>({
+    queryKey: ["active-puroks"],
+    queryFn: async () => (await axiosInstance.get("barangay/puroks?status=active")).data,
+    enabled: types.includes("census"),
+  });
 
   const rangeInvalid = !!(draft.from && draft.to && draft.from > draft.to);
 
@@ -184,7 +214,7 @@ export function ReportWorkspace({
 
   const changeType = (next: ReportType) => {
     setType(next);
-    const base = { from: draft.from, to: draft.to };
+    const base: ReportFilters = next === "census" ? {} : draft.from || draft.to ? { from: draft.from, to: draft.to } : defaultFilters();
     setDraft(base);
     setApplied(base);
     setTableSearch("");
@@ -193,6 +223,12 @@ export function ReportWorkspace({
   };
 
   const setDraftField = (key: keyof ReportFilters, value: string) => setDraft((d) => ({ ...d, [key]: value || undefined }));
+
+  const toggleSegment = (value: string) => {
+    const current = (draft.segment || "").split(",").filter(Boolean);
+    const next = current.includes(value) ? current.filter((s) => s !== value) : [...current, value];
+    setDraftField("segment", next.join(","));
+  };
 
   const generate = () => {
     if (rangeInvalid) return;
@@ -203,7 +239,7 @@ export function ReportWorkspace({
   };
 
   const reset = () => {
-    const base = defaultFilters();
+    const base = initialFilters(type);
     setDraft(base);
     setApplied(base);
     setTableSearch("");
@@ -308,10 +344,10 @@ export function ReportWorkspace({
             <label className="text-[11px] font-medium text-gray-500">{typeMeta.dateLabel} to</label>
             <Input type="date" value={draft.to || ""} min={draft.from || undefined} onChange={(e) => setDraftField("to", e.target.value)} className="h-9 border-gray-200" />
           </div>
-          {type !== "work" && (
+          {isTransactionReport && (
             <FilterSelect label="Document type" value={draft.document} onChange={(v) => setDraftField("document", v)} placeholder="All documents" options={[...DOCUMENT_OPTIONS]} />
           )}
-          {type !== "work" && (
+          {isTransactionReport && (
             <FilterSelect
               label="Request type"
               value={draft.source}
@@ -353,7 +389,7 @@ export function ReportWorkspace({
               ]}
             />
           )}
-          {type !== "work" && (
+          {isTransactionReport && (
             <FilterSelect
               label="Payment method"
               value={draft.paymentMethod}
@@ -380,8 +416,40 @@ export function ReportWorkspace({
               ]}
             />
           )}
+          {type === "census" && (
+            <FilterSelect
+              label="Purok"
+              value={draft.purok}
+              onChange={(v) => setDraftField("purok", v)}
+              placeholder="All puroks"
+              options={censusPuroks.map((p) => ({ value: p.name, label: p.name }))}
+            />
+          )}
+          {type === "census" && (
+            <div className="space-y-1 sm:col-span-2">
+              <label className="text-[11px] font-medium text-gray-500">Segment</label>
+              <div className="flex flex-wrap gap-1.5">
+                {CENSUS_SEGMENT_OPTIONS.map((seg) => {
+                  const active = (draft.segment || "").split(",").includes(seg.value);
+                  return (
+                    <button
+                      key={seg.value}
+                      type="button"
+                      onClick={() => toggleSegment(seg.value)}
+                      className={cn(
+                        "h-7 rounded-full border px-3 text-xs font-medium",
+                        active ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-600"
+                      )}
+                    >
+                      {seg.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div className="space-y-1">
-            <label className="text-[11px] font-medium text-gray-500">{type === "work" ? "Resident / provider / request" : type === "collections" ? "Resident / receipt / reference" : "Resident / receipt no."}</label>
+            <label className="text-[11px] font-medium text-gray-500">{type === "work" ? "Resident / provider / request" : type === "collections" ? "Resident / receipt / reference" : type === "census" ? "Name / household / cellphone" : "Resident / receipt no."}</label>
             <Input value={draft.search || ""} maxLength={100} onChange={(e) => setDraftField("search", e.target.value)} onKeyDown={(e) => e.key === "Enter" && generate()} placeholder="Optional" className="h-9 border-gray-200" />
           </div>
         </div>

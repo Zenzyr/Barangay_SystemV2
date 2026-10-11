@@ -1,4 +1,5 @@
 import DocumentRequestModel from "../model/documentRequest.model";
+import ResidentCensusModel from "../model/residentCensus.model";
 import {
   REPORT_TIMEZONE,
   TransactionFilters,
@@ -369,6 +370,126 @@ export class ReportService {
       rows: items.slice(0, REPORT_ROW_LIMIT),
       totalRows: items.length,
       truncated: items.length > REPORT_ROW_LIMIT,
+    };
+  }
+
+  static async census(filters: { from?: string; to?: string; purok?: string; search?: string; segment?: string }) {
+    const { from, to, purok, search, segment } = filters;
+    const baseMatch: Record<string, any> = { isArchived: { $ne: true } };
+    const match: Record<string, any> = {};
+    if (purok) match.purok = purok;
+    if (search) {
+      const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(escape(search), "i");
+      match.$or = [{ name: re }, { householdNumber: re }, { cellphone: re }];
+    }
+
+    const SEGMENT_CONDITIONS: Record<string, any> = {
+      male: { sex: { $regex: /^(m|male)$/i } },
+      female: { sex: { $regex: /^(f|female)$/i } },
+      senior: { isSenior: "YES" },
+      pwd: { isPWD: "YES" },
+      fourPs: { is4Ps: "YES" },
+      soloParent: { soloParent: "YES" },
+    };
+    const and: Record<string, any>[] = [];
+    for (const seg of String(segment || "").split(",")) {
+      const key = seg.trim();
+      if (SEGMENT_CONDITIONS[key]) and.push(SEGMENT_CONDITIONS[key]);
+    }
+    if (from || to) {
+      match._createdDay = {};
+      if (from) match._createdDay.$gte = from;
+      if (to) match._createdDay.$lte = to;
+    }
+    if (and.length) match.$and = and;
+
+    const [result] = await ResidentCensusModel.aggregate([
+      { $match: baseMatch },
+      {
+        $addFields: {
+          _createdDay: {
+            $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: REPORT_TIMEZONE },
+          },
+        },
+      },
+      { $match: match },
+      {
+        $facet: {
+          summary: [
+            {
+              $group: {
+                _id: null,
+                total: { $sum: 1 },
+                households: { $addToSet: { $ifNull: ["$householdNumber", "N/A"] } },
+                male: { $sum: { $cond: [{ $eq: [{ $toUpper: "$sex" }, "M"] }, 1, 0] } },
+                female: { $sum: { $cond: [{ $eq: [{ $toUpper: "$sex" }, "F"] }, 1, 0] } },
+                seniors: { $sum: { $cond: [{ $eq: ["$isSenior", "YES"] }, 1, 0] } },
+                pwd: { $sum: { $cond: [{ $eq: ["$isPWD", "YES"] }, 1, 0] } },
+                fourPs: { $sum: { $cond: [{ $eq: ["$is4Ps", "YES"] }, 1, 0] } },
+                soloParents: { $sum: { $cond: [{ $eq: ["$soloParent", "YES"] }, 1, 0] } },
+              },
+            },
+          ],
+          byPurok: [
+            {
+              $group: {
+                _id: { $ifNull: ["$purok", "N/A"] },
+                residents: { $sum: 1 },
+                households: { $addToSet: { $ifNull: ["$householdNumber", "N/A"] } },
+              },
+            },
+            { $sort: { _id: 1 } },
+          ],
+          byEducation: [
+            { $group: { _id: { $ifNull: ["$education", "N/A"] }, count: { $sum: 1 } } },
+            { $sort: { count: -1, _id: 1 } },
+          ],
+          rows: [{ $sort: { purok: 1, name: 1 } }, { $limit: REPORT_ROW_LIMIT }],
+        },
+      },
+    ]);
+
+    const s = result?.summary?.[0] ?? {};
+    const total = s.total ?? 0;
+    const notNa = (value: string) => value.toUpperCase() !== "N/A";
+
+    return {
+      type: "census" as const,
+      summary: {
+        total,
+        households: (s.households ?? []).filter(notNa).length,
+        male: s.male ?? 0,
+        female: s.female ?? 0,
+        seniors: s.seniors ?? 0,
+        pwd: s.pwd ?? 0,
+        fourPs: s.fourPs ?? 0,
+        soloParents: s.soloParents ?? 0,
+      },
+      byPurok: (result?.byPurok ?? []).map((b: any) => ({
+        purok: b._id,
+        residents: b.residents,
+        households: (b.households ?? []).filter(notNa).length,
+      })),
+      byEducation: (result?.byEducation ?? []).map((b: any) => ({ education: b._id, count: b.count })),
+      rows: (result?.rows ?? []).map((r: any) => ({
+        _id: String(r._id),
+        name: r.name,
+        sex: r.sex,
+        age: r.age,
+        occupation: r.occupation,
+        education: r.education,
+        purok: r.purok,
+        householdNumber: r.householdNumber,
+        cellphone: r.cellphone,
+        isSenior: r.isSenior,
+        isPWD: r.isPWD,
+        is4Ps: r.is4Ps,
+        soloParent: r.soloParent,
+        recordedAt: r._createdDay ?? null,
+      })),
+      totalRows: total,
+      truncated: total > REPORT_ROW_LIMIT,
     };
   }
 }

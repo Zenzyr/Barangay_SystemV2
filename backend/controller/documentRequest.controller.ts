@@ -9,7 +9,7 @@ import { sendNotification } from "../utils/sms";
 import { smsTemplates } from "../utils/smsTemplates";
 import { isObjectId } from "../utils/validation";
 import { convertDocxToPdf } from "../utils/docxToPdf";
-import { ROLES, isStaffRole } from "../utils/roles";
+import { ROLES, isOfficeRole, isStaffRole } from "../utils/roles";
 import { getPayMongoCheckoutDetails } from "../services/payment.service";
 import { AccountService } from "../services/acccount.service";
 import { ResidentCensusService } from "../services/residentCensus.service";
@@ -569,8 +569,8 @@ export class DocumentRequestController {
         response.status(401).send("Authentication required");
         return;
       }
-      if (!isStaffRole(account.role)) {
-        response.status(403).send("Only barangay staff can record over-the-counter payments");
+      if (!isOfficeRole(account.role)) {
+        response.status(403).send("Only barangay staff or the treasurer can record over-the-counter payments");
         return;
       }
       const current: any = await DocumentRequestService.get(id);

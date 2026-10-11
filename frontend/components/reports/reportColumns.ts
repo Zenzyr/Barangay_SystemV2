@@ -1,4 +1,4 @@
-import { CollectionPeriod, ReportResponse, ReportType } from "@/app/types/report.type";
+import { CollectionPeriod, ReportResponse, ReportType, CensusReportRow } from "@/app/types/report.type";
 import { TransactionItem } from "@/app/types/transaction.type";
 import { WorkRequestItem } from "@/app/types/work.type";
 import { STATUS_CONFIG } from "@/app/utils/documentRequestOptions";
@@ -12,7 +12,7 @@ import {
 import { WORK_KIND_LABELS, WORK_STATUS_CONFIG, formatScheduleDate } from "@/app/utils/workRequest";
 import { PAYMENT_VERIFICATION_CONFIG } from "@/lib/constants/status";
 
-export type ReportRow = TransactionItem | WorkRequestItem;
+export type ReportRow = TransactionItem | WorkRequestItem | CensusReportRow;
 
 export interface ReportColumn {
   key: string;
@@ -25,8 +25,18 @@ export interface ReportColumn {
 
 const tx = (row: ReportRow) => row as TransactionItem;
 const work = (row: ReportRow) => row as WorkRequestItem;
+const censusRow = (row: ReportRow) => row as CensusReportRow;
 const methodLabel = (m: TransactionItem["paymentMethod"]) => (m ? PAYMENT_METHOD_LABELS[m] : "—");
 const verificationLabel = (v: TransactionItem["verificationStatus"]) => (v ? PAYMENT_VERIFICATION_CONFIG[v]?.label || v : "—");
+const censusTags = (r: CensusReportRow) =>
+  [
+    r.isSenior === "YES" ? "Senior" : null,
+    r.isPWD === "YES" ? "PWD" : null,
+    r.is4Ps === "YES" ? "4Ps" : null,
+    r.soloParent === "YES" ? "Solo Parent" : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
 export const COLLECTION_PERIOD_LABELS: Record<CollectionPeriod, string> = {
   daily: "Daily Collection",
@@ -91,6 +101,18 @@ export const REPORT_COLUMNS: Record<ReportType, ReportColumn[]> = {
     },
     { key: "status", label: "Status", value: (r) => WORK_STATUS_CONFIG[work(r).status]?.label || work(r).status, width: "9%" },
   ],
+  census: [
+    { key: "name", label: "Name", value: (r) => censusRow(r).name, sortValue: (r) => censusRow(r).name, width: "18%" },
+    { key: "sex", label: "Sex", value: (r) => censusRow(r).sex, width: "4%" },
+    { key: "age", label: "Age", value: (r) => String(censusRow(r).age ?? "—"), sortValue: (r) => Number(censusRow(r).age) || 0, align: "right", width: "5%" },
+    { key: "occupation", label: "Occupation", value: (r) => censusRow(r).occupation || "—", width: "12%" },
+    { key: "education", label: "Education", value: (r) => censusRow(r).education || "—", width: "14%" },
+    { key: "purok", label: "Purok", value: (r) => censusRow(r).purok, sortValue: (r) => censusRow(r).purok, width: "9%" },
+    { key: "household", label: "Household", value: (r) => censusRow(r).householdNumber, width: "8%" },
+    { key: "cellphone", label: "Cellphone", value: (r) => censusRow(r).cellphone || "—", width: "11%" },
+    { key: "tags", label: "Vulnerable / Program", value: (r) => censusTags(censusRow(r)) || "—", width: "9%" },
+    { key: "recorded", label: "Recorded", value: (r) => censusRow(r).recordedAt || "—", sortValue: (r) => censusRow(r).recordedAt || "", width: "10%" },
+  ],
 };
 
 export interface SummaryStat {
@@ -137,6 +159,19 @@ export function summaryStats(report: ReportResponse): SummaryStat[] {
       { label: "Verified Transactions", value: String(s.verifiedCount), tone: "success" },
       { label: "Rejected Transactions", value: String(s.rejectedCount), hint: `${formatCurrency(s.rejectedAmount)} excluded`, tone: "danger" },
       { label: "Average Payment", value: formatCurrency(s.averageCollected) },
+    ];
+  }
+  if (report.type === "census") {
+    const s = report.summary;
+    return [
+      { label: "Total Residents", value: String(s.total) },
+      { label: "Households", value: String(s.households) },
+      { label: "Male", value: String(s.male), hint: `${s.total ? Math.round((s.male / s.total) * 100) : 0}%` },
+      { label: "Female", value: String(s.female), hint: `${s.total ? Math.round((s.female / s.total) * 100) : 0}%` },
+      { label: "Senior Citizens", value: String(s.seniors), tone: "warning" },
+      { label: "PWD", value: String(s.pwd), tone: "danger" },
+      { label: "4Ps Beneficiaries", value: String(s.fourPs), tone: "info" },
+      { label: "Solo Parents", value: String(s.soloParents), tone: "info" },
     ];
   }
   const s = report.summary;
@@ -209,6 +244,20 @@ export function breakdowns(report: ReportResponse, period: CollectionPeriod = "d
         title: "By Payment Channel",
         headers: ["Channel", "Payments", "Revenue"],
         rows: report.byChannel.map((c) => [formatChannel(c.channel), String(c.count), formatCurrency(c.revenue)]),
+      },
+    ];
+  }
+  if (report.type === "census") {
+    return [
+      {
+        title: "By Purok",
+        headers: ["Purok", "Residents", "Households"],
+        rows: report.byPurok.map((p) => [p.purok, String(p.residents), String(p.households)]),
+      },
+      {
+        title: "By Education",
+        headers: ["Education", "Residents"],
+        rows: report.byEducation.map((e) => [e.education, String(e.count)]),
       },
     ];
   }
