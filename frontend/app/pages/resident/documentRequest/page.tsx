@@ -7,12 +7,11 @@ import axiosInstance from "@/app/utils/axios";
 import useUserStore from "@/app/store/useUserStore";
 import { documentTypes } from "@/app/utils/documents";
 import { getPublicTemplates, fetchActiveTemplatePreviewPdf } from "@/app/utils/documentTemplateService";
-import { formatBusinessDate } from "@/app/utils/documentRequestOptions";
-import useDailyRequestStatus, { DAILY_REQUEST_STATUS_KEY } from "@/app/hooks/useDailyRequestStatus";
-import { documentRequestInterfaceInput, documentRequestInterface, DailyRequestStatus } from "@/app/types/documentRequest";
+import useDailyRequestStatus from "@/app/hooks/useDailyRequestStatus";
+import { documentRequestInterfaceInput, documentRequestInterface } from "@/app/types/documentRequest";
+import { accountInterface } from "@/app/types/account.type";
 import DuplicateRequestDialog from "@/components/documentRequest/DuplicateRequestDialog";
 import { DailyRequestStatusCard } from "@/components/documentRequest/DailyRequestStatusCard";
-import { DocumentCard } from "@/components/documentRequest/DocumentCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -57,7 +56,7 @@ interface FieldConfig {
 
 interface ApiError {
   response?: {
-    data?: { existing?: documentRequestInterface; message?: string; daily?: DailyRequestStatus };
+    data?: { existing?: documentRequestInterface; message?: string };
     status?: number;
   };
   message?: string;
@@ -377,6 +376,28 @@ const DOCUMENT_DESCRIPTIONS: Record<string, string> = {
   soloCertification: "Certification for solo parents with sole custody",
 };
 
+// ─── Resident profile → document fields ─────────────────────────
+const computeAge = (dateOfBirth?: string): string => {
+  if (!dateOfBirth) return "";
+  const dob = new Date(dateOfBirth);
+  if (isNaN(dob.getTime())) return "";
+  const now = new Date();
+  let age = now.getFullYear() - dob.getFullYear();
+  const m = now.getMonth() - dob.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age--;
+  return age > 0 ? String(age) : "";
+};
+
+const RESIDENT_DATA_FIELDS: Record<string, (user: accountInterface | null) => string> = {
+  fullName: (user) => user?.name || "",
+  contact: (user) => user?.contact || "",
+  address: (user) => user?.address || "",
+  dateOfBirth: (user) => user?.dateOfBirth || "",
+  civilStatus: (user) => user?.civilStatus || "",
+  age: (user) => computeAge(user?.dateOfBirth),
+  purok: (user) => user?.purok || "",
+};
+
 export default function DocumentRequestPage() {
   const queryClient = useQueryClient();
   const { user } = useUserStore();
@@ -390,7 +411,6 @@ export default function DocumentRequestPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
 
   const dailyStatus = useDailyRequestStatus();
-  const limitReached = !!dailyStatus.data?.limitReached;
 
   // Active templates → data-driven fees
   const { data: activeTemplates = [] } = useQuery({
@@ -435,17 +455,42 @@ export default function DocumentRequestPage() {
     return doc?.fields || [];
   }, [selectedDocument]);
 
+  // Fields that were auto-filled from the resident's profile
+  const autoFilledKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const key of Object.keys(RESIDENT_DATA_FIELDS)) {
+      const value = formData[key];
+      if (value !== undefined && value !== null && value !== "") keys.add(key);
+    }
+    return keys;
+  }, [formData]);
+
+  // Fields the resident still needs to type in (not from their profile)
+  const remainingManualFields = useMemo(
+    () => currentDocFields.filter((fk) => fk !== "dateIssued" && !autoFilledKeys.has(fk)),
+    [currentDocFields, autoFilledKeys],
+  );
+
+  // Read-only summary of auto-filled values on this document
+  const prefillSummary = useMemo(() => {
+    const keys = currentDocFields.filter((fk) => autoFilledKeys.has(fk));
+    if (autoFilledKeys.has("contact")) keys.push("contact");
+    return keys.map((fk) => ({
+      key: fk,
+      label: FIELD_CONFIGS[fk]?.label || "Contact Number",
+      value: String(formData[fk] ?? ""),
+    }));
+  }, [currentDocFields, autoFilledKeys, formData]);
+
   // ── Pre-fill from user data ───────────────────────────────────
   const handleSelectDocument = (doc: string) => {
-    if (limitReached) return;
+    const prefill: Record<string, string> = {};
+    for (const [key, getValue] of Object.entries(RESIDENT_DATA_FIELDS)) {
+      const value = getValue(user);
+      if (value) prefill[key] = value;
+    }
     setSelectedDocument(doc);
-    setFormData({
-      fullName: user?.name || "",
-      address: user?.address || "",
-      contact: user?.contact || "",
-      dateOfBirth: user?.dateOfBirth || "",
-      civilStatus: user?.civilStatus || "",
-    });
+    setFormData(prefill);
     setStep("form");
   };
 
@@ -529,16 +574,6 @@ export default function DocumentRequestPage() {
     },
     onError: (err: ApiError) => {
       const data = err?.response?.data;
-      if (err?.response?.status === 429) {
-        queryClient.invalidateQueries({ queryKey: DAILY_REQUEST_STATUS_KEY });
-        const next = data?.daily?.nextAvailableDate;
-        toast.error("Your document request limit for today has been reached.", {
-          description: next
-            ? `You can submit another request tomorrow, ${formatBusinessDate(next, data?.daily?.timeZone)}.`
-            : "You can submit another request tomorrow.",
-        });
-        return;
-      }
       if (err?.response?.status === 409 && data?.existing) {
         setDuplicateExisting(data.existing);
         setDuplicateOpen(true);
@@ -680,9 +715,7 @@ export default function DocumentRequestPage() {
                 <button
                   key={doc.document}
                   onClick={() => handleSelectDocument(doc.document)}
-                  disabled={limitReached}
-                  aria-disabled={limitReached}
-                  className="group relative bg-white rounded-2xl border border-slate-200 p-5 text-left hover:border-sky-300 hover:shadow-lg hover:shadow-sky-100/50 transition-all duration-200 hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-60"
+                  className="group relative bg-white rounded-2xl border border-slate-200 p-5 text-left hover:border-sky-300 hover:shadow-lg hover:shadow-sky-100/50 transition-all duration-200 hover:-translate-y-0.5"
                 >
                   {/* Hover glow */}
                   <div className="absolute inset-0 bg-gradient-to-br from-sky-50/50 to-emerald-50/30 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -750,18 +783,40 @@ export default function DocumentRequestPage() {
                 </div>
 
                 <div className="p-5 space-y-4">
+                  {prefillSummary.length > 0 && (
+                    <div className="rounded-xl border border-sky-100 bg-sky-50/60 p-4">
+                      <p className="text-xs font-semibold text-sky-700 flex items-center gap-1.5">
+                        <BadgeCheck className="size-3.5" />
+                        Taken from your profile
+                      </p>
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+                        {prefillSummary.map((item) => (
+                          <div key={item.key} className="flex items-baseline gap-1.5 min-w-0">
+                            <span className="text-xs text-slate-500 shrink-0">{item.label}:</span>
+                            <span className="text-xs font-medium text-slate-700 truncate">{item.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {currentDocFields.length > 0 ? (
-                    currentDocFields
-                      .filter((fk) => fk !== "dateIssued")
-                      .map((fieldKey) => renderField(fieldKey))
+                    remainingManualFields.length > 0 ? (
+                      remainingManualFields.map((fieldKey) => renderField(fieldKey))
+                    ) : (
+                      <div className="text-center py-6 text-slate-500 text-sm">
+                        <CheckCircle2 className="size-5 mx-auto mb-1.5 text-emerald-500" />
+                        All your details are already filled in. Just press Submit Request.
+                      </div>
+                    )
                   ) : (
                     <div className="text-center py-8 text-slate-400 text-sm">
                       No additional fields required for this document.
                     </div>
                   )}
 
-                  {/* Contact (always shown since user may need to update it) */}
-                  {!currentDocFields.includes("contact") && (
+                  {/* Contact (manual only when absent from profile) */}
+                  {!currentDocFields.includes("contact") && !autoFilledKeys.has("contact") && (
                     <div className="space-y-1.5">
                       <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
                         <UserRound className="size-3.5 text-sky-500" />
@@ -783,7 +838,7 @@ export default function DocumentRequestPage() {
               <div className="flex items-center gap-3">
                 <Button
                   onClick={() => submitMutation.mutate()}
-                  disabled={!isFormValid || submitMutation.isPending || limitReached}
+                  disabled={!isFormValid || submitMutation.isPending}
                   className="flex-1 h-10 bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-medium shadow-lg shadow-sky-200/50 hover:shadow-emerald-200/50 transition-all disabled:opacity-50"
                 >
                   {submitMutation.isPending ? (
@@ -850,7 +905,7 @@ export default function DocumentRequestPage() {
                     </div>
                     <div>
                       <p className="font-medium text-slate-800">
-                        {currentDocFields.length} field{currentDocFields.length !== 1 ? "s" : ""}
+                        {remainingManualFields.length} field{remainingManualFields.length !== 1 ? "s" : ""}
                       </p>
                       <p className="text-slate-400">To complete</p>
                     </div>

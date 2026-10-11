@@ -2,6 +2,7 @@ import { Response } from "express";
 import { AuthRequest } from "../types/request.type";
 import { WorkService } from "../services/work.service";
 import { WorkRequestService, WorkRequestKind } from "../services/workRequest.service";
+import { AccountService } from "../services/acccount.service";
 import { ScheduleError, WorkScheduleService } from "../services/workSchedule.service";
 import { AuditLogService } from "../services/auditLog.service";
 import { NotificationService } from "../services/notification.service";
@@ -82,7 +83,12 @@ export class WorkController {
         response.status(400).json({ message: "A valid date (YYYY-MM-DD) is required" });
         return;
       }
-      const availability = await WorkScheduleService.getAvailability(provider, date);
+      const workerAccount = await AccountService.get(provider);
+      const availability = await WorkScheduleService.getAvailability(
+        provider,
+        date,
+        workerAccount?.availability as "AVAILABLE" | "BUSY" | "NOT_AVAILABLE" | undefined
+      );
       response.send(availability);
     } catch (error) {
       if (sendScheduleError(response, error)) return;

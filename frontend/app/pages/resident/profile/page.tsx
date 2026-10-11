@@ -385,7 +385,7 @@ export default function ProfilePage() {
               <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
                 <Hash className="size-4 text-teal-500 mt-0.5 shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Household Number</p>
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Household ID</p>
                   <p className="text-sm text-gray-800">{profile.houseHoldNumber || "Not set"}</p>
                 </div>
               </div>

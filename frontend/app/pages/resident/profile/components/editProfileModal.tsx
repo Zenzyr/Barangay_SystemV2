@@ -292,7 +292,7 @@ export default function EditProfileModal({
 
               <div className="space-y-1.5">
                 <Label htmlFor="edit-houseHoldNumber" className="text-sm font-medium text-gray-700">
-                  Household Number
+                  Household ID
                 </Label>
                 <div className="relative">
                   <Hash className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />

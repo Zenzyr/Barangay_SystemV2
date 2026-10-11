@@ -113,12 +113,8 @@ export interface documentRequestInterface {
     paymentReference?: string;
 }
 export interface DailyRequestStatus {
-    limit: number;
     used: number;
-    remaining: number;
-    limitReached: boolean;
+    requestedDocuments: string[];
     date: string;
-    nextAvailableDate: string;
-    resetsAt: string;
     timeZone: string;
 }

@@ -170,7 +170,12 @@ export class WorkScheduleService {
     return toMinutes(startTime) <= toMinutes(localTimeString(now));
   }
 
-  static async getAvailability(providerId: string, date: string, now: Date = new Date()): Promise<DayAvailability> {
+  static async getAvailability(
+    providerId: string,
+    date: string,
+    availability: "AVAILABLE" | "BUSY" | "NOT_AVAILABLE" | undefined,
+    now: Date = new Date()
+  ): Promise<DayAvailability> {
     if (!isObjectId(providerId)) throw new ScheduleError("A valid provider is required");
     const config = await this.getConfig();
     const dateError = this.validateDate(date, config, now);
@@ -178,6 +183,16 @@ export class WorkScheduleService {
     if (dateError) {
       if (!parseLocalDate(String(date))) throw new ScheduleError(dateError);
       return { provider: providerId, date, open: false, closedReason: dateError, slots: [] };
+    }
+
+    if (availability === "NOT_AVAILABLE") {
+      return { provider: providerId, date, open: false, closedReason: "This worker is not accepting work requests", slots: [] };
+    }
+
+    // BUSY is system-managed (an active service contract). It only blocks
+    // same-day bookings — future dates are handled by the slot calendar.
+    if (availability === "BUSY" && date === localDateString(now)) {
+      return { provider: providerId, date, open: false, closedReason: "This worker is busy today. Please choose another date.", slots: [] };
     }
 
     const existing = await ScheduleSlotModel.find({ provider: providerId, date }).lean();

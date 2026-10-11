@@ -57,7 +57,8 @@ export default function DuplicateRequestDialog({ open, onOpenChange, document: e
 
           <div className="p-5 space-y-4">
             <p className="text-sm text-gray-600 leading-relaxed">
-              A request with the <strong>same resident, document type, date and time</strong> was already submitted.
+              A request for the <strong>same resident and document type</strong> was already submitted.
+              You can request other document types, but each type only once per day.
               Please review the existing request below or cancel this one.
             </p>
 

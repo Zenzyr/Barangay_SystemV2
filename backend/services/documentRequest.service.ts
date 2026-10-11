@@ -2,8 +2,6 @@ import DocumentRequestModel from "../model/documentRequest.model"
 import { documentRequestInterface, documentRequestInterfaceInput } from "../types/documentRequest";
 
 export const BUSINESS_TIME_ZONE = "Asia/Manila";
-export const BUSINESS_UTC_OFFSET = "+08:00";
-export const DAILY_DOCUMENT_REQUEST_LIMIT = 1;
 export const DAILY_LIMIT_EXCLUDED_STATUSES = ["cancelled", "rejected"];
 
 const businessParts = (now: Date): Record<string, string> => {
@@ -44,13 +42,9 @@ export const paymentSnapshot = (source: Record<string, any>): Record<string, unk
 };
 
 export interface DailyRequestStatus {
-  limit: number;
   used: number;
-  remaining: number;
-  limitReached: boolean;
+  requestedDocuments: string[];
   date: string;
-  nextAvailableDate: string;
-  resetsAt: string;
   timeZone: string;
 }
 
@@ -69,12 +63,6 @@ export class DocumentRequestService {
     };
   }
 
-  static nextBusinessDate(dateKey: string): string {
-    const [y, m, d] = dateKey.split("-").map(Number);
-    const next = new Date(Date.UTC(y, m - 1, d + 1));
-    return next.toISOString().slice(0, 10);
-  }
-
   static dailyLimitFilter(residentId: string, requestDate: string) {
     return {
       resident: residentId,
@@ -86,32 +74,38 @@ export class DocumentRequestService {
 
   static async getDailyStatus(residentId: string, now: Date = new Date()): Promise<DailyRequestStatus> {
     const { requestDate } = DocumentRequestService.getRequestStamp(now);
-    const used = await DocumentRequestModel.countDocuments(
+    const today = await DocumentRequestModel.find(
       DocumentRequestService.dailyLimitFilter(residentId, requestDate),
-    );
-    const tomorrow = DocumentRequestService.nextBusinessDate(requestDate);
-    const limitReached = used >= DAILY_DOCUMENT_REQUEST_LIMIT;
+    )
+      .select("document")
+      .lean();
+    const requestedDocuments = [...new Set(today.map((d: any) => d.document))];
     return {
-      limit: DAILY_DOCUMENT_REQUEST_LIMIT,
-      used,
-      remaining: Math.max(0, DAILY_DOCUMENT_REQUEST_LIMIT - used),
-      limitReached,
+      used: today.length,
+      requestedDocuments,
       date: requestDate,
-      nextAvailableDate: limitReached ? tomorrow : requestDate,
-      resetsAt: `${tomorrow}T00:00:00${BUSINESS_UTC_OFFSET}`,
       timeZone: BUSINESS_TIME_ZONE,
     };
   }
 
-  static async isWithinDailyLimit(residentId: string, requestDate: string, documentId: string): Promise<boolean> {
-    const earliest = await DocumentRequestModel.find(
-      DocumentRequestService.dailyLimitFilter(residentId, requestDate),
-    )
-      .sort({ _id: 1 })
-      .limit(DAILY_DOCUMENT_REQUEST_LIMIT)
-      .select("_id")
-      .lean();
-    return earliest.some((d) => String(d._id) === String(documentId));
+  /**
+   * One active request per document type per day: different document types
+   * may be requested on the same day, but the same type only once. Cancelled
+   * and rejected requests don't count, so a resident can re-request after one.
+   */
+  static async findExistingDocumentToday(
+    resident: string | null | undefined,
+    document: string,
+    requestDate: string,
+  ) {
+    const filter: Record<string, any> = {
+      document,
+      requestDate,
+      source: { $ne: "walk-in" },
+      status: { $nin: DAILY_LIMIT_EXCLUDED_STATUSES },
+    };
+    if (resident) filter.resident = resident;
+    return DocumentRequestModel.findOne(filter).populate("resident", "-password");
   }
 
   /**

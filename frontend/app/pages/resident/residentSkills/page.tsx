@@ -93,6 +93,13 @@ function AvailabilityBadge({ availability }: { availability?: Availability }) {
   );
 }
 
+const requestWorkLabel = (availability?: Availability) =>
+  availability === "BUSY"
+    ? "Book a Future Date"
+    : availability === "NOT_AVAILABLE"
+      ? "Currently Unavailable"
+      : "Request Work";
+
 // ─── Star Rating Display ──────────────────────────────────────────
 function StarRatingDisplay({ rating, total }: { rating: number; total: number }) {
   if (total === 0) {
@@ -451,11 +458,11 @@ export default function ResidentSkillsPage() {
               {user?._id !== profileResident._id && (
                 <Button
                   onClick={() => openWorkRequest(profileResident)}
-                  disabled={(profileResident.availability || "AVAILABLE") !== "AVAILABLE"}
+                  disabled={(profileResident.availability || "AVAILABLE") === "NOT_AVAILABLE"}
                   className="w-full mt-5 h-10 bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-medium disabled:opacity-50"
                 >
                   <Send className="size-4" />
-                  {(profileResident.availability || "AVAILABLE") === "AVAILABLE" ? "Request Work" : "Currently Unavailable"}
+                  {requestWorkLabel(profileResident.availability)}
                 </Button>
               )}
             </>
@@ -489,7 +496,7 @@ function ResidentCard({
 }) {
   const displaySkills = resident.skills?.slice(0, 2);
   const hasMoreSkills = (resident.skills?.length || 0) > 2;
-  const canRequest = (resident.availability || "AVAILABLE") === "AVAILABLE";
+  const canRequest = (resident.availability || "AVAILABLE") !== "NOT_AVAILABLE";
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md hover:border-sky-200 transition-all duration-200">
@@ -568,7 +575,7 @@ function ResidentCard({
               className="flex-1 h-9 text-xs bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <CalendarCheck className="size-3.5" />
-              {canRequest ? "Request Work" : AVAILABILITY_CONFIG[resident.availability || "AVAILABLE"].label}
+              {requestWorkLabel(resident.availability)}
             </Button>
           </div>
         )}

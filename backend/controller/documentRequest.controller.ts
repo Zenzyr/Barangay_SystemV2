@@ -1,6 +1,6 @@
 import { Response } from "express";
 import { AuthRequest } from "../types/request.type";
-import { DocumentRequestService, DailyRequestStatus } from "../services/documentRequest.service";
+import { DocumentRequestService } from "../services/documentRequest.service";
 import { AuditLogService } from "../services/auditLog.service";
 import { UserActivityService } from "../services/userActivity.service";
 import { NotificationService } from "../services/notification.service";
@@ -59,14 +59,6 @@ const STATUS_TRANSITIONS: Record<string, string[]> = {
   completed: ["released", "ready", "cancelled"],
   rejected: ["pending", "cancelled"],
 };
-
-// ... (other parts of the file remain the same, just keeping the imports correct)
-
-const dailyLimitPayload = (daily: DailyRequestStatus) => ({
-  message: "Your document request limit for today has been reached. You can submit another request tomorrow.",
-  error: "daily_limit_reached",
-  daily,
-});
 
 export class DocumentRequestController {
 
@@ -208,9 +200,18 @@ export class DocumentRequestController {
       documentData.requestTime = stamp.requestTime;
 
       if (!isStaff) {
-        const daily = await DocumentRequestService.getDailyStatus(account._id, requestedAt);
-        if (daily.limitReached) {
-          response.status(429).json(dailyLimitPayload(daily));
+        const todayDuplicate = await DocumentRequestService.findExistingDocumentToday(
+          documentData.resident,
+          documentData.document,
+          stamp.requestDate,
+        );
+        if (todayDuplicate) {
+          response.status(409).json({
+            message:
+              "You already requested this document today. You can request other document types, but each type only once per day.",
+            error: "duplicate_request",
+            existing: todayDuplicate,
+          });
           return;
         }
       }
@@ -233,16 +234,6 @@ export class DocumentRequestController {
       }
 
       const document = await DocumentRequestService.create(documentData);
-
-      if (!isStaff) {
-        const withinLimit = await DocumentRequestService.isWithinDailyLimit(account._id, stamp.requestDate, String(document._id));
-        if (!withinLimit) {
-          await DocumentRequestService.delete(String(document._id));
-          const daily = await DocumentRequestService.getDailyStatus(account._id, requestedAt);
-          response.status(429).json(dailyLimitPayload(daily));
-          return;
-        }
-      }
 
       await UserActivityService.create({
         accountId: account._id.toString(),

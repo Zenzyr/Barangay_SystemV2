@@ -1191,7 +1191,7 @@ export default function ResidentCensusPage() {
               <Input value={form.purok} onChange={(e) => setForm({ ...form, purok: e.target.value })} />
             </div>
             <div className="space-y-1.5">
-              <Label>Household Number</Label>
+              <Label>Household ID</Label>
               <Input
                 value={form.householdNumber}
                 onChange={(e) => setForm({ ...form, householdNumber: e.target.value })}
