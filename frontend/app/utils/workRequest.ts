@@ -21,6 +21,8 @@ export const WORK_KIND_LABELS: Record<WorkRequestKind, string> = {
 
 export const OPEN_WORK_STATUSES = ["pending", "active", "accepted", "to review"];
 
+export const CLIENT_RESCHEDULE_STATUSES = ["pending", "active", "accepted"];
+
 const pad = (n: number) => String(n).padStart(2, "0");
 
 export const toDateKey = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;

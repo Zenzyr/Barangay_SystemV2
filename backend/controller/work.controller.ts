@@ -7,6 +7,7 @@ import { ScheduleError, WorkScheduleService } from "../services/workSchedule.ser
 import { AuditLogService } from "../services/auditLog.service";
 import { NotificationService } from "../services/notification.service";
 import { isObjectId } from "../utils/validation";
+import { isStaffRole } from "../utils/roles";
 
 const WORK_STATUSES = ['pending', 'rejected', 'active', 'to review', 'completed', 'cancelled'];
 const LIST_STATUSES = ['pending', 'active', 'accepted', 'to review', 'completed', 'rejected', 'cancelled'];
@@ -119,9 +120,16 @@ export class WorkController {
       }
       const { scheduledDate, startTime } = request.body ?? {};
       const account = request.account;
-      const actor = account
-        ? { name: account.name || "Barangay staff", id: account._id.toString() }
-        : undefined;
+      if (!account) {
+        response.status(401).json({ message: "Authentication required" });
+        return;
+      }
+      const staff = isStaffRole(account.role);
+      const actor = {
+        name: account.name || (staff ? "Barangay staff" : "Resident"),
+        id: account._id.toString(),
+        asClient: !staff,
+      };
       const updated = await WorkRequestService.reschedule(kind, id, scheduledDate, startTime, actor);
       response.send(updated);
     } catch (error) {

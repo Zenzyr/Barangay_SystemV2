@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
 import { WorkRequestItem } from "@/app/types/work.type";
 import { apiErrorMessage } from "@/app/utils/transactionFormat";
-import { formatScheduleDate } from "@/app/utils/workRequest";
+import { formatScheduleDate, formatTime12h } from "@/app/utils/workRequest";
 import { successAlert } from "@/app/utils/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -35,6 +35,9 @@ export function RescheduleDialog({
     setError(null);
   }
 
+  const selectedSlot = config?.slots.find((s) => s.startTime === startTime);
+  const proposedLabel = selectedSlot ? `${formatTime12h(selectedSlot.startTime)} – ${formatTime12h(selectedSlot.endTime)}` : null;
+
   const mutation = useMutation({
     mutationFn: async () => {
       const res = await axiosInstance.patch(`/work/requests/${item?.kind}/${item?._id}/schedule`, { scheduledDate: date, startTime });
@@ -54,7 +57,7 @@ export function RescheduleDialog({
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(o) => !mutation.isPending && onOpenChange(o)}>
       <DialogContent className="sm:max-w-xl bg-white rounded-2xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base font-semibold text-gray-900">
@@ -62,7 +65,7 @@ export function RescheduleDialog({
             Reschedule Work Request
           </DialogTitle>
           <DialogDescription className="text-sm text-gray-500">
-            {item?.title} · {item?.provider?.name}. Both the resident and the provider will be notified.
+            {item?.title} · {item?.provider?.name}. The provider will be notified of the new schedule.
           </DialogDescription>
         </DialogHeader>
 
@@ -98,6 +101,12 @@ export function RescheduleDialog({
                 }}
               />
             </div>
+            {date && proposedLabel && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium uppercase tracking-wider text-gray-400">New schedule</p>
+                <ScheduleBlock item={{ scheduledDate: date, scheduleLabel: proposedLabel }} compact />
+              </div>
+            )}
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1 border-gray-200" onClick={() => onOpenChange(false)} disabled={mutation.isPending}>
                 Cancel

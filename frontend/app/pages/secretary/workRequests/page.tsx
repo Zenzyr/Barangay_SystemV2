@@ -5,15 +5,14 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
 import { WorkRequestItem } from "@/app/types/work.type";
 import { apiErrorMessage, formatDateTime } from "@/app/utils/transactionFormat";
-import { OPEN_WORK_STATUSES, WORK_STATUS_OPTIONS, formatScheduleDate } from "@/app/utils/workRequest";
+import { WORK_STATUS_OPTIONS, formatScheduleDate } from "@/app/utils/workRequest";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { WorkKindBadge, WorkStatusBadge } from "@/components/workRequest/WorkRequestCard";
-import { RescheduleDialog } from "@/components/workRequest/RescheduleDialog";
-import { CalendarClock, ChevronLeft, ChevronRight, FilterX, Hammer, Inbox, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, FilterX, Hammer, Inbox, Search } from "lucide-react";
 
 const ALL = "all";
 const PAGE_SIZE = 15;
@@ -26,7 +25,6 @@ export default function Page() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
-  const [reschedule, setReschedule] = useState<WorkRequestItem | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -153,12 +151,12 @@ export default function Page() {
           <Table>
             <TableHeader>
               <TableRow className="bg-slate-50/80">
-                {["Request", "Resident", "Provider", "Schedule", "Status", "Created", ""].map((h, i) => (
+                {["Request", "Resident", "Provider", "Schedule", "Status", "Created"].map((h) => (
                   <TableHead
-                    key={i}
-                    className={`text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50/80 ${h === "Provider" ? "hidden lg:table-cell" : ""} ${h === "Created" ? "hidden md:table-cell" : ""} ${h === "" ? "text-right" : ""}`}
+                    key={h}
+                    className={`text-[11px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50/80 ${h === "Provider" ? "hidden lg:table-cell" : ""} ${h === "Created" ? "hidden md:table-cell" : ""}`}
                   >
-                    {h || "Actions"}
+                    {h}
                   </TableHead>
                 ))}
               </TableRow>
@@ -167,18 +165,18 @@ export default function Page() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    {Array.from({ length: 7 }).map((__, j) => (
+                    {Array.from({ length: 6 }).map((__, j) => (
                       <TableCell key={j}><Skeleton className="h-4 w-full max-w-[120px]" /></TableCell>
                     ))}
                   </TableRow>
                 ))
               ) : isError ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-14 text-sm text-rose-600">{apiErrorMessage(error, "Failed to load work requests.")}</TableCell>
+                  <TableCell colSpan={6} className="text-center py-14 text-sm text-rose-600">{apiErrorMessage(error, "Failed to load work requests.")}</TableCell>
                 </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-16">
+                  <TableCell colSpan={6} className="text-center py-16">
                     <div className="flex flex-col items-center gap-2 text-gray-400">
                       <div className="size-12 rounded-full bg-slate-100 text-slate-300 flex items-center justify-center"><Inbox className="size-6" /></div>
                       <p className="text-sm font-medium">{hasFilters ? "No work requests match your filters" : "No work requests yet"}</p>
@@ -212,18 +210,6 @@ export default function Page() {
                     </TableCell>
                     <TableCell><WorkStatusBadge status={item.status} /></TableCell>
                     <TableCell className="hidden md:table-cell text-xs text-gray-500">{formatDateTime(item.createdAt)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={!OPEN_WORK_STATUSES.includes(item.status) || !item.provider}
-                        onClick={() => setReschedule(item)}
-                        className="h-8 text-xs gap-1.5 border-sky-200 text-sky-700 hover:bg-sky-50"
-                      >
-                        <CalendarClock className="size-3.5" />
-                        {item.scheduledDate ? "Reschedule" : "Schedule"}
-                      </Button>
-                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -241,8 +227,6 @@ export default function Page() {
           </div>
         )}
       </div>
-
-      <RescheduleDialog item={reschedule} onOpenChange={(o) => !o && setReschedule(null)} />
     </div>
   );
 }
