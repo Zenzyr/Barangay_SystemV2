@@ -119,12 +119,37 @@ export class AccountService {
     return await AccountModel.findOne({ contact: { $in: [contact, `639${contact.slice(1)}`] } });
   }
 
-  static async setResetCode(id: string, resetCodeHash: string, resetCodeExpires: Date) {
-    return await AccountModel.findByIdAndUpdate(id, { resetCodeHash, resetCodeExpires }, { new: true });
+  /** All accounts holding a phone number (both 09xx and 639xx formats). */
+  static async findAccountsByContact(contact : string) {
+    return await AccountModel.find({ contact: { $in: [contact, `639${contact.slice(1)}`] } });
+  }
+
+  static async setResetCode(
+    id: string,
+    resetCodeHash: string,
+    resetCodeExpires: Date,
+    resetCodeCooldownUntil: Date,
+  ) {
+    return await AccountModel.findByIdAndUpdate(id, {
+      $set: { resetCodeHash, resetCodeExpires, resetCodeCooldownUntil, resetAttempts: 0 },
+    }, { new: true });
+  }
+
+  static async incrementResetAttempt(id: string, attempts: number, blockedUntil?: Date) {
+    const update: Record<string, any> = { $set: { resetAttempts: attempts } };
+    if (blockedUntil) update.$set.resetBlockedUntil = blockedUntil;
+    return await AccountModel.findByIdAndUpdate(id, update, { new: true });
+  }
+
+  static async blockResetCode(id: string, blockedUntil: Date) {
+    return await AccountModel.findByIdAndUpdate(id, {
+      $set: { resetBlockedUntil: blockedUntil },
+      $unset: { resetCodeHash: "", resetCodeExpires: "" },
+    }, { new: true });
   }
 
   static async clearResetCode(id: string) {
-    return await AccountModel.findByIdAndUpdate(id, { $unset: { resetCodeHash: "", resetCodeExpires: "" } }, { new: true });
+    return await AccountModel.findByIdAndUpdate(id, { $unset: { resetCodeHash: "", resetCodeExpires: "", resetCodeCooldownUntil: "" } }, { new: true });
   }
 
   static async updatePassword(id: string, hashedPassword: string) {

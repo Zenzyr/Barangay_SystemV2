@@ -36,6 +36,9 @@ import {
   resetCodeEmailHtml,
   resetCodeSmsMessage,
   RESET_CODE_TTL_MINUTES,
+  RESET_CODE_MAX_ATTEMPTS,
+  RESET_CODE_BLOCK_MINUTES,
+  RESET_CODE_RESEND_COOLDOWN_SECONDS,
 } from "../utils/passwordReset";
 import { verifyIdWithOcr } from "../utils/idVerification";
 import {
@@ -74,6 +77,7 @@ import {
   isNonEmptyString,
   isObjectId,
   isPhilippineMobile,
+  maskPhMobile,
   normalizePhMobile,
   withinLength,
   householdNumberError,
@@ -2129,11 +2133,21 @@ export class AccountController {
       const prompt = `
       You are an AI assistant for the Barangay Information System.
 
+      LANGUAGE RULES (most important):
+      - Detect the language of the user's question and ALWAYS answer in that same language.
+      - If the question is written in Filipino/Tagalog or Taglish, reply in natural,
+        conversational Filipino/Tagalog (mixed English is fine if the user mixes).
+      - If the question is written in English, reply in English.
+      - Keep document names (e.g. "Barangay Certificate"), official titles, and any
+        names/figures from the provided data exactly as they appear, but explain
+        everything around them in the user's language.
+
       All resident information and all business information is provided. respond to user question based on the data provided.
 
-        If a question is unrelated to the system
-
-        "I'm here to assist with barangay-related questions, including information about barangay services, office hours, announcements, registered residents and their skills, and registered businesses. I can't answer questions outside of these topics."
+        If a question is unrelated to the system, reply with the message below in the SAME
+        language the user used:
+        - English: "I'm here to assist with barangay-related questions, including information about barangay services, office hours, announcements, registered residents and their skills, and registered businesses. I can't answer questions outside of these topics."
+        - Filipino/Tagalog: "Nandito ako upang tumulong sa mga tanong tungkol sa barangay, kasama ang impormasyon tungkol sa mga serbisyo at oras ng opisina, mga anunsyo, ang mga nakarehistrong residente at kanilang kasanayan, at ang mga nakarehistrong negosyo. Hindi ko masasagot ang mga tanong sa labas ng mga paksa na ito."
 
         Be friendly, concise, and accurate.
 
@@ -2591,7 +2605,19 @@ export class AccountController {
             );
           return;
         }
-        account = await AccountService.checkContactIfExist(mobile);
+        // A phone number is not unique, so it can only identify an account
+        // when exactly one account holds it. Otherwise we would silently bind
+        // the reset code to whichever account Mongo happens to return first.
+        const matches = await AccountService.findAccountsByContact(mobile);
+        if (matches.length > 1) {
+          response
+            .status(409)
+            .send(
+              `The number ${maskPhMobile(mobile)} is registered to more than one account. Please use your registered email instead.`,
+            );
+          return;
+        }
+        account = matches[0] ?? null;
       } else {
         if (!isEmail(email)) {
           response.status(400).send("A valid email address is required");
@@ -2611,14 +2637,45 @@ export class AccountController {
         return;
       }
 
+      // After too many failed attempts the account's reset flow is blocked for
+      // a while. Do NOT issue a new code and do NOT clear the block here —
+      // otherwise "Resend" would let an attacker reset the clock forever and
+      // bypass the brute-force lockout entirely. The generic response (rather
+      // than a 429) keeps the endpoint from leaking account existence.
+      if (
+        account.resetBlockedUntil &&
+        new Date() < new Date(account.resetBlockedUntil)
+      ) {
+        response.send({
+          message: "If that is registered, a reset code has been sent.",
+        });
+        return;
+      }
+
+      // Per-account resend cooldown: reuse the existing code instead of burning
+      // another paid SMS / email and invalidating the code the user just got.
+      if (
+        account.resetCodeCooldownUntil &&
+        new Date() < new Date(account.resetCodeCooldownUntil)
+      ) {
+        response.send({
+          message: "If that is registered, a reset code has been sent.",
+        });
+        return;
+      }
+
       const code = generateResetCode();
       const codeHash = await hashResetCode(code);
       const expires = new Date(Date.now() + RESET_CODE_TTL_MINUTES * 60 * 1000);
+      const cooldownUntil = new Date(
+        Date.now() + RESET_CODE_RESEND_COOLDOWN_SECONDS * 1000,
+      );
 
       await AccountService.setResetCode(
         account._id.toString(),
         codeHash,
         expires,
+        cooldownUntil,
       );
 
       if (delivery === "sms") {
@@ -2669,7 +2726,16 @@ export class AccountController {
             );
           return;
         }
-        account = await AccountService.checkContactIfExist(mobile);
+        const matches = await AccountService.findAccountsByContact(mobile);
+        if (matches.length > 1) {
+          response
+            .status(409)
+            .send(
+              `The number ${maskPhMobile(mobile)} is registered to more than one account. Please use your registered email instead.`,
+            );
+          return;
+        }
+        account = matches[0] ?? null;
       } else {
         if (!isEmail(email)) {
           response.status(400).send("Email and code are required");
@@ -2690,7 +2756,32 @@ export class AccountController {
         return;
       }
 
-      if (new Date() > account.resetCodeExpires) {
+      const now = new Date();
+
+      // Temporary hard block after repeated failures.
+      if (account.resetBlockedUntil && now < new Date(account.resetBlockedUntil)) {
+        const minutes = Math.ceil(
+          (new Date(account.resetBlockedUntil).getTime() - now.getTime()) / 60000
+        );
+        response.status(429).send(
+          `Too many failed attempts. Please try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`
+        );
+        return;
+      }
+
+      // Reached the attempt ceiling → lock the reset flow down.
+      if ((account.resetAttempts || 0) >= RESET_CODE_MAX_ATTEMPTS) {
+        const blockedUntil = new Date(
+          Date.now() + RESET_CODE_BLOCK_MINUTES * 60 * 1000
+        );
+        await AccountService.blockResetCode(account._id.toString(), blockedUntil);
+        response.status(429).send(
+          `Too many failed attempts. Please try again in ${RESET_CODE_BLOCK_MINUTES} minutes.`
+        );
+        return;
+      }
+
+      if (now > new Date(account.resetCodeExpires)) {
         response
           .status(400)
           .send("Code has expired. Please request a new one.");
@@ -2700,9 +2791,31 @@ export class AccountController {
       const isMatch = await compareResetCode(code, account.resetCodeHash);
 
       if (!isMatch) {
-        response.status(400).send("Invalid or expired code");
+        const attempts = (account.resetAttempts || 0) + 1;
+        let blockedUntil: Date | undefined;
+        if (attempts >= RESET_CODE_MAX_ATTEMPTS) {
+          blockedUntil = new Date(
+            Date.now() + RESET_CODE_BLOCK_MINUTES * 60 * 1000
+          );
+          await AccountService.blockResetCode(account._id.toString(), blockedUntil);
+          response.status(429).send(
+            `Incorrect verification code. Too many failed attempts — please try again in ${RESET_CODE_BLOCK_MINUTES} minutes.`
+          );
+          return;
+        }
+        await AccountService.incrementResetAttempt(
+          account._id.toString(),
+          attempts
+        );
+        response.status(400).send(
+          `Incorrect verification code. ${RESET_CODE_MAX_ATTEMPTS - attempts} attempt${RESET_CODE_MAX_ATTEMPTS - attempts === 1 ? "" : "s"} remaining.`
+        );
         return;
       }
+
+      // Single-use: invalidate the code now that it produced a reset token so
+      // a captured/leaked code cannot be replayed.
+      await AccountService.clearResetCode(account._id.toString());
 
       const resetToken = jwt.sign(
         { id: account._id, purpose: "password_reset" },

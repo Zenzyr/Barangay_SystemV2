@@ -72,6 +72,13 @@ export const normalizePhMobile = (value: unknown): string | null => {
   return null;
 };
 
+/** Masks a PH mobile number keeping only the last two digits (0917... -> *********17). */
+export const maskPhMobile = (value: unknown): string => {
+  const digits = String(value ?? "").replace(/[^\d]/g, "");
+  if (digits.length < 2) return digits || "*";
+  return `${"*".repeat(digits.length - 2)}${digits.slice(-2)}`;
+};
+
 // Names: letters, ñ, spaces, periods, hyphens, apostrophes
 export const isName = (value: unknown): value is string => {
   if (!isNonEmptyString(value)) return false;

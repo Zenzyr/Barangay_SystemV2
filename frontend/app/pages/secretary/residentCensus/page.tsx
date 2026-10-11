@@ -186,6 +186,15 @@ const EMPTY_FORM: Omit<ResidentCensusRecord, "_id"> = {
   cellphone: "",
 };
 
+// The account workflow reuses the census Sex field; map it to the gender
+// vocabulary the account schema expects.
+function sexToGender(sex: string): string {
+  const s = String(sex).toUpperCase();
+  if (s === "M") return "Male";
+  if (s === "F") return "Female";
+  return sex;
+}
+
 const isIsoDate = (value: string) =>
   /^\d{4}-\d{2}-\d{2}$/.test(value) && !isNaN(new Date(`${value}T00:00:00`).getTime());
 
@@ -536,16 +545,15 @@ export default function ResidentCensusPage() {
   const [editingOriginalCellphone, setEditingOriginalCellphone] = useState<string | null>(null);
 
   // Account-creation sub-section of the Add Resident modal (new records only).
+  // Sex and purok are NOT duplicated here — they are reused from the census form.
   const [createAccount, setCreateAccount] = useState(false);
   const [accountEmail, setAccountEmail] = useState("");
   const [accountPassword, setAccountPassword] = useState("");
   const [accountConfirmPassword, setAccountConfirmPassword] = useState("");
   const [showAccountPassword, setShowAccountPassword] = useState(false);
   const [accountAddress, setAccountAddress] = useState("");
-  const [accountGender, setAccountGender] = useState("");
   const [accountCivilStatus, setAccountCivilStatus] = useState("");
   const [accountVoterStatus, setAccountVoterStatus] = useState("");
-  const [accountPurok, setAccountPurok] = useState("");
 
   const { data: activePuroks = [] } = useQuery<{ name: string }[]>({
     queryKey: ["active-puroks"],
@@ -559,10 +567,8 @@ export default function ResidentCensusPage() {
     setAccountConfirmPassword("");
     setShowAccountPassword(false);
     setAccountAddress("");
-    setAccountGender("");
     setAccountCivilStatus("");
     setAccountVoterStatus("");
-    setAccountPurok("");
   };
   const [saving, setSaving] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -779,8 +785,8 @@ export default function ResidentCensusPage() {
         errorAlert("Address is required to create a login account");
         return;
       }
-      if (!accountGender) {
-        errorAlert("Gender is required to create a login account");
+      if (form.sex !== "M" && form.sex !== "F") {
+        errorAlert("Sex (M or F) is required to create a login account");
         return;
       }
       if (!accountCivilStatus) {
@@ -791,8 +797,8 @@ export default function ResidentCensusPage() {
         errorAlert("Voter status is required to create a login account");
         return;
       }
-      if (!accountPurok) {
-        errorAlert("Purok is required to create a login account");
+      if (!activePuroks.some((p) => p.name === form.purok.trim())) {
+        errorAlert("Purok must be one of the active puroks to create a login account");
         return;
       }
       if (!/^09\d{9}$/.test(form.cellphone.trim())) {
@@ -813,10 +819,10 @@ export default function ResidentCensusPage() {
           password: accountPassword,
           contact: form.cellphone.trim(),
           address: accountAddress.trim(),
-          gender: accountGender,
+          gender: sexToGender(form.sex),
           dateOfBirth: form.birthday,
           civilStatus: accountCivilStatus,
-          purok: accountPurok,
+          purok: form.purok.trim(),
           voterStatus: accountVoterStatus,
           houseHoldNumber: form.householdNumber.trim() || "N/A",
         });
@@ -1330,17 +1336,6 @@ export default function ResidentCensusPage() {
                     <Input value={accountAddress} onChange={(e) => setAccountAddress(e.target.value)} placeholder="Full address" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label>Gender</Label>
-                    <Select value={accountGender} onValueChange={setAccountGender}>
-                      <SelectTrigger className="w-full"><SelectValue placeholder="Select gender" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Male">Male</SelectItem>
-                        <SelectItem value="Female">Female</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
                     <Label>Civil Status</Label>
                     <Select value={accountCivilStatus} onValueChange={setAccountCivilStatus}>
                       <SelectTrigger className="w-full"><SelectValue placeholder="Select civil status" /></SelectTrigger>
@@ -1363,20 +1358,9 @@ export default function ResidentCensusPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label>Purok (account)</Label>
-                    <Select value={accountPurok} onValueChange={setAccountPurok}>
-                      <SelectTrigger className="w-full"><SelectValue placeholder="Select purok" /></SelectTrigger>
-                      <SelectContent>
-                        {activePuroks.map((p) => (
-                          <SelectItem key={p.name} value={p.name}>{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
                   <p className="text-xs text-gray-500 sm:col-span-2">
-                    The resident&apos;s full name, cellphone, birthday, and household number above are reused for the account.
-                    The cellphone must be a valid 11-digit number (e.g. 09171234567) for the account to be created.
+                    The resident&apos;s full name, sex, purok, cellphone, birthday, and household number above are reused for the account.
+                    The cellphone must be a valid 11-digit number (e.g. 09171234567), and the purok must be an active purok for the account to be created.
                   </p>
                 </div>
               )}

@@ -3,6 +3,9 @@ import crypto from "crypto";
 
 export const RESET_CODE_LENGTH = 6;
 export const RESET_CODE_TTL_MINUTES = 10;
+export const RESET_CODE_MAX_ATTEMPTS = 5;
+export const RESET_CODE_BLOCK_MINUTES = 15;
+export const RESET_CODE_RESEND_COOLDOWN_SECONDS = 60;
 
 export function generateResetCode(): string {
   let code = "";

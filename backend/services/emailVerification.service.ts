@@ -19,8 +19,8 @@ export class EmailVerificationService {
           otpExpiresAt,
           resendCooldownUntil,
           attempts: 0,
-          $unset: { blockedUntil: "" },
         },
+        $unset: { blockedUntil: "" },
       },
       { new: true, upsert: true }
     );

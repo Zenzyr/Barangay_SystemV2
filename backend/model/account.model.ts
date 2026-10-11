@@ -63,6 +63,13 @@ const AccountSchema = new Schema(
     emailVerifiedAt: { type: Date, required: false },
     resetCodeHash: { type: String, required: false },
     resetCodeExpires: { type: Date, required: false },
+    // Brute-force protection for the password-reset code: failed verify attempts
+    // per account, and a temporary lock once the ceiling is reached.
+    resetAttempts: { type: Number, required: false, default: 0 },
+    resetBlockedUntil: { type: Date, required: false },
+    // Resend throttle: no new code is issued within this window, so a spammer
+    // cannot burn SMS credits by hammering forgot-password.
+    resetCodeCooldownUntil: { type: Date, required: false },
 
     // ── ONE PERSON = ONE ACCOUNT ────────────────────────────────
     // identityHash is a deterministic fingerprint over (DOB, first, last)

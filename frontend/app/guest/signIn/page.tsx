@@ -87,6 +87,9 @@ function SignInContent() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
+  // Client-side resend guard for the reset code (mirrors the backend's 60s
+  // per-account cooldown so the user can't hammer Send/Resend).
+  const [resendSeconds, setResendSeconds] = useState(0);
 
   const applyLock = (ms: number | null) => {
     setLockedUntil(ms);
@@ -125,6 +128,14 @@ function SignInContent() {
     return () => clearInterval(interval);
   }, [lockedUntil]);
 
+  useEffect(() => {
+    if (resendSeconds <= 0) return;
+    const interval = setInterval(() => {
+      setResendSeconds((s) => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendSeconds]);
+
   const isLocked = remainingSeconds > 0;
 
   const openForgotPassword = () => {
@@ -136,6 +147,7 @@ function SignInContent() {
     setResetToken("");
     setNewPassword("");
     setConfirmNewPassword("");
+    setResendSeconds(0);
     setForgotOpen(true);
   };
 
@@ -159,8 +171,14 @@ function SignInContent() {
       });
       successAlert("Reset code sent");
       setForgotStep("code");
-    } catch {
-      errorAlert("Failed to send reset code. Please try again.");
+      setResendSeconds(60);
+    } catch (err) {
+      const message = (err as ApiError)?.response?.data;
+      errorAlert(
+        typeof message === "string" && message
+          ? message
+          : "Failed to send reset code. Please try again.",
+      );
     } finally {
       setForgotBusy(false);
     }
@@ -675,10 +693,12 @@ function SignInContent() {
               <button
                 type="button"
                 onClick={handleSendCode}
-                disabled={forgotBusy}
-                className="text-xs text-sky-600 hover:text-sky-700 text-center w-full mt-1"
+                disabled={forgotBusy || resendSeconds > 0}
+                className="text-xs text-sky-600 hover:text-sky-700 text-center w-full mt-1 disabled:text-gray-400 disabled:cursor-not-allowed"
               >
-                Didn&apos;t get a code? Resend
+                {resendSeconds > 0
+                  ? `Resend code in ${resendSeconds}s`
+                  : "Didn't get a code? Resend"}
               </button>
             </>
           )}

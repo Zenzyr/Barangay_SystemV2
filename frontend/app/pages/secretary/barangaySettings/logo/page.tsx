@@ -80,9 +80,6 @@ export default function Page() {
     { key: "municipality", label: "Municipality / City" },
     { key: "province", label: "Province" },
     { key: "region", label: "Region" },
-    { key: "address", label: "Address", full: true },
-    { key: "contactNumber", label: "Contact Number" },
-    { key: "email", label: "Email" },
   ];
 
   if (!isSuperAdmin) return null;
@@ -124,14 +121,6 @@ export default function Page() {
               <Input value={form[f.key]} onChange={(e) => set(f.key, e.target.value)} />
             </div>
           ))}
-          <div className="grid gap-2 sm:col-span-2">
-            <Label>Header Text</Label>
-            <Textarea value={form.headerText} onChange={(e) => set("headerText", e.target.value)} rows={2} />
-          </div>
-          <div className="grid gap-2 sm:col-span-2">
-            <Label>Footer Text</Label>
-            <Textarea value={form.footerText} onChange={(e) => set("footerText", e.target.value)} rows={2} />
-          </div>
         </div>
         <div className="flex justify-end">
           <Button onClick={saveInfo} disabled={saving}>

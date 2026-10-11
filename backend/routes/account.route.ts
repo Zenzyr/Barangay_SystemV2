@@ -6,6 +6,13 @@ import {
   uploadIdFrontBack,
 } from "../utils/upload";
 import { authenticateJWT, requireRoles } from "../middleware/auth";
+import {
+  forgotPasswordLimiter,
+  otpSendLimiter,
+  otpVerifyLimiter,
+  resetCodeVerifyLimiter,
+  resetPasswordLimiter,
+} from "../middleware/rateLimit";
 import { ROLES } from "../utils/roles";
 import { handler } from "../utils/handler";
 
@@ -23,9 +30,9 @@ route.post("/ai", authenticateJWT, handler(AccountController.aiChatBot));
 route.post("/ai-suggestion", ...staffOnly, handler(AccountController.aiSuggestions));
 // Pre-registration email-ownership flow. Public: the applicant has no
 // account yet. OTPs are hashed, expiring, attempt-limited and rate-limited.
-route.post("/send-email-otp", handler(AccountController.sendEmailOtp));
-route.post("/resend-email-otp", handler(AccountController.resendEmailOtp));
-route.post("/verify-email-otp", handler(AccountController.verifyEmailOtp));
+route.post("/send-email-otp", otpSendLimiter, handler(AccountController.sendEmailOtp));
+route.post("/resend-email-otp", otpSendLimiter, handler(AccountController.resendEmailOtp));
+route.post("/verify-email-otp", otpVerifyLimiter, handler(AccountController.verifyEmailOtp));
 // AI context is system configuration: staff may read it (decision support);
 // only super admin may edit it.
 route.get("/ai-context", ...staffOnly, handler(AccountController.getAiContext));
@@ -59,9 +66,9 @@ route.post(
 );
 route.post("/login", handler(AccountController.login));
 route.get("/login-status", handler(AccountController.loginStatus));
-route.post("/forgot-password", handler(AccountController.forgotPassword));
-route.post("/verify-reset-code", handler(AccountController.verifyResetCode));
-route.post("/reset-password", handler(AccountController.resetPassword));
+route.post("/forgot-password", forgotPasswordLimiter, handler(AccountController.forgotPassword));
+route.post("/verify-reset-code", resetCodeVerifyLimiter, handler(AccountController.verifyResetCode));
+route.post("/reset-password", resetPasswordLimiter, handler(AccountController.resetPassword));
 
 // Account listings and resident verification are operational staff actions.
 route.get("/", ...staffOnly, handler(AccountController.getAll));
