@@ -54,7 +54,7 @@ import { NotificationService } from "../services/notification.service";
 import { LoginAttemptService } from "../services/loginAttempt.service";
 import { LOGIN_MAX_ATTEMPTS, LOGIN_LOCK_MINUTES, loginLockedEmailHtml } from "../utils/loginSecurity";
 import { ResidentCensusService } from "../services/residentCensus.service";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { SystemInfoService } from "../services/systemInfo.service";
 
 import { WorkService } from "../services/work.service";
@@ -2126,19 +2126,18 @@ export class AccountController {
 
 
 
-      const genAI = new GoogleGenerativeAI(
-        process.env.CHATBOT_API_KEY ||
+      const ai = new GoogleGenAI({
+        apiKey:
+          process.env.CHATBOT_API_KEY ||
           process.env.GEMINI_API_KEY ||
           process.env.GOOGLE_API_KEY ||
           "",
-      );
-
-      const model = genAI.getGenerativeModel({
-        model:
-          (process.env.CHATBOT_MODEL as string) ||
-          (process.env.GEMINI_MODEL as string) ||
-          "gemini-3.6-flash",
       });
+
+      const modelName =
+        (process.env.CHATBOT_MODEL as string) ||
+        (process.env.GEMINI_MODEL as string) ||
+        "gemini-3.6-flash";
 
       const prompt = `
       You are an AI assistant for the Barangay Information System.
@@ -2174,8 +2173,11 @@ export class AccountController {
             ${input}
        `;
 
-      const result = await model.generateContent(prompt);
-      const aiReply = result.response.text();
+      const result = await ai.models.generateContent({
+        model: modelName,
+        contents: prompt,
+      });
+      const aiReply = result.text ?? "";
 
       response.send(aiReply);
     } catch (error) {
@@ -2192,19 +2194,18 @@ export class AccountController {
     try {
       const residentsInfo = await AccountService.getAccountsForAI();
 
-      const genAI = new GoogleGenerativeAI(
-        process.env.CHATBOT_API_KEY ||
+      const ai = new GoogleGenAI({
+        apiKey:
+          process.env.CHATBOT_API_KEY ||
           process.env.GEMINI_API_KEY ||
           process.env.GOOGLE_API_KEY ||
           "",
-      );
-
-      const model = genAI.getGenerativeModel({
-        model:
-          (process.env.CHATBOT_MODEL as string) ||
-          (process.env.GEMINI_MODEL as string) ||
-          "gemini-3.6-flash",
       });
+
+      const modelName =
+        (process.env.CHATBOT_MODEL as string) ||
+        (process.env.GEMINI_MODEL as string) ||
+        "gemini-3.6-flash";
 
       const prompt = `
        You are an AI advisor for a Philippine barangay.
@@ -2245,8 +2246,11 @@ export class AccountController {
               ${residentsInfo}
        `;
 
-      const result = await model.generateContent(prompt);
-      const aiReply = result.response.text();
+      const result = await ai.models.generateContent({
+        model: modelName,
+        contents: prompt,
+      });
+      const aiReply = result.text ?? "";
 
       response.send(aiReply);
     } catch (error) {

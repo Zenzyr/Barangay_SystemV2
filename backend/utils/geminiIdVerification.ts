@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { GoogleGenAI, Type } from "@google/genai";
 
 export type IdDocumentType = "national_id" | "voters_id";
 
@@ -67,47 +67,10 @@ export async function verifyIdDocumentWithGemini(params: {
     (process.env.ID_VERIFY_MODEL as string) ||
     (process.env.GEMINI_MODEL as string) ||
     "gemini-3.6-flash";
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel(
-    {
-      model: modelName,
-      generationConfig: {
-        temperature: 0,
-        maxOutputTokens: 4096,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: SchemaType.OBJECT,
-          properties: {
-            is_id: { type: SchemaType.BOOLEAN },
-            document_type: {
-              type: SchemaType.STRING,
-              format: "enum",
-              enum: ["national_id", "voters_id", "other", "unknown"],
-            },
-            matches_selected_type: { type: SchemaType.BOOLEAN },
-            front_valid: { type: SchemaType.BOOLEAN },
-            back_valid: { type: SchemaType.BOOLEAN },
-            front_back_match: { type: SchemaType.BOOLEAN },
-            readable: { type: SchemaType.BOOLEAN },
-            passed: { type: SchemaType.BOOLEAN },
-            reason: { type: SchemaType.STRING },
-          },
-          required: [
-            "is_id",
-            "document_type",
-            "matches_selected_type",
-            "front_valid",
-            "back_valid",
-            "front_back_match",
-            "readable",
-            "passed",
-            "reason",
-          ],
-        },
-      },
-    },
-    { apiVersion: process.env.GEMINI_API_VERSION || "v1beta" },
-  );
+  const ai = new GoogleGenAI({
+    apiKey,
+    apiVersion: process.env.GEMINI_API_VERSION || "v1beta",
+  });
 
   const prompt = `You are a document-type and image-consistency checker for a Philippine barangay (village) resident registration system.
 
@@ -133,19 +96,59 @@ Respond with ONLY the JSON object matching the required schema.`;
 
   let text: string;
   try {
-    const result = await model.generateContent([
-      { text: prompt },
-      {
-        inlineData: {
-          mimeType: params.frontMimeType,
-          data: params.frontBase64,
+    const result = await ai.models.generateContent({
+      model: modelName,
+      contents: [
+        { text: prompt },
+        {
+          inlineData: {
+            mimeType: params.frontMimeType,
+            data: params.frontBase64,
+          },
+        },
+        {
+          inlineData: {
+            mimeType: params.backMimeType,
+            data: params.backBase64,
+          },
+        },
+      ],
+      config: {
+        temperature: 0,
+        maxOutputTokens: 4096,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            is_id: { type: Type.BOOLEAN },
+            document_type: {
+              type: Type.STRING,
+              format: "enum",
+              enum: ["national_id", "voters_id", "other", "unknown"],
+            },
+            matches_selected_type: { type: Type.BOOLEAN },
+            front_valid: { type: Type.BOOLEAN },
+            back_valid: { type: Type.BOOLEAN },
+            front_back_match: { type: Type.BOOLEAN },
+            readable: { type: Type.BOOLEAN },
+            passed: { type: Type.BOOLEAN },
+            reason: { type: Type.STRING },
+          },
+          required: [
+            "is_id",
+            "document_type",
+            "matches_selected_type",
+            "front_valid",
+            "back_valid",
+            "front_back_match",
+            "readable",
+            "passed",
+            "reason",
+          ],
         },
       },
-      {
-        inlineData: { mimeType: params.backMimeType, data: params.backBase64 },
-      },
-    ]);
-    text = result.response.text();
+    });
+    text = result.text ?? "";
   } catch (error) {
     console.error(
       "[ID-VERIFY] Gemini request failed:",
