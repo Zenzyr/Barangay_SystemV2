@@ -16,6 +16,7 @@ import {
   MoreVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { withBarangayLocality } from "@/app/utils/residentAddress";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -440,7 +441,7 @@ function ResidentDialog({
                 >
                   <p className="font-medium text-slate-800">{r.name}</p>
                   <p className="text-xs text-slate-500">
-                    {r.address || "—"} · {r.contact || "no contact"}
+                    {withBarangayLocality(r.address) || "—"} · {r.contact || "no contact"}
                   </p>
                 </div>
               ))}

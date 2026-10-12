@@ -66,6 +66,22 @@ export function emailDomainError(value: unknown): string | null {
   return null;
 }
 
+export function passwordChangeOtpEmailHtml(email: string, code: string): string {
+  const safeEmail = String(email || "").replace(/[<>&]/g, "");
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; color: #1f2937;">
+      <h2 style="color: #0284c7;">Confirm Your Password Change</h2>
+      <p>Use the code below to confirm the password change for <strong>${safeEmail}</strong>.</p>
+      <div style="font-size: 32px; font-weight: bold; letter-spacing: 8px; background: #f0f9ff; color: #0369a1; text-align: center; padding: 16px; border-radius: 8px; margin: 24px 0;">
+        ${code}
+      </div>
+      <p>This code expires in ${EMAIL_OTP_TTL_MINUTES} minutes. Do not share it with anyone.</p>
+      <p>If you didn't request this, do NOT enter the code and consider changing your password.</p>
+      <p style="color: #6b7280; font-size: 12px; margin-top: 32px;">Barangay Information Management System</p>
+    </div>
+  `;
+}
+
 export function emailOtpEmailHtml(email: string, code: string): string {
   const safeEmail = String(email || "").replace(/[<>&]/g, "");
   return `

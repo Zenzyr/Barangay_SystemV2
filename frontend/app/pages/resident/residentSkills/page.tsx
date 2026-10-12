@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import axiosInstance from "@/app/utils/axios";
+import { withBarangayLocality } from "@/app/utils/residentAddress";
 import useUserStore from "@/app/store/useUserStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -407,7 +408,7 @@ export default function ResidentSkillsPage() {
               </div>
 
               <div className="mt-4 space-y-1.5 text-sm text-gray-500">
-                <div className="flex items-center gap-2"><MapPin className="size-4 text-gray-400" />{profileResident.providerLocation || profileResident.address}</div>
+                <div className="flex items-center gap-2"><MapPin className="size-4 text-gray-400" />{profileResident.providerLocation || withBarangayLocality(profileResident.address)}</div>
                 <div className="flex items-center gap-2"><Mail className="size-4 text-gray-400" />{profileResident.email}</div>
                 {profileResident.contact && <div className="flex items-center gap-2"><Phone className="size-4 text-gray-400" />{profileResident.contact}</div>}
               </div>
@@ -522,7 +523,7 @@ function ResidentCard({
         <div className="mt-3 flex items-center gap-3 text-xs text-gray-500">
           <div className="flex items-center gap-1 min-w-0">
             <MapPin className="size-3.5 text-gray-400 shrink-0" />
-            <span className="truncate">{resident.providerLocation || resident.address}</span>
+              <span className="truncate">{resident.providerLocation || withBarangayLocality(resident.address)}</span>
           </div>
           {(resident.completedServices || 0) > 0 && (
             <div className="flex items-center gap-1 shrink-0">

@@ -4,6 +4,7 @@ import AccountModel from "../model/account.model";
 import { BarangaySettingsService } from "./barangaySettings.service";
 import { DocumentRequestService, paymentSnapshot } from "./documentRequest.service";
 import { documentDisplayName } from "../utils/documentNames";
+import { withBarangayLocality } from "../utils/residentAddress";
 
 export const REPORT_TIMEZONE = process.env.TZ || "Asia/Manila";
 
@@ -367,7 +368,7 @@ export class TransactionService {
         processedBy,
         payer: {
           name: resident?.name || doc.fullName || "N/A",
-          address: resident?.address || doc.address || "",
+          address: withBarangayLocality(resident?.address || doc.address, info),
           contact: resident?.contact || doc.contact || "",
         },
         item: {
@@ -541,11 +542,13 @@ export class TransactionService {
       return match?.name || null;
     };
     const residentFull = doc._residentFull?.[0] ?? {};
+    const detailSettings = await BarangaySettingsService.get().catch(() => null);
+    const detailBarangay = ((detailSettings as any)?.barangay as any) || {};
 
     return {
       ...toTransactionItem(doc),
       residentContact: residentFull.contact || doc.contact || "",
-      residentAddress: residentFull.address || doc.address || "",
+      residentAddress: withBarangayLocality(residentFull.address || doc.address, detailBarangay),
       residentPurok: residentFull.purok || doc.purok || "",
       purpose: doc.purpose || null,
       documentNumber: doc.documentNumber || null,

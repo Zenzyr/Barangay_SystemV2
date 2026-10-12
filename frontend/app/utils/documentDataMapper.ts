@@ -1,6 +1,7 @@
 import { documentRequestInterface } from "@/app/types/documentRequest";
 import { barangaySettings } from "@/app/types/barangaySettings.type";
 import { formatDateParts } from "./documentFormat";
+import { withBarangayLocality } from "./residentAddress";
 
 export interface DocxTemplateRenderData {
   resident: { fullName: string; gender: string; civilStatus: string; purok: string; spouseName: string; annualIncome: string; };
@@ -46,7 +47,7 @@ export function buildDocumentData(doc: documentRequestInterface, settings?: bara
     sangguniangBarangay: { member0: stripHonorific(rosterByPosition["Barangay Kagawad"]?.[0] || ""), member1: stripHonorific(rosterByPosition["Barangay Kagawad"]?.[1] || ""), member2: stripHonorific(rosterByPosition["Barangay Kagawad"]?.[2] || ""), member3: stripHonorific(rosterByPosition["Barangay Kagawad"]?.[3] || ""), member4: stripHonorific(rosterByPosition["Barangay Kagawad"]?.[4] || ""), member5: stripHonorific(rosterByPosition["Barangay Kagawad"]?.[5] || ""), member6: stripHonorific(rosterByPosition["Barangay Kagawad"]?.[6] || "") },
     beneficiary: { name: doc.assistanceTo || "" },
     recipient: { name: mayor?.name || "", position: mayor?.position || "", location: "" },
-    applicant: { fullName: residentFullName(doc), age: doc.age || "", addressUpper: (doc.address || "").toUpperCase(), workStatus: doc.workStatus || "", workplace: doc.workplace || "", monthlyIncome: stripCurrencyPrefix(doc.monthlyIncome), expenseType: doc.expenseType || "", householdExpenses: stripCurrencyPrefix(doc.householdExpenses) },
+    applicant: { fullName: residentFullName(doc), age: doc.age || "", addressUpper: withBarangayLocality(doc.address, barangay).toUpperCase(), workStatus: doc.workStatus || "", workplace: doc.workplace || "", monthlyIncome: stripCurrencyPrefix(doc.monthlyIncome), expenseType: doc.expenseType || "", householdExpenses: stripCurrencyPrefix(doc.householdExpenses) },
     student: { name: doc.fullName || "", purok: doc.purok || "" },
     property: { titleNumber: doc.titleNo || "", taxDeclarationNo: doc.taxDeclarationNo || "", area: doc.landArea || "" },
     tree: { count: String(doc.treeCount || "0"), countWord: numberToWord(Number(doc.treeCount || "0")), type: doc.treeType || "" }

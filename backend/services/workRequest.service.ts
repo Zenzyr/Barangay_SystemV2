@@ -5,6 +5,7 @@ import { ScheduleError, WorkScheduleService, formatSlotLabel } from "./workSched
 import { NotificationService } from "./notification.service";
 import { AuditLogService } from "./auditLog.service";
 import { ContractService } from "./contract.service";
+import { withBarangayLocality } from "../utils/residentAddress";
 
 export type WorkRequestKind = "booking" | "service";
 
@@ -60,7 +61,7 @@ const party = (value: any): WorkRequestParty | null => {
     profile: value.profile || "",
     email: value.email || "",
     contact: value.contact || "",
-    address: value.address || "",
+    address: withBarangayLocality(value.address),
     purok: value.purok || "",
   };
 };
@@ -108,7 +109,7 @@ export const toWorkRequestViewFromWork = (doc: any): WorkRequestView => {
     client: party(doc.client),
     provider: party(doc.worker),
     ...scheduleOf(doc),
-    location: doc.client?.address || "",
+    location: withBarangayLocality(doc.client?.address),
     budget: null,
     notes: "",
     createdAt: createdAtOf(doc),

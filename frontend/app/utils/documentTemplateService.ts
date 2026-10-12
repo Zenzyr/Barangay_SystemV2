@@ -44,6 +44,7 @@ export interface DocumentTemplate {
   status: "active" | "inactive";
   isDefault: boolean;
   version: number;
+  requirements: string[];
   pendingFee?: number;
   pendingFeeProposedBy?: { _id: string; name: string; email: string } | string;
   pendingFeeProposedAt?: string;

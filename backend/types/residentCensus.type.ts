@@ -15,6 +15,9 @@ export interface residentCensusInterfaceInput {
   pensioner: string;
   isPWD: string;
   cellphone: string;
+  address: string;
+  civilStatus: string;
+  voterStatus: string;
 }
 
 export interface residentCensusInterface extends residentCensusInterfaceInput {

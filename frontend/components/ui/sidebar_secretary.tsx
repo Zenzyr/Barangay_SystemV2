@@ -16,6 +16,7 @@ import {
   ReceiptText,
   FileBarChart,
   Hammer,
+  UserCog,
 } from "lucide-react"
 import { NavItem, StaffSidebar } from "@/components/ui/sidebar_shared";
 
@@ -39,6 +40,7 @@ const navigationItems: NavItem[] = [
       { title: "Officials", url: "/pages/secretary/barangaySettings/officials", icon: Landmark },
       { title: "Puroks", url: "/pages/secretary/barangaySettings/puroks", icon: MapPin },
       { title: "Audit Trail", url: "/pages/secretary/barangaySettings/audit", icon: ScrollText },
+      { title: "Account Settings", url: "/pages/secretary/barangaySettings/account", icon: UserCog },
     ],
   },
 ]

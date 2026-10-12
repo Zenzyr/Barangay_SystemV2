@@ -24,10 +24,22 @@ function clean(value: unknown): string {
   return raw;
 }
 
+// A resident's location is identified by their purok (the street/area within
+// the barangay), so the stored address mirrors the purok. Callers append the
+// barangay locality when displaying or printing it.
+function censusAddress(purok: unknown, address: unknown): string {
+  const p = clean(purok);
+  if (p !== "N/A") return p;
+  return clean(address);
+}
+
 export class ResidentCensusService {
 
   static async create(data: residentCensusInterfaceInput) {
-    return await ResidentCensusModel.create(data);
+    return await ResidentCensusModel.create({
+      ...data,
+      address: censusAddress(data.purok, data.address),
+    });
   }
 
   /**
@@ -109,9 +121,12 @@ export class ResidentCensusService {
         hpnMaintenance: "N/A",
         pensioner: "N/A",
         isPWD: "N/A",
-        cellphone: normalizeCellphone(contact),
-        accountId: _id || undefined,
-      });
+          cellphone: normalizeCellphone(contact),
+          address: account.address || "N/A",
+          civilStatus: account.civilStatus || "N/A",
+          voterStatus: account.voterStatus || "N/A",
+          accountId: _id || undefined,
+        });
       created = true;
     }
 
@@ -171,6 +186,9 @@ export class ResidentCensusService {
     if (census.purok && census.purok !== "N/A") updates.purok = census.purok;
     if (census.householdNumber && census.householdNumber !== "N/A") updates.houseHoldNumber = census.householdNumber;
     if (census.cellphone && census.cellphone !== "N/A") updates.contact = census.cellphone;
+    if (census.address && census.address !== "N/A") updates.address = census.address;
+    if (census.civilStatus && census.civilStatus !== "N/A") updates.civilStatus = census.civilStatus;
+    if (census.voterStatus && census.voterStatus !== "N/A") updates.voterStatus = census.voterStatus;
     await AccountModel.updateOne({ _id: accountId }, { $set: updates }).catch(() => {});
     return accountId;
   }
@@ -197,6 +215,9 @@ export class ResidentCensusService {
     if (account.purok) updates.purok = account.purok;
     if (account.houseHoldNumber) updates.houseHoldNumber = account.houseHoldNumber;
     if (account.contact) updates.cellphone = account.contact;
+    if (account.address) updates.address = account.address;
+    if (account.civilStatus) updates.civilStatus = account.civilStatus;
+    if (account.voterStatus) updates.voterStatus = account.voterStatus;
     await ResidentCensusModel.updateOne({ _id: censusId }, { $set: updates }).catch(() => {});
     return censusId;
   }
@@ -263,6 +284,9 @@ export class ResidentCensusService {
           pensioner: normalizePensioner(raw.pensioner),
           isPWD: normalizeYesNoFlag(raw.isPWD ?? raw.pwd),
           cellphone,
+          address: censusAddress(raw.purok, raw.address ?? raw.street),
+          civilStatus: clean(raw.civilStatus ?? raw.civil),
+          voterStatus: clean(raw.voterStatus ?? raw.voter),
         });
         inserted++;
       } catch (err) {
@@ -284,7 +308,11 @@ export class ResidentCensusService {
   }
 
   static async update(id: string, data: Partial<residentCensusInterfaceInput>) {
-    return await ResidentCensusModel.findByIdAndUpdate(id, data, { new: true });
+    const patch: Record<string, any> = { ...data };
+    if (data.purok !== undefined) {
+      patch.address = censusAddress(data.purok, data.address);
+    }
+    return await ResidentCensusModel.findByIdAndUpdate(id, patch, { new: true });
   }
 
   /** Soft-delete: marks the record archived; the document and its account

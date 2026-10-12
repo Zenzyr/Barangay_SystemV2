@@ -19,9 +19,11 @@ import {
 } from "lucide-react";
 import HeroCarousel from "@/components/HeroCarousel";
 import { useState, useEffect } from "react";
+import { useBarangayLogo } from "@/app/hooks/useBarangayLogo";
 
 export default function Home() {
   const [scrolled, setScrolled] = useState(false);
+  const logoUrl = useBarangayLogo();
   const [stats, setStats] = useState({
     activeResidents: null,
     processedDocuments: null,
@@ -60,7 +62,7 @@ export default function Home() {
           <Link href="/" className="flex items-center gap-3 group">
             <div className="relative w-10 h-10 rounded-xl overflow-hidden ring-2 ring-sky-200/50 group-hover:ring-sky-400/60 transition-all duration-300">
               <Image
-                src="/assets/logo.jpg"
+                src={logoUrl}
                 alt="Barangay Logo"
                 fill
                 sizes="(max-width: 768px) 40px, 40px"
@@ -184,7 +186,7 @@ export default function Home() {
                 <div className="absolute inset-0 bg-gradient-to-br from-sky-300/30 to-emerald-300/30 rounded-full blur-3xl" />
                 <div className="relative w-full h-full rounded-3xl overflow-hidden ring-4 ring-white/60 shadow-2xl shadow-sky-200/30">
                   <Image
-                    src="/assets/logo.jpg"
+                    src={logoUrl}
                     alt="Barangay Rabon"
                     fill
                     sizes="(max-width: 768px) 320px, 384px"
@@ -442,7 +444,7 @@ export default function Home() {
               <div className="flex items-center gap-3">
                 <div className="relative w-9 h-9 rounded-lg overflow-hidden ring-2 ring-sky-500/30">
                   <Image
-                    src="/assets/logo.jpg"
+                    src={logoUrl}
                     alt="Barangay Logo"
                     fill
                     sizes="36px"

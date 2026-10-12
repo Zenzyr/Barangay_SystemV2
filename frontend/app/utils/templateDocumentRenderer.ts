@@ -5,6 +5,7 @@ import { getDocumentLayout } from "./documentLayouts";
 import { formatDateParts, formatFieldValue } from "./documentFormat";
 import { TemplateImage, TemplateRosterEntry, TemplateSignature, TemplateSpec } from "./templateSpecs";
 import { sanitizeImageUrl } from "./documentImageUrl";
+import { withBarangayLocality } from "./residentAddress";
 
 function stripHonorific(name: string): string {
   return name.replace(/^HON\.\s*/i, "").trim();
@@ -13,7 +14,8 @@ function stripHonorific(name: string): string {
 const DEFAULT_LOGO_URL = "/assets/logo.jpg";
 
 function fieldValue(doc: documentRequestInterface, key: string): unknown {
-  return (doc as unknown as Record<string, unknown>)[key];
+  const value = (doc as unknown as Record<string, unknown>)[key];
+  return key === "address" ? withBarangayLocality(value) : value;
 }
 
 function hexToRgb(hex: string) {

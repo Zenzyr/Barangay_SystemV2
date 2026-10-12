@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
+import { withBarangayLocality } from "@/app/utils/residentAddress";
 import useUserStore from "@/app/store/useUserStore";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -125,7 +126,6 @@ export default function ProfilePage() {
   const updateInfoMutation = useMutation({
     mutationFn: async (data: {
       nickname: string;
-      address: string;
       contact: string;
       gender: string;
       dateOfBirth: string;
@@ -340,13 +340,6 @@ export default function ProfilePage() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100 sm:col-span-2">
-                <MapPin className="size-4 text-emerald-500 mt-0.5 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Address</p>
-                  <p className="text-sm text-gray-800">{profile.address}</p>
-                </div>
-              </div>
               <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
                 <Users className="size-4 text-sky-500 mt-0.5 shrink-0" />
                 <div className="min-w-0">
@@ -372,7 +365,7 @@ export default function ProfilePage() {
                 <MapPin className="size-4 text-amber-500 mt-0.5 shrink-0" />
                 <div className="min-w-0">
                   <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Purok</p>
-                  <p className="text-sm text-gray-800">{profile.purok || "Not set"}</p>
+                  <p className="text-sm text-gray-800">{profile.purok ? withBarangayLocality(profile.purok) : "Not set"}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
@@ -552,7 +545,6 @@ export default function ProfilePage() {
         onOpenChange={setEditModalOpen}
         currentName={profile?.name || ""}
         currentNickname={profile?.nickname || ""}
-        currentAddress={profile?.address || ""}
         currentContact={profile?.contact || ""}
         currentGender={profile?.gender || ""}
         currentDateOfBirth={profile?.dateOfBirth || ""}

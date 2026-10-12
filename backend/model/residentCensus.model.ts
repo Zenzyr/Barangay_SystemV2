@@ -17,6 +17,9 @@ const ResidentCensusSchema = new Schema({
   pensioner: { type: String, required: true, default: "N/A" },
   isPWD: { type: String, required: true, default: "N/A" },
   cellphone: { type: String, required: true, default: "N/A" },
+  address: { type: String, required: true, default: "N/A" },
+  civilStatus: { type: String, required: true, default: "N/A" },
+  voterStatus: { type: String, required: true, default: "N/A" },
   // Link to the Accounts collection for census residents who also
   // registered an account online. Set automatically by upsertFromAccount.
   accountId: { type: Schema.Types.ObjectId, ref: "Accounts", required: false },

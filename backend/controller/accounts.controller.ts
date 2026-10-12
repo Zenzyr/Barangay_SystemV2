@@ -1,6 +1,6 @@
 import { PurokService } from "../services/purok.service";
 import { randomBytes } from "crypto";
-import { Response } from "express";
+import { Request, Response } from "express";
 import { AuthRequest } from "../types/request.type";
 import { accountInterfaceInput } from "../types/accounts.type";
 import { AccountService } from "../services/acccount.service";
@@ -12,7 +12,7 @@ import { detectImageFormat, bufferToImageDataUri } from "../utils/upload";
 import { UserActivityService } from "../services/userActivity.service";
 import { formattedDate } from "../utils/customFunc";
 import { sendNotification, sendSms } from "../utils/sms";
-import { smsTemplates } from "../utils/smsTemplates";
+import { smsVars } from "../utils/smsTemplates";
 import { sendEmail } from "../utils/email";
 import { EmailVerificationService } from "../services/emailVerification.service";
 import {
@@ -21,6 +21,7 @@ import {
   compareEmailOtp,
   emailDomainError,
   emailOtpEmailHtml,
+  passwordChangeOtpEmailHtml,
   EMAIL_OTP_TTL_MINUTES,
   EMAIL_OTP_MAX_ATTEMPTS,
   EMAIL_OTP_RESEND_COOLDOWN_SECONDS,
@@ -56,6 +57,7 @@ import { LOGIN_MAX_ATTEMPTS, LOGIN_LOCK_MINUTES, loginLockedEmailHtml } from "..
 import { ResidentCensusService } from "../services/residentCensus.service";
 import { GoogleGenAI } from "@google/genai";
 import { SystemInfoService } from "../services/systemInfo.service";
+import { AIContextService } from "../services/ai/aiContext.service";
 
 import { WorkService } from "../services/work.service";
 import { ScheduleError, WorkScheduleService, formatSlotLabel, localDateString } from "../services/workSchedule.service";
@@ -230,7 +232,6 @@ export class AccountController {
       const structuredName = hasNameParts(body) ? parseNameParts(body) : null;
       const nameParts = structuredName?.ok ? structuredName.parts : null;
       const name = structuredName?.ok ? structuredName.name : String(body.name || "").trim();
-      const address = String(body.address || "").trim();
       const contact = String(body.contact || "").trim();
       const password = String(body.password || "");
       const confirmPassword = String(body.confirmPassword || "");
@@ -238,6 +239,8 @@ export class AccountController {
       const dateOfBirth = String(body.dateOfBirth || "").trim();
       const civilStatus = String(body.civilStatus || "").trim();
       const purok = String(body.purok || "").trim();
+      // The resident's location is their purok, so the stored address mirrors it.
+      const address = purok;
       const voterStatus = String(body.voterStatus || "").trim();
       const houseHoldNumber = String(body.houseHoldNumber || "").trim();
       const idType = String(body.idType || "").trim();
@@ -288,7 +291,7 @@ export class AccountController {
           );
 
       if (!isNonEmptyString(address))
-        return response.status(400).send("Address is required");
+        return response.status(400).send("A valid purok is required");
       if (!withinLength(address, MAX_ADDRESS_LENGTH))
         return response
           .status(400)
@@ -305,7 +308,6 @@ export class AccountController {
       const requiredEnums: Record<string, readonly string[]> = {
         gender: ["Male", "Female", "Other"],
         civilStatus: ["Single", "Married", "Widowed", "Separated", "Divorced"],
-        purok: ["Purok 1", "Purok 2", "Purok 3", "Purok 4"],
         voterStatus: ["Registered", "Not Registered"],
         idType: ["national_id", "voters_id"],
       };
@@ -557,12 +559,13 @@ export class AccountController {
       const structuredName = hasNameParts(body) ? parseNameParts(body) : null;
       const nameParts = structuredName?.ok ? structuredName.parts : null;
       const name = structuredName?.ok ? structuredName.name : String(body.name || "").trim();
-      const address = String(body.address || "").trim();
       const contact = String(body.contact || "").trim();
       const gender = String(body.gender || "").trim();
       const dateOfBirth = String(body.dateOfBirth || "").trim();
       const civilStatus = String(body.civilStatus || "").trim();
       const purok = String(body.purok || "").trim();
+      // The resident's location is their purok, so the stored address mirrors it.
+      const address = purok;
       const voterStatus = String(body.voterStatus || "").trim();
       const houseHoldNumber = String(body.houseHoldNumber || "").trim();
       const password = String(body.password || "");
@@ -609,7 +612,7 @@ export class AccountController {
           );
 
       if (!isNonEmptyString(address))
-        return response.status(400).send("Address is required");
+        return response.status(400).send("A valid purok is required");
       if (!withinLength(address, MAX_ADDRESS_LENGTH))
         return response
           .status(400)
@@ -627,7 +630,6 @@ export class AccountController {
       const requiredEnums: Record<string, readonly string[]> = {
         gender: ["Male", "Female", "Other"],
         civilStatus: ["Single", "Married", "Widowed", "Separated", "Divorced"],
-        purok: ["Purok 1", "Purok 2", "Purok 3", "Purok 4"],
         voterStatus: ["Registered", "Not Registered"],
       };
       for (const [field, allowed] of Object.entries(requiredEnums)) {
@@ -1034,10 +1036,8 @@ export class AccountController {
       sendNotification(
         "status",
         updated.contact,
-        smsTemplates.accountStatus(
-          updated.name,
-          status as "approved" | "rejected",
-        ),
+        status === "approved" ? "accountApproved" : "accountRejected",
+        smsVars({ name: updated.name }),
       );
 
       await AuditLogService.create({
@@ -1571,7 +1571,6 @@ export class AccountController {
       const {
         name,
         nickname,
-        address,
         contact,
         gender,
         dateOfBirth,
@@ -1595,7 +1594,6 @@ export class AccountController {
         !nameFieldsProvided &&
         !name &&
         !nickname &&
-        !address &&
         !contact &&
         !gender &&
         !dateOfBirth &&
@@ -1688,12 +1686,15 @@ export class AccountController {
         }
       }
       if (nickname !== undefined) updateData.nickname = nickname;
-      if (address) updateData.address = address;
       if (contact) updateData.contact = contact;
       if (gender) updateData.gender = gender;
       if (dateOfBirth) updateData.dateOfBirth = dateOfBirth;
       if (civilStatus) updateData.civilStatus = civilStatus;
-      if (purok) updateData.purok = purok;
+      // The resident's location is their purok, so the stored address mirrors it.
+      if (purok) {
+        updateData.purok = purok;
+        updateData.address = purok;
+      }
       if (voterStatus) updateData.voterStatus = voterStatus;
       if (houseHoldNumber) updateData.houseHoldNumber = houseHoldNumber;
 
@@ -1743,17 +1744,110 @@ export class AccountController {
     }
   };
 
+  /**
+   * Emails a 6-digit code to the account OWNER's registered address. The code
+   * must be supplied to changePassword, so a leaked session or password alone
+   * cannot silently change the password.
+   */
+  static sendPasswordOtp = async (request: AuthRequest, response: Response) => {
+    try {
+      const { id } = request.params;
+      if (!isObjectId(id)) {
+        response.status(400).send("Invalid account id");
+        return;
+      }
+      if (request.account?._id !== id) {
+        response.status(403).send("You can only change your own password");
+        return;
+      }
+
+      const account = await AccountService.get(id);
+      if (!account) {
+        response.status(404).send("Account not found");
+        return;
+      }
+
+      const email = String(account.email || "").trim().toLowerCase();
+      if (!email) {
+        response.status(400).send("This account has no email address on file");
+        return;
+      }
+
+      const now = Date.now();
+      const record = await EmailVerificationService.getByEmail(email);
+      if (record?.blockedUntil && now < new Date(record.blockedUntil).getTime()) {
+        const minutes = Math.ceil(
+          (new Date(record.blockedUntil).getTime() - now) / 60000
+        );
+        response.status(429).send(
+          `Too many failed attempts. Please try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`
+        );
+        return;
+      }
+      if (record?.resendCooldownUntil && now < new Date(record.resendCooldownUntil).getTime()) {
+        const seconds = Math.max(
+          1,
+          Math.ceil((new Date(record.resendCooldownUntil).getTime() - now) / 1000)
+        );
+        response.status(429).send(
+          `A verification code was just sent. Please wait ${seconds} second${seconds === 1 ? "" : "s"} before requesting another.`
+        );
+        return;
+      }
+
+      const code = generateEmailOtp();
+      const codeHash = await hashEmailOtp(code);
+      const expiresAt = new Date(now + EMAIL_OTP_TTL_MINUTES * 60 * 1000);
+      const cooldownUntil = new Date(now + EMAIL_OTP_RESEND_COOLDOWN_SECONDS * 1000);
+      await EmailVerificationService.upsertOtp(email, codeHash, expiresAt, cooldownUntil);
+
+      const sent = await sendEmail(
+        email,
+        "Confirm Your Password Change",
+        passwordChangeOtpEmailHtml(email, code)
+      );
+      if (!sent) {
+        console.error("[PASSWORD-OTP] Delivery failed for", email);
+        response
+          .status(500)
+          .send("We could not send the verification email right now. Please try again later.");
+        return;
+      }
+
+      response.send({
+        message: "A verification code has been sent to your email.",
+        resendCooldownSeconds: EMAIL_OTP_RESEND_COOLDOWN_SECONDS,
+      });
+    } catch (error) {
+      console.error("[PASSWORD-OTP ERROR]", error);
+      response.status(500).send("Could not send the verification code");
+    }
+  };
+
   static changePassword = async (request: AuthRequest, response: Response) => {
     try {
       const { id } = request.params;
-      const { oldPassword, newPassword } = request.body;
+      const { oldPassword, newPassword, otp } = request.body;
 
       if (!isObjectId(id)) {
         response.status(400).send("Invalid account id");
         return;
       }
+      // Only the account owner may change their own password — never another
+      // account, even for staff.
+      if (request.account?._id !== id) {
+        response.status(403).send("You can only change your own password");
+        return;
+      }
       if (!oldPassword || !newPassword) {
         response.status(400).send("Old password and new password are required");
+        return;
+      }
+      // Office accounts (secretary, treasurer, super admin) are privileged, so
+      // they must confirm their password change with an emailed one-time code.
+      const requireOtp = isOfficeRole(request.account?.role);
+      if (requireOtp && (typeof otp !== "string" || !otp.trim())) {
+        response.status(400).send("The email verification code is required");
         return;
       }
 
@@ -1773,6 +1867,54 @@ export class AccountController {
       if (!isMatch) {
         response.status(400).send("Old password is incorrect");
         return;
+      }
+
+      // A super admin must also prove control of the registered inbox: a
+      // valid, non-expired, non-blocked OTP must accompany the change.
+      if (requireOtp) {
+        const email = String(account.email || "").trim().toLowerCase();
+        const record = email ? await EmailVerificationService.getByEmail(email) : null;
+        if (!record || !record.otpHash || !record.otpExpiresAt) {
+          response.status(400).send("Request a verification code first");
+          return;
+        }
+        const now = Date.now();
+        if (record.blockedUntil && now < new Date(record.blockedUntil).getTime()) {
+          const minutes = Math.ceil(
+            (new Date(record.blockedUntil).getTime() - now) / 60000
+          );
+          response.status(429).send(
+            `Too many failed attempts. Please try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`
+          );
+          return;
+        }
+        if (now > new Date(record.otpExpiresAt).getTime()) {
+          response.status(400).send("The verification code has expired. Please request a new one.");
+          return;
+        }
+
+        const otpMatch = await compareEmailOtp(otp.trim(), record.otpHash);
+        if (!otpMatch) {
+          const attempts = (record.attempts || 0) + 1;
+          if (attempts >= EMAIL_OTP_MAX_ATTEMPTS) {
+            await EmailVerificationService.blockEmail(
+              email,
+              new Date(now + EMAIL_OTP_BLOCK_MINUTES * 60 * 1000)
+            );
+            response.status(429).send(
+              `Incorrect verification code. Too many failed attempts — please try again in ${EMAIL_OTP_BLOCK_MINUTES} minutes.`
+            );
+          } else {
+            await EmailVerificationService.incrementAttempt(email, attempts);
+            response.status(400).send(
+              `Incorrect verification code. ${EMAIL_OTP_MAX_ATTEMPTS - attempts} attempt${EMAIL_OTP_MAX_ATTEMPTS - attempts === 1 ? "" : "s"} remaining.`
+            );
+          }
+          return;
+        }
+
+        // Consume the one-time code before applying the change.
+        await EmailVerificationService.markVerified(email);
       }
 
       const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -2116,12 +2258,36 @@ export class AccountController {
     }
   };
 
-  static aiChatBot = async (request: AuthRequest, response: Response) => {
-    try {
-      const { input, convo } = request.body;
+  /**
+   * Shared Gemini call for the resident chatbot and the public guest chatbot.
+   * The caller decides which grounding/resident data is safe to expose.
+   */
+  private static generateAiReply = async ({
+    grounding,
+    residentsInfo,
+    input,
+    convo,
+  }: {
+    grounding: string;
+    residentsInfo: string;
+    input: unknown;
+    convo: unknown;
+  }): Promise<string> => {
+    const genAI = new GoogleGenerativeAI(
+      process.env.CHATBOT_API_KEY ||
+        process.env.GEMINI_API_KEY ||
+        process.env.GOOGLE_API_KEY ||
+        "",
+    );
 
-      const systeminfo = await SystemInfoService.getFirst();
+    const model = genAI.getGenerativeModel({
+      model:
+        (process.env.CHATBOT_MODEL as string) ||
+        (process.env.GEMINI_MODEL as string) ||
+        "gemini-3.6-flash",
+    });
 
+<<<<<<< HEAD
       const residentsInfo = await AccountService.getAccountsForAI();
 
 
@@ -2140,6 +2306,9 @@ export class AccountController {
         "gemini-3.6-flash";
 
       const prompt = `
+=======
+    const prompt = `
+>>>>>>> 4a857e5 (Update barangay system features)
       You are an AI assistant for the Barangay Information System.
 
       LANGUAGE RULES (most important):
@@ -2151,19 +2320,36 @@ export class AccountController {
         names/figures from the provided data exactly as they appear, but explain
         everything around them in the user's language.
 
-      All resident information and all business information is provided. respond to user question based on the data provided.
+      GROUNDING RULES (critical for accuracy):
+      - Answer ONLY using the BARANGAY DATA and RESIDENT DATA blocks below.
+      - NEVER invent or guess office hours, service hours, fees, requirements,
+        processing times, officials, or contact details.
+      - If the answer is NOT found in the data below, say you do not have that
+        information and advise the resident to contact or verify with the barangay
+        office. Do not make anything up.
+      - Document names and fees MUST match the data exactly. Do not add fees or
+        documents that are not listed.
+      - For the requirements of a document, use ONLY the "requirements" list shown
+        for that document. If that list is empty, say no specific requirements are
+        listed and to confirm with the barangay office — never invent requirements.
+      - If the data below is empty for a topic, treat it as unknown (not as "none").
+      - When asked how to get/request a document or what the steps are, ALWAYS say
+        there are two ways — WALK-IN at the barangay hall OR ONLINE through the
+        resident dashboard — and briefly describe both. Never require a valid ID
+        or other document unless it is explicitly listed in the data below.
 
+      OFF-TOPIC RULE:
         If a question is unrelated to the system, reply with the message below in the SAME
         language the user used:
-        - English: "I'm here to assist with barangay-related questions, including information about barangay services, office hours, announcements, registered residents and their skills, and registered businesses. I can't answer questions outside of these topics."
-        - Filipino/Tagalog: "Nandito ako upang tumulong sa mga tanong tungkol sa barangay, kasama ang impormasyon tungkol sa mga serbisyo at oras ng opisina, mga anunsyo, ang mga nakarehistrong residente at kanilang kasanayan, at ang mga nakarehistrong negosyo. Hindi ko masasagot ang mga tanong sa labas ng mga paksa na ito."
+        - English: "I'm here to assist with barangay-related questions, including information about barangay services, office hours, registered residents and their skills, and registered businesses. I can't answer questions outside of these topics."
+        - Filipino/Tagalog: "Nandito ako upang tumulong sa mga tanong tungkol sa barangay, kasama ang impormasyon tungkol sa mga serbisyo at oras ng opisina, ang mga nakarehistrong residente at kanilang kasanayan, at ang mga nakarehistrong negosyo. Hindi ko masasagot ang mga tanong sa labas ng mga paksa na ito."
 
         Be friendly, concise, and accurate.
 
-            barangayInfo: (information about barangay)
-            ${systeminfo}
+            BARANGAY DATA (authoritative — office hours, fees, officials, announcements, services):
+            ${grounding}
 
-            residentsInfo (information about resident)
+            RESIDENT DATA (registered residents and their skills):
             ${residentsInfo}
 
             Previous Conversation:
@@ -2173,11 +2359,61 @@ export class AccountController {
             ${input}
        `;
 
+<<<<<<< HEAD
       const result = await ai.models.generateContent({
         model: modelName,
         contents: prompt,
       });
       const aiReply = result.text ?? "";
+=======
+    const result = await model.generateContent(prompt);
+    return result.response.text();
+  };
+
+  static aiChatBot = async (request: AuthRequest, response: Response) => {
+    try {
+      const { input, convo } = request.body;
+
+      const [grounding, residentsInfo] = await Promise.all([
+        AIContextService.build(),
+        AccountService.getAccountsForAI(),
+      ]);
+
+      const aiReply = await AccountController.generateAiReply({
+        grounding,
+        residentsInfo,
+        input,
+        convo,
+      });
+
+      response.send(aiReply);
+    } catch (error) {
+      console.error(error);
+
+      response.status(500).json({
+        success: false,
+        message: "Failed to generate response",
+      });
+    }
+  };
+
+  /**
+   * Public/guest chatbot for the landing page before sign-in. Grounded on
+   * barangay data ONLY — resident records are never exposed to guests.
+   */
+  static guestChatBot = async (request: Request, response: Response) => {
+    try {
+      const { input, convo } = request.body;
+
+      const grounding = await AIContextService.build();
+
+      const aiReply = await AccountController.generateAiReply({
+        grounding,
+        residentsInfo: "",
+        input,
+        convo,
+      });
+>>>>>>> 4a857e5 (Update barangay system features)
 
       response.send(aiReply);
     } catch (error) {

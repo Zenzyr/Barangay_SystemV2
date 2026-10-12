@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import axiosInstance from "@/app/utils/axios";
 import { successAlert, errorAlert } from "@/app/utils/alert";
 import { namePartError, fullNameLengthError, normalizeNamePart, MAX_NAME_PART_LENGTH } from "@/app/utils/personName";
+import { useBarangayLogo } from "@/app/hooks/useBarangayLogo";
 import {
   Upload,
   Camera,
@@ -39,7 +40,6 @@ type FormValues = {
   lastName: string;
   email: string;
   contact: string;
-  address: string;
   password: string;
   confirmPassword: string;
   gender: string;
@@ -113,11 +113,6 @@ const validators: {
   contact: (v) => {
     if (!v.trim()) return "Contact number is required";
     if (!/^09\d{9}$/.test(v)) return "Enter a valid 11-digit mobile number (e.g. 09171234567)";
-    return "";
-  },
-  address: (v) => {
-    if (!v.trim()) return "Address is required";
-    if (v.trim().length < 5) return "Please enter a complete address";
     return "";
   },
   password: (v) => {
@@ -424,6 +419,7 @@ function UploadBox({
 
 export default function SignUpPage() {
   const router = useRouter();
+  const logoUrl = useBarangayLogo();
   const [loading, setLoading] = useState(false);
   const [activePuroks, setActivePuroks] = useState<{name: string}[]>([]);
   const [loadingPuroks, setLoadingPuroks] = useState(true);
@@ -456,7 +452,6 @@ export default function SignUpPage() {
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [address, setAddress] = useState("");
   const [contact, setContact] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -607,7 +602,6 @@ export default function SignUpPage() {
     lastName,
     email,
     contact,
-    address,
     password,
     confirmPassword,
     gender,
@@ -882,7 +876,6 @@ export default function SignUpPage() {
       formData.append("firstName", normalizeNamePart(firstName));
       formData.append("middleName", normalizeNamePart(middleName));
       formData.append("lastName", normalizeNamePart(lastName));
-      formData.append("address", address.trim());
       formData.append("email", email.trim());
       formData.append("password", password);
       formData.append("confirmPassword", confirmPassword);
@@ -940,7 +933,7 @@ export default function SignUpPage() {
             </Link>
             <Link href="/" className="flex items-center gap-2">
               <Image
-                src="/assets/logo.jpg"
+                src={logoUrl}
                 alt="Barangay Logo"
                 width={32}
                 height={32}
@@ -963,7 +956,7 @@ export default function SignUpPage() {
         <div className="relative mb-8 flex flex-col items-center text-center">
           <div className="relative mb-3 size-16 overflow-hidden rounded-2xl shadow-lg shadow-sky-200/40 ring-2 ring-sky-200/60">
             <Image
-              src="/assets/logo.jpg"
+              src={logoUrl}
               alt="Barangay Logo"
               fill
               sizes="64px"
@@ -1196,29 +1189,6 @@ export default function SignUpPage() {
                 </div>
 
 
-                <div className="space-y-1.5 ">
-                  <Label htmlFor="address" className="text-sm font-medium text-gray-700">
-                    Address
-                  </Label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-                    <Input
-                      id="address"
-                      placeholder="Barangay Rabon, Purok 1"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      onBlur={handleBlur("address")}
-                      className={`pl-10 h-10 transition-all ${
-                        touched.address && errors.address
-                          ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
-                          : "border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
-                      }`}
-                    />
-                  </div>
-                  <FieldError message={touched.address ? errors.address : undefined} />
-                </div>
-
-              
                 <div className="space-y-1.5">
                   <Label htmlFor="password" className="text-sm font-medium text-gray-700">
                     Password

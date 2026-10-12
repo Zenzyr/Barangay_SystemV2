@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 
 import Link from "next/link";
 import axiosInstance from "@/app/utils/axios";
+import { purokApi } from "@/app/utils/barangayApi";
 import useUserStore from "@/app/store/useUserStore";
 import { documentRequestInterface } from "@/app/types/documentRequest";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,6 +26,7 @@ import {
   UserRound,
   ShieldCheck,
   BadgeCheck,
+  MapPin,
   Activity,
   LogIn,
   Briefcase,
@@ -132,6 +134,20 @@ export default function Page() {
     enabled: !!user?._id,
   });
 
+  // ── Purok assigned to this resident (shows the assigned Kagawad) ──
+  const { data: puroks = [], isLoading: purokLoading } = useQuery({
+    queryKey: ["puroks"],
+    queryFn: purokApi.getAll,
+    enabled: !!user?.purok,
+  });
+
+  const myPurok =
+    user?.purok
+      ? (puroks.find(
+          (p) => p.name.trim().toLowerCase() === user.purok.trim().toLowerCase(),
+        ) ?? null)
+      : null;
+
   const stats = {
     total: documents?.length || 0,
     pending: documents?.filter((d) => d.status === "pending").length || 0,
@@ -215,6 +231,35 @@ export default function Page() {
             <p className="text-xs text-gray-500 mt-0.5">{stat.label}</p>
           </div>
         ))}
+      </div>
+
+      {/* ── Purok / Barangay Kagawad ── */}
+      <div className="flex items-start gap-3 rounded-2xl border border-gray-200 glass-card p-4">
+        <div className="size-10 rounded-lg bg-sky-50 flex items-center justify-center shrink-0">
+          <MapPin className="size-5 text-sky-600" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-900">
+            Your Purok: {user?.purok || "Not assigned"}
+          </p>
+          {!user?.purok ? (
+            <p className="text-xs text-gray-500 mt-0.5">
+              No purok is assigned to your account yet.
+            </p>
+          ) : purokLoading ? (
+            <Skeleton className="h-3 w-44 mt-1.5" />
+          ) : myPurok?.leader ? (
+            <p className="text-xs text-gray-500 mt-0.5">
+              Barangay Kagawad:{" "}
+              <span className="font-medium text-gray-700">{myPurok.leader}</span>
+              {myPurok.contact ? ` · ${myPurok.contact}` : ""}
+            </p>
+          ) : (
+            <p className="text-xs text-gray-500 mt-0.5">
+              No Kagawad is assigned to your purok yet.
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

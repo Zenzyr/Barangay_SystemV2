@@ -1,3 +1,5 @@
+import { DEFAULT_SMS_TEMPLATES } from "../types/barangaySettings.type";
+
 // ─── Document display names (mirrors frontend DOCUMENT_NAMES) ────────────
 const DOCUMENT_NAMES: Record<string, string> = {
   barangayCertificate: "Barangay Certificate",
@@ -8,7 +10,8 @@ const DOCUMENT_NAMES: Record<string, string> = {
   certificateOfAttestation: "Certificate of Attestation",
   certificationOfTreesCutting: "Certification of Trees Cutting",
   barangayCertification: "Barangay Certification",
-  certificateOfFirstTimeJobseeker: "Barangay Certification (First-Time Jobseeker)",
+  certificateOfFirstTimeJobseeker:
+    "Barangay Certification (First-Time Jobseeker)",
   firstTimeJobseekerOath: "Oath of Undertaking (FTJ)",
   certificateOfLowIncome: "Certificate of Low Income",
   endorsementLetter: "Endorsement Letter",
@@ -16,45 +19,70 @@ const DOCUMENT_NAMES: Record<string, string> = {
   soloCertification: "Solo Certification",
 };
 
-export const documentLabel = (doc: string): string => DOCUMENT_NAMES[doc] || doc;
+export const documentLabel = (doc: string): string =>
+  DOCUMENT_NAMES[doc] || doc;
 
-const firstName = (fullName: string | undefined | null): string => {
+export const firstName = (fullName: string | undefined | null): string => {
   if (!fullName) return "there";
   return fullName.trim().split(" ")[0];
 };
 
-export const smsTemplates = {
-  requestReceived: (name: string, doc: string) =>
-    `Hi ${firstName(name)}, we received your request for ${documentLabel(doc)}. We'll text you updates on its status. - Barangay Office`,
+/** Every template key the SMS system understands. */
+export const SMS_TEMPLATE_KEYS = Object.keys(
+  DEFAULT_SMS_TEMPLATES,
+) as SmsTemplateKey[];
+export type SmsTemplateKey = keyof typeof DEFAULT_SMS_TEMPLATES;
 
-  statusUpdate: (name: string, doc: string, status: string) => {
-    const label = documentLabel(doc);
-    const who = firstName(name);
-    switch (status) {
-      case "processing":
-        return `Hi ${who}, your request for ${label} is now being processed.`;
-      case "ready":
-      case "to claim":
-        return `Hi ${who}, your ${label} is ready for pickup at the barangay hall. Please bring a valid ID.`;
-      case "released":
-        return `Hi ${who}, your ${label} has been released to you. Thank you for picking it up!`;
-      case "cancelled":
-        return `Hi ${who}, your request for ${label} has been cancelled. Visit the barangay hall if this was a mistake.`;
-      case "completed":
-        return `Hi ${who}, your request for ${label} has been marked completed. Thank you!`;
-      default:
-        return `Hi ${who}, your request for ${label} status has been updated to "${status}".`;
-    }
-  },
+/** Default (built-in) templates, used when a saved template is blank. */
+export const SMS_TEMPLATE_DEFAULTS = DEFAULT_SMS_TEMPLATES;
 
-  paymentReceived: (name: string, doc: string) =>
-    `Hi ${firstName(name)}, we've received your payment for ${documentLabel(doc)}. Thank you!`,
-
-  paymentRejected: (name: string, doc: string) =>
-    `Hi ${firstName(name)}, your payment for ${documentLabel(doc)} could not be verified by the barangay treasurer. Please check your notifications or visit the barangay hall.`,
-
-  accountStatus: (name: string, status: "approved" | "rejected") =>
-    status === "approved"
-      ? `Hi ${firstName(name)}, your barangay resident account has been approved! You can now log in and request documents.`
-      : `Hi ${firstName(name)}, your barangay resident account application was rejected. Please visit or contact the barangay office, or resubmit your ID documents.`,
+/**
+ * Builds the placeholder map shared by all templates. Keep this in sync with
+ * the variables advertised in the SMS settings UI.
+ */
+export const smsVars = (input: {
+  name?: string | null;
+  document?: string | null;
+  status?: string | null;
+}): Record<string, string> => {
+  const name = input.name ?? "";
+  return {
+    first_name: firstName(name),
+    name,
+    document: input.document ? documentLabel(input.document) : "",
+    status: input.status ?? "",
+  };
 };
+
+/** Maps a request status string to the matching status-update template key. */
+export const statusTemplateKey = (status: string): SmsTemplateKey => {
+  switch ((status || "").trim().toLowerCase()) {
+    case "processing":
+      return "statusProcessing";
+    case "ready":
+    case "to claim":
+      return "statusReady";
+    case "released":
+      return "statusReleased";
+    case "cancelled":
+    case "canceled":
+      return "statusCancelled";
+    case "completed":
+      return "statusCompleted";
+    default:
+      return "statusOther";
+  }
+};
+
+/**
+ * Replaces {{placeholder}} tokens in a template. Unknown tokens resolve to an
+ * empty string so a stray placeholder never leaks into a sent message.
+ */
+export const renderSmsTemplate = (
+  template: string,
+  vars: Record<string, string>,
+): string =>
+  String(template ?? "").replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_match, key) => {
+    const value = vars[key];
+    return value == null ? "" : String(value);
+  });

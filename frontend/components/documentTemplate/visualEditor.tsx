@@ -226,6 +226,9 @@ function VisualTemplateForm({
 
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
+  const [requirementsText, setRequirementsText] = useState(
+    (initial?.requirements ?? []).join("\n"),
+  );
   const [documentType, setDocumentType] = useState(initial?.documentType ?? "");
   const [fee, setFee] = useState(initial?.fee ?? 30);
   const [status, setStatus] = useState<"active" | "inactive">(
@@ -286,6 +289,10 @@ function VisualTemplateForm({
         currency,
         status,
         isDefault: initial?.isDefault ?? false,
+        requirements: requirementsText
+          .split(/\r?\n/)
+          .map((s) => s.trim())
+          .filter(Boolean),
         page: toStoredPage(page),
         contentFormat: "tiptap",
         editorContent,
@@ -382,6 +389,23 @@ function VisualTemplateForm({
               placeholder="Short description shown to residents"
               rows={2}
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="tpl-reqs">Requirements (one per line)</Label>
+            <Textarea
+              id="tpl-reqs"
+              value={requirementsText}
+              onChange={(e) => {
+                setRequirementsText(e.target.value);
+                touch();
+              }}
+              placeholder={"e.g. Valid ID\nProof of residency\n1x1 photo"}
+              rows={4}
+            />
+            <p className="text-xs text-muted-foreground">
+              Shown to residents and used by the AI assistant when answering
+              requirements questions.
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
             <div className="space-y-1.5">

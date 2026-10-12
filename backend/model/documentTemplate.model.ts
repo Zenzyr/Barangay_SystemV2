@@ -78,6 +78,8 @@ export interface IDocumentTemplate {
   status: "active" | "inactive";
   isDefault: boolean;
   version: number;
+  /** List of requirements the resident must prepare for this document. */
+  requirements: string[];
 
   pendingFee?: number;
   pendingFeeProposedBy?: Schema.Types.ObjectId;
@@ -174,6 +176,15 @@ const DocumentTemplateSchema = new Schema(
     status: { type: String, enum: ["active", "inactive"], default: "active" },
     isDefault: { type: Boolean, default: false },
     version: { type: Number, default: 1 },
+    requirements: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (v: string[]) =>
+          Array.isArray(v) && v.length <= 30 && v.every((s) => s.length <= 300),
+        message: "Too many requirements (max 30) or a requirement is too long (max 300).",
+      },
+    },
 
     // ── Price change approval workflow ──────────────────────────
     // A secretary's fee change does not take effect immediately — it is

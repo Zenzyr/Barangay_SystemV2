@@ -10,6 +10,7 @@ import {
   buildSeedEditorContent,
 } from "../data/documentTemplateSeed";
 import { resolveVariableValues } from "../utils/templateVariables";
+import { withBarangayLocality } from "../utils/residentAddress";
 import { validateTiptapDoc } from "../utils/tiptapDoc";
 import { legacyTemplateToTiptap } from "../utils/legacyTemplateToTiptap";
 
@@ -23,6 +24,23 @@ export class TemplateInputError extends Error {
 }
 
 const MAX_MARGIN_PT = 216;
+
+const MAX_REQUIREMENTS = 30;
+const MAX_REQUIREMENT_LENGTH = 300;
+
+/** Normalize a requirements input (array or newline/comma text) into a clean list. */
+function normalizeRequirements(input: unknown): string[] {
+  const raw = Array.isArray(input)
+    ? input
+    : typeof input === "string"
+      ? input.split(/\r?\n|,/)
+      : [];
+  return raw
+    .map((s) => String(s).trim())
+    .filter(Boolean)
+    .slice(0, MAX_REQUIREMENTS)
+    .map((s) => s.slice(0, MAX_REQUIREMENT_LENGTH));
+}
 
 function stableJson(value: any): string {
   const clean = (v: any): any => {
@@ -160,7 +178,7 @@ export class DocumentTemplateService {
   static async getPublic() {
     return await DocumentTemplate.find({ status: "active" })
       .select(
-        "name description documentType fee currency status version updatedAt",
+        "name description documentType fee currency status version requirements updatedAt",
       )
       .sort({ name: 1 })
       .lean();
@@ -191,6 +209,7 @@ export class DocumentTemplateService {
       contentFormat: isTiptap ? "tiptap" : "elements",
       editorContent: isTiptap ? data.editorContent : null,
       elements: Array.isArray(data.elements) ? data.elements : [],
+      requirements: normalizeRequirements(data.requirements),
       createdBy: userId,
       updatedBy: userId,
     });
@@ -213,6 +232,9 @@ export class DocumentTemplateService {
       updatedBy: userId,
       updatedAt: new Date(),
     };
+    if ("requirements" in data) {
+      update.requirements = normalizeRequirements(data.requirements);
+    }
     const savingTiptap = data.contentFormat === "tiptap";
     if (savingTiptap) delete update.elements;
 
@@ -449,7 +471,7 @@ export class DocumentTemplateService {
     const context: Record<string, any> = {
       resident: {
         fullName: doc.fullName || (resident as any).name || "",
-        address: doc.address || (resident as any).address || "",
+        address: withBarangayLocality(doc.address || (resident as any).address, bgy),
         birthDate: doc.dateOfBirth || (resident as any).dateOfBirth || "",
         dateOfBirth: doc.dateOfBirth || (resident as any).dateOfBirth || "",
         civilStatus: doc.civilStatus || (resident as any).civilStatus || "",

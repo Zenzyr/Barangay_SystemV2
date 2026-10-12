@@ -30,8 +30,6 @@ export interface OfficialFormValues {
   position: string;
   status: "active" | "inactive";
   precedence: number;
-  termStart: string;
-  termEnd: string;
   termLabel: string;
   signatureImage: string;
   photo: string;
@@ -54,8 +52,6 @@ const EMPTY: OfficialFormValues = {
   position: "",
   status: "inactive",
   precedence: 0,
-  termStart: "",
-  termEnd: "",
   termLabel: "",
   signatureImage: "",
   photo: "",
@@ -93,10 +89,6 @@ export function OfficialFormDialog({
     }
     if (!form.position) {
       setError("Position is required.");
-      return;
-    }
-    if (form.termStart && form.termEnd && new Date(form.termEnd) < new Date(form.termStart)) {
-      setError("Term end date cannot be earlier than the term start date.");
       return;
     }
     onSubmit({ ...form, fullName: form.fullName.trim() });
@@ -180,19 +172,9 @@ export function OfficialFormDialog({
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div className="grid gap-2">
-              <Label>Term Start</Label>
-              <Input type="date" value={form.termStart} onChange={(e) => set("termStart", e.target.value)} />
-            </div>
-            <div className="grid gap-2">
-              <Label>Term End</Label>
-              <Input type="date" value={form.termEnd} onChange={(e) => set("termEnd", e.target.value)} />
-            </div>
-            <div className="grid gap-2">
-              <Label>Term Label</Label>
-              <Input value={form.termLabel} onChange={(e) => set("termLabel", e.target.value)} placeholder="2026–2029" />
-            </div>
+          <div className="grid gap-2">
+            <Label>Term Label</Label>
+            <Input value={form.termLabel} onChange={(e) => set("termLabel", e.target.value)} placeholder="2026–2029" />
           </div>
 
           {error && <p className="text-sm text-rose-600">{error}</p>}

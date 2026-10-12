@@ -10,7 +10,7 @@ import { PERMISSIONS, hasPermission } from "../utils/roles";
 import { AuditLogService } from "../services/auditLog.service";
 import { NotificationService } from "../services/notification.service";
 import { sendNotification } from "../utils/sms";
-import { smsTemplates } from "../utils/smsTemplates";
+import { smsVars } from "../utils/smsTemplates";
 import { documentDisplayName } from "../utils/documentNames";
 
 const parsePaging = (query: Record<string, any>) => ({
@@ -243,7 +243,7 @@ export class TransactionController {
         }).catch(() => null);
       }
       if (resident?.contact) {
-        sendNotification("payment", resident.contact, smsTemplates.paymentRejected(resident.name, doc.document));
+        sendNotification("payment", resident.contact, "paymentRejected", smsVars({ name: resident.name, document: doc.document }));
       }
 
       response.send({ message: "Payment rejected", verificationStatus: "rejected" });

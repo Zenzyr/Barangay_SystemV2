@@ -98,7 +98,13 @@ export class BarangaySettingsController {
    */
   static uploadAsset = async (request: AuthRequest, response: Response) => {
     try {
-      const { kind } = request.params;
+      // The route path is literal (".../upload/logo" or ".../upload/seal"), so
+      // there is no :kind param. Prefer the upload field name, then the body,
+      // then the URL path (removal sends no file or kind).
+      const kind =
+        request.file?.fieldname ||
+        (typeof request.body?.kind === "string" ? request.body.kind : "") ||
+        (/\/seal\b/.test(request.originalUrl) ? "seal" : "logo");
       if (kind !== "logo" && kind !== "seal") {
         response.status(400).send("Asset kind must be 'logo' or 'seal'");
         return;

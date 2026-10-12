@@ -6,6 +6,7 @@ import {
   Receipt,
   FileBarChart,
   HandCoins,
+  UserCog,
 } from "lucide-react"
 import { NavItem, StaffSidebar } from "@/components/ui/sidebar_shared";
 import { PERMISSIONS } from "@/lib/constants/roles";
@@ -17,6 +18,7 @@ const navigationItems: NavItem[] = [
   { title: "Payment Verification", url: "/pages/treasurer/payment-verification", icon: ShieldCheck, permission: PERMISSIONS.PAYMENTS_VERIFY },
   { title: "Receipts", url: "/pages/treasurer/receipts", icon: Receipt, permission: PERMISSIONS.RECEIPTS_VIEW },
   { title: "Collection Reports", url: "/pages/treasurer/collection-reports", icon: FileBarChart, permission: PERMISSIONS.COLLECTION_REPORTS_VIEW },
+  { title: "Account Settings", url: "/pages/treasurer/account", icon: UserCog },
 ]
 
 export function SidebarTreasurer({ className }: { className?: string }) {

@@ -9,6 +9,7 @@ import { getDocumentLayout, DocumentLayout } from "./documentLayouts";
 import { viewDocumentPDF, generateDocumentPDF, buildDynamicDocumentPDF } from "./dynamicDocumentGenerator";
 import { renderDocxByType } from "./docxTemplateService";
 import { renderPdfByType } from "./documentTemplateService";
+import { withBarangayLocality } from "./residentAddress";
 
 /**
  * DOCX template engine (docxtemplater + PizZip).
@@ -328,7 +329,7 @@ export function buildDocumentData(
     applicant: {
       fullName: residentFullName(doc),
       age: doc.age || "",
-      addressUpper: (doc.address || "").toUpperCase(),
+      addressUpper: withBarangayLocality(doc.address, barangay).toUpperCase(),
       workStatus: doc.workStatus || "",
       workplace: doc.workplace || "",
       monthlyIncome: stripCurrencyPrefix(doc.monthlyIncome),

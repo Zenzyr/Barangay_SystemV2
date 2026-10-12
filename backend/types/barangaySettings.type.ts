@@ -71,12 +71,21 @@ export interface smsSettingsInterface {
   enabled: boolean;
   /** Public-facing sender name shown on messages. Secrets stay in env. */
   senderName: string;
-  /** Provider label for display ("iProg SMS" is the only supported provider). */
-  provider: string;
   /** Notification events toggles supported by the backend. */
   notifyOnRequest: boolean;
   notifyOnStatus: boolean;
   notifyOnPayment: boolean;
+  /**
+   * Custom message templates keyed by event (see DEFAULT_SMS_TEMPLATES).
+   * Each value may contain {{placeholders}} that are filled at send time.
+   * Missing keys fall back to the default template.
+   */
+  templates: Record<string, string>;
+  /**
+   * Per-template enable flags keyed by template key. A missing key (or `true`)
+   * means the template is active; `false` suppresses that specific message.
+   */
+  templateEnabled: Record<string, boolean>;
 }
 
 export interface workScheduleSlotConfig {
@@ -107,10 +116,42 @@ export interface barangaySettingsInterface extends barangaySettingsInterfaceInpu
 export const DEFAULT_SMS_SETTINGS: smsSettingsInterface = {
   enabled: true,
   senderName: "",
-  provider: "iProg SMS",
   notifyOnRequest: true,
   notifyOnStatus: true,
   notifyOnPayment: true,
+  templates: {},
+  templateEnabled: {},
+};
+
+/**
+ * Built-in SMS message templates. Placeholders use {{snake_case}} and are
+ * replaced at send time (e.g. {{first_name}}, {{document}}, {{status}},
+ * {{barangay}}). These are also the fallbacks used when a saved template is
+ * blank or missing.
+ */
+export const DEFAULT_SMS_TEMPLATES: Record<string, string> = {
+  requestReceived:
+    "Hi {{first_name}}, we received your request for {{document}}. We'll text you updates on its status. - {{barangay}}",
+  statusProcessing:
+    "Hi {{first_name}}, your request for {{document}} is now being processed.",
+  statusReady:
+    "Hi {{first_name}}, your {{document}} is ready for pickup at the barangay hall. Please bring a valid ID.",
+  statusReleased:
+    "Hi {{first_name}}, your {{document}} has been released to you. Thank you for picking it up!",
+  statusCancelled:
+    "Hi {{first_name}}, your request for {{document}} has been cancelled. Visit the barangay hall if this was a mistake.",
+  statusCompleted:
+    "Hi {{first_name}}, your request for {{document}} has been marked completed. Thank you!",
+  statusOther:
+    'Hi {{first_name}}, your request for {{document}} status has been updated to "{{status}}".',
+  paymentReceived:
+    "Hi {{first_name}}, we've received your payment for {{document}}. Thank you!",
+  paymentRejected:
+    "Hi {{first_name}}, your payment for {{document}} could not be verified by the barangay treasurer. Please check your notifications or visit the barangay hall.",
+  accountApproved:
+    "Hi {{first_name}}, your barangay resident account has been approved! You can now log in and request documents.",
+  accountRejected:
+    "Hi {{first_name}}, your barangay resident account application was rejected. Please visit or contact the barangay office, or resubmit your ID documents.",
 };
 
 export const DEFAULT_WORK_SCHEDULE: workScheduleSettingsInterface = {

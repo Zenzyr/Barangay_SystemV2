@@ -35,6 +35,7 @@ export default function Page() {
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<officialInterface | null>(null);
+  const [formKey, setFormKey] = useState(0);
 
   const { data: officials = [], isLoading } = useQuery({
     queryKey: ["officials"],
@@ -87,11 +88,13 @@ export default function Page() {
 
   const openAdd = () => {
     setEditing(null);
+    setFormKey((k) => k + 1);
     setModalOpen(true);
   };
 
   const openEdit = (o: officialInterface) => {
     setEditing(o);
+    setFormKey((k) => k + 1);
     setModalOpen(true);
   };
 
@@ -101,8 +104,6 @@ export default function Page() {
       position: values.position,
       status: values.status,
       precedence: values.precedence,
-      termStart: values.termStart || undefined,
-      termEnd: values.termEnd || undefined,
       termLabel: values.termLabel || undefined,
       signatureImage: values.signatureImage || undefined,
       photo: values.photo || undefined,
@@ -262,6 +263,7 @@ const isSingle = SINGLE_HOLDER_POSITIONS.includes(
       </div>
 
       <OfficialFormDialog
+        key={formKey}
         open={modalOpen}
         onOpenChange={setModalOpen}
         initial={editing ? {
@@ -269,8 +271,6 @@ const isSingle = SINGLE_HOLDER_POSITIONS.includes(
           position: editing.position,
           status: editing.status,
           precedence: editing.precedence,
-          termStart: editing.termStart || "",
-          termEnd: editing.termEnd || "",
           termLabel: editing.termLabel || "",
           signatureImage: editing.signatureImage || "",
           photo: editing.photo || "",

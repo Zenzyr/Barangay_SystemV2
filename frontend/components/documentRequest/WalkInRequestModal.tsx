@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
+import { withBarangayLocality } from "@/app/utils/residentAddress";
 import { documentRequestInterfaceInput } from "@/app/types/documentRequest";
 import { accountInterface } from "@/app/types/account.type";
 import { documentTypes } from "@/app/utils/documents";
@@ -619,7 +620,7 @@ export default function WalkInRequestModal({ open, onOpenChange }: Props) {
                         <DetailItem label={residentDetails.source === "census" ? "Census ID" : "Resident ID"} value={residentDetails.id.slice(-8).toUpperCase()} />
                         <DetailItem label="Household No." value={residentDetails.householdNumber} />
                         <div className="col-span-2">
-                          <DetailItem label="Address" value={residentDetails.address} />
+                          <DetailItem label="Address" value={withBarangayLocality(residentDetails.address)} />
                         </div>
                         <DetailItem label="Purok" value={residentDetails.purok} />
                         <DetailItem label="Contact" value={residentDetails.contact} />

@@ -29,7 +29,6 @@ interface EditProfileModalProps {
   onOpenChange: (open: boolean) => void;
   currentName: string;
   currentNickname: string;
-  currentAddress: string;
   currentContact: string;
   currentGender: string;
   currentDateOfBirth: string;
@@ -39,7 +38,6 @@ interface EditProfileModalProps {
   currentHouseHoldNumber: string;
   onSave: (data: {
     nickname: string;
-    address: string;
     contact: string;
     gender: string;
     dateOfBirth: string;
@@ -57,7 +55,6 @@ export default function EditProfileModal({
   onOpenChange,
   currentName,
   currentNickname,
-  currentAddress,
   currentContact,
   currentGender,
   currentDateOfBirth,
@@ -68,7 +65,6 @@ export default function EditProfileModal({
   onSave,
 }: EditProfileModalProps) {
   const [nickname, setNickname] = useState(currentNickname);
-  const [address, setAddress] = useState(currentAddress);
   const [contact, setContact] = useState(currentContact);
   const [gender, setGender] = useState(currentGender);
   const [dateOfBirth, setDateOfBirth] = useState(currentDateOfBirth);
@@ -82,7 +78,6 @@ export default function EditProfileModal({
     open,
     currentName,
     currentNickname,
-    currentAddress,
     currentContact,
     currentGender,
     currentDateOfBirth,
@@ -95,7 +90,6 @@ export default function EditProfileModal({
   if (snapshotKey !== resolvedKey) {
     setResolvedKey(snapshotKey);
     setNickname(currentNickname);
-    setAddress(currentAddress);
     setContact(currentContact);
     setGender(currentGender);
     setDateOfBirth(currentDateOfBirth);
@@ -120,7 +114,6 @@ export default function EditProfileModal({
     try {
       await onSave({
         nickname: nickname.trim(),
-        address: address.trim(),
         contact: contact.trim(),
         gender,
         dateOfBirth,
@@ -139,7 +132,6 @@ export default function EditProfileModal({
 
   const hasChanges =
     nickname !== currentNickname ||
-    address !== currentAddress ||
     contact !== currentContact ||
     gender !== currentGender ||
     dateOfBirth !== currentDateOfBirth ||
@@ -246,30 +238,14 @@ export default function EditProfileModal({
             </div>
           </div>
 
-          {/* Address & Purok */}
+          {/* Purok / Location */}
           <div>
             <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
               <div className="size-1.5 rounded-full bg-emerald-400" />
-              Address & Location
+              Location
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="edit-address" className="text-sm font-medium text-gray-700">
-                  Address
-                </Label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-                  <Input
-                    id="edit-address"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    className="pl-10 h-10 border-gray-200 focus:border-sky-400"
-                    placeholder="Your address"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
                 <Label htmlFor="edit-purok" className="text-sm font-medium text-gray-700">
                   Purok
                 </Label>

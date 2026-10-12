@@ -2,6 +2,8 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import CertificateTemplate from '../model/certificateTemplate.model';
 import Documents from '../model/documentRequest.model';
 import Official from '../model/official.model';
+import BarangaySettings from '../model/barangaySettings.model';
+import { withBarangayLocality } from '../utils/residentAddress';
 
 export class CertificateGeneratorService {
   /**
@@ -16,6 +18,8 @@ export class CertificateGeneratorService {
     if (!requestData) throw new Error("Document request not found");
 
     const activeOfficials = await Official.find({ status: 'active' });
+    const settings = await BarangaySettings.findOne({}).lean().catch(() => null);
+    const bgy = ((settings as any)?.barangay as any) || {};
 
     // 2. Initialize PDF Document
     const pdfDoc = await PDFDocument.create();
@@ -23,19 +27,19 @@ export class CertificateGeneratorService {
     const font = await pdfDoc.embedFont(StandardFonts.TimesRoman);
 
     // 3. Render blocks, passing signatoryConfig and activeOfficials for potential override
-    await this.renderBlocks(page, font, template.layoutConfig.blocks, requestData, template.signatoryConfig || {}, activeOfficials);
+    await this.renderBlocks(page, font, template.layoutConfig.blocks, requestData, template.signatoryConfig || {}, activeOfficials, bgy);
 
     // 4. Save and return the PDF bytes
     return await pdfDoc.save();
   };
 
-  private static renderBlocks = async (page: any, font: any, blocks: any[], data: any, signatoryConfig: any, activeOfficials: any[]) => {
+  private static renderBlocks = async (page: any, font: any, blocks: any[], data: any, signatoryConfig: any, activeOfficials: any[], bgy: any = {}) => {
     let yOffset = 700; // Starting Y coordinate
 
     for (const block of blocks) {
       if (block.type === 'text') {
         // Resolve placeholders in block.content
-        const content = this.resolvePlaceholders(block.content, data, signatoryConfig, activeOfficials);
+        const content = this.resolvePlaceholders(block.content, data, signatoryConfig, activeOfficials, bgy);
         
         page.drawText(content, {
           x: 50,
@@ -51,11 +55,11 @@ export class CertificateGeneratorService {
     }
   };
 
-  private static resolvePlaceholders = (text: string, data: any, signatoryConfig: any, activeOfficials: any[]) => {
+  private static resolvePlaceholders = (text: string, data: any, signatoryConfig: any, activeOfficials: any[], bgy: any = {}) => {
       // Basic placeholder replacement logic
       let resolved = text
         .replace("{{resident.fullName}}", data.fullName || data.resident?.name || "")
-        .replace("{{resident.address}}", data.address || "")
+        .replace("{{resident.address}}", withBarangayLocality(data.address || data.resident?.address, bgy))
         .replace("{{certificate.date}}", new Date().toLocaleDateString());
 
       // Replace signatory placeholders if any (e.g., {{official.Barangay Captain}})

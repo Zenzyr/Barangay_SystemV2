@@ -7,7 +7,6 @@ import {
   Image as ImageIcon,
   ArrowLeft,
   Loader2,
-  Save,
   Trash2,
   Building2,
 } from "lucide-react";
@@ -16,7 +15,6 @@ import { useSuperAdminGuard } from "@/app/hooks/useRoleGuard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { settingsApi } from "@/app/utils/barangayApi";
 import { successAlert, errorAlert } from "@/app/utils/alert";
 import {
@@ -30,7 +28,6 @@ export default function Page() {
   const { isSuperAdmin } = useSuperAdminGuard();
   const store = useBarangaySettingsStore();
   const [form, setForm] = useState<barangayInfo>({ ...EMPTY_BARANGAY_INFO });
-  const [saving, setSaving] = useState(false);
 
   const settings = store.settings;
   const [resolvedSettings, setResolvedSettings] = useState(settings);
@@ -39,8 +36,14 @@ export default function Page() {
     if (settings) setForm({ ...EMPTY_BARANGAY_INFO, ...settings.barangay });
   }
 
-  const set = (key: keyof barangayInfo, value: string) =>
-    setForm((f) => ({ ...f, [key]: value }));
+  // Surfaces the real server message whether the API returned JSON
+  // ({ message }) or a plain-text body.
+  const apiErrorMessage = (e: unknown, fallback: string) => {
+    const data = (e as { response?: { data?: unknown } } | null)?.response?.data;
+    if (typeof data === "string" && data.trim()) return data;
+    const message = (data as { message?: string } | undefined)?.message;
+    return message || (e as { message?: string } | null)?.message || fallback;
+  };
 
   const assetMut = useMutation({
     mutationFn: ({ kind, file }: { kind: "logo" | "seal"; file: File | null }) =>
@@ -51,36 +54,9 @@ export default function Page() {
       successAlert("Branding asset updated.");
     },
     onError: (e: unknown) => {
-      const err = e as { response?: { data?: { message?: string } } } | null;
-      errorAlert(err?.response?.data?.message || "Failed to upload asset.");
+      errorAlert(apiErrorMessage(e, "Failed to upload asset."));
     },
   });
-
-  const saveInfo = async () => {
-    if (!form.name.trim()) {
-      errorAlert("Barangay name is required.");
-      return;
-    }
-    setSaving(true);
-    try {
-      const updated = await settingsApi.update({ barangay: form });
-      store.setSettings(updated);
-      queryClient.invalidateQueries({ queryKey: ["settings"] });
-      successAlert("Barangay information updated.");
-    } catch (e) {
-      const err = e as { response?: { data?: { message?: string } } } | null;
-      errorAlert(err?.response?.data?.message || "Failed to update settings.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const fields: { key: keyof barangayInfo; label: string; full?: boolean }[] = [
-    { key: "name", label: "Barangay Name" },
-    { key: "municipality", label: "Municipality / City" },
-    { key: "province", label: "Province" },
-    { key: "region", label: "Region" },
-  ];
 
   if (!isSuperAdmin) return null;
 
@@ -92,11 +68,11 @@ export default function Page() {
         </Button>
         <h1 className="text-2xl font-bold tracking-tight text-slate-800">
           <Building2 className="mr-2 inline size-6 text-sky-600" />
-          Logo & General Info
+          Barangay Logo
         </h1>
         <p className="text-sm text-slate-500">
-          Upload the barangay logo, and update the barangay details used across
-          documents and the app. The seal and signature are applied manually.
+          Upload the barangay logo used across documents and the app. The seal
+          and signature are applied manually.
         </p>
       </div>
 
@@ -108,26 +84,6 @@ export default function Page() {
           onUpload={(f) => assetMut.mutate({ kind: "logo", file: f })}
           onRemove={() => assetMut.mutate({ kind: "logo", file: null })}
         />
-      </div>
-
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-slate-800">
-          <ImageIcon className="size-4 text-sky-600" /> Barangay Information
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {fields.map((f) => (
-            <div key={f.key} className={"grid gap-2 " + (f.full ? "sm:col-span-2" : "")}>
-              <Label>{f.label}</Label>
-              <Input value={form[f.key]} onChange={(e) => set(f.key, e.target.value)} />
-            </div>
-          ))}
-        </div>
-        <div className="flex justify-end">
-          <Button onClick={saveInfo} disabled={saving}>
-            {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-            Save Changes
-          </Button>
-        </div>
       </div>
     </div>
   );

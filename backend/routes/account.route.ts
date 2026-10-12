@@ -140,9 +140,19 @@ route.patch(
   authenticateJWT,
   handler(AccountController.updateInfo),
 );
+// Changing a password requires the current password PLUS a one-time code
+// emailed to the account owner, so a leaked session/password alone cannot
+// silently change it.
+route.post(
+  "/:id/password-otp",
+  authenticateJWT,
+  otpSendLimiter,
+  handler(AccountController.sendPasswordOtp),
+);
 route.patch(
   "/:id/password",
   authenticateJWT,
+  resetPasswordLimiter,
   handler(AccountController.changePassword),
 );
 

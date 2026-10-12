@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
+import { withBarangayLocality } from "@/app/utils/residentAddress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -243,7 +244,7 @@ export default function VerifyResidentPage() {
                     {account.email}
                   </TableCell>
                   <TableCell className="text-gray-600 hidden md:table-cell max-w-[200px] truncate">
-                    {account.address}
+                    {withBarangayLocality(account.address)}
                   </TableCell>
                   <TableCell>
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
@@ -323,7 +324,7 @@ export default function VerifyResidentPage() {
                       Address
                     </p>
                     <p className="text-sm text-gray-800">
-                      {selectedAccount.address}
+                      {withBarangayLocality(selectedAccount.address)}
                     </p>
                   </div>
                 </div>

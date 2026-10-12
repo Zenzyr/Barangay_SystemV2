@@ -1,6 +1,12 @@
 // Uses Node's built-in global fetch (Node 18+) rather than the "node-fetch"
 // package, since node-fetch v3 is ESM-only and this project compiles to CommonJS.
 
+import {
+  SMS_TEMPLATE_DEFAULTS,
+  renderSmsTemplate,
+  SmsTemplateKey,
+} from "./smsTemplates";
+
 // iProg SMS (iprogsms / iprogtech) - PH SMS API. Send + docs:
 //   https://sms.iprogtech.com/api/v1/sms_messages
 //   https://sms.iprogtech.com/api/v1/documentation (or www.iprogsms.com)
@@ -76,14 +82,19 @@ export type NotificationKind = "request" | "status" | "payment";
 
 /**
  * Sends an SMS only if SMS notifications are enabled in the barangay settings
- * and the corresponding event toggle is on. The stored sender name is used when
- * set (falling back to the env value). Never throws.
+ * and the corresponding event toggle is on. The message is built from the
+ * customizable template stored in settings (falling back to the built-in
+ * default) with `vars` filling the {{placeholders}}. The stored sender name is
+ * used when set (falling back to the env value). Never throws.
  */
 export const sendNotification = async (
   kind: NotificationKind,
   rawNumber: string | undefined | null,
-  message: string
+  templateKey: SmsTemplateKey,
+  vars: Record<string, string> = {},
 ): Promise<boolean> => {
+  const fallbackTemplate =
+    SMS_TEMPLATE_DEFAULTS[templateKey] ?? SMS_TEMPLATE_DEFAULTS.statusOther;
   try {
     const { default: BarangaySettingsModel } = await import("../model/barangaySettings.model");
     const settings = (await BarangaySettingsModel.findOne().lean()) as any;
@@ -106,12 +117,29 @@ export const sendNotification = async (
       return false;
     }
 
+    // Per-template switch: a template explicitly turned off is skipped even if
+    // its event category is enabled. Missing keys default to enabled.
+    if (sms?.templateEnabled?.[templateKey] === false) {
+      console.warn(`[SMS] Template '${templateKey}' is disabled in settings - skipping send`);
+      return false;
+    }
+
     const senderName = sms.senderName || process.env.IPROG_SENDER_NAME;
     if (senderName) process.env.IPROG_SENDER_NAME = senderName;
+
+    const savedTemplate = sms?.templates?.[templateKey];
+    const template =
+      typeof savedTemplate === "string" && savedTemplate.trim()
+        ? savedTemplate
+        : fallbackTemplate;
+    const message = renderSmsTemplate(template, {
+      ...vars,
+      barangay: settings?.barangay?.name || "Barangay Rabon",
+    });
 
     return sendSms(rawNumber, message);
   } catch (error) {
     console.error("[SMS] sendNotification check failed:", error);
-    return sendSms(rawNumber, message);
+    return sendSms(rawNumber, renderSmsTemplate(fallbackTemplate, vars));
   }
 };

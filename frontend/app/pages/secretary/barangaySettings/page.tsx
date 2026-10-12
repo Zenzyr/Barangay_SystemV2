@@ -42,9 +42,9 @@ const SECTIONS = [
   },
   {
     href: "/pages/secretary/barangaySettings/logo",
-    label: "Logo & General Info",
+    label: "Barangay Logo",
     description:
-      "Upload the barangay logo and seal, and update contact details and header/footer text used across documents.",
+      "Upload the barangay logo used across documents and the app.",
     icon: ImageIcon,
   },
   {

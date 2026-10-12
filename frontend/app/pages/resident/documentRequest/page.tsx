@@ -432,6 +432,12 @@ export default function DocumentRequestPage() {
     [activeTemplates, selectedDocument],
   );
 
+  const selectedRequirements = useMemo(
+    () =>
+      activeTemplates.find((t) => t.documentType === selectedDocument)?.requirements ?? [],
+    [activeTemplates, selectedDocument],
+  );
+
   const handlePreviewTemplate = async () => {
     if (!selectedDocument) return;
     setPreviewLoading(true);
@@ -797,6 +803,22 @@ export default function DocumentRequestPage() {
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {selectedRequirements.length > 0 && (
+                    <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-4">
+                      <p className="text-xs font-semibold text-amber-700 flex items-center gap-1.5">
+                        <ScrollText className="size-3.5" />
+                        Requirements to prepare
+                      </p>
+                      <ul className="mt-2 list-disc space-y-1 pl-5">
+                        {selectedRequirements.map((req, i) => (
+                          <li key={i} className="text-xs text-slate-600">
+                            {req}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   )}
 

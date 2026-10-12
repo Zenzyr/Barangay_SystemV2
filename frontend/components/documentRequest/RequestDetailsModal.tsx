@@ -1,6 +1,7 @@
 "use client"
 
 import { documentRequestInterface } from "@/app/types/documentRequest";
+import { withBarangayLocality } from "@/app/utils/residentAddress";
 import {
   Dialog,
   DialogContent,
@@ -77,6 +78,7 @@ const FIELD_META: Record<string, { label: string; icon: React.ElementType }> = {
 // ─── Formatter helpers ───────────────────────────────────────────
 function formatValue(key: string, value: unknown): string {
   if (value === null || value === undefined) return "";
+  if (key === "address") return withBarangayLocality(value);
   if (key === "dateOfBirth" || key === "dateIssued") {
     const d = new Date(String(value));
     if (!isNaN(d.getTime())) {

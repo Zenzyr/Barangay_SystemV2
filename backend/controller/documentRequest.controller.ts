@@ -6,7 +6,7 @@ import { UserActivityService } from "../services/userActivity.service";
 import { NotificationService } from "../services/notification.service";
 import { formattedDate } from "../utils/customFunc";
 import { sendNotification } from "../utils/sms";
-import { smsTemplates } from "../utils/smsTemplates";
+import { smsVars, statusTemplateKey } from "../utils/smsTemplates";
 import { isObjectId } from "../utils/validation";
 import { convertDocxToPdf } from "../utils/docxToPdf";
 import { ROLES, isOfficeRole, isStaffRole } from "../utils/roles";
@@ -241,7 +241,12 @@ export class DocumentRequestController {
         date: formattedDate()
       })
 
-      sendNotification("request", account.contact, smsTemplates.requestReceived(account.name, documentData.document));
+      sendNotification(
+        "request",
+        account.contact,
+        "requestReceived",
+        smsVars({ name: account.name, document: documentData.document }),
+      );
 
       AuditLogService.create({
         actor: account.name || "Resident",
@@ -437,7 +442,12 @@ export class DocumentRequestController {
         }).catch(() => null);
       }
       if (resident?.contact) {
-        sendNotification("status", resident.contact, smsTemplates.statusUpdate(resident.name, document.document, status));
+        sendNotification(
+          "status",
+          resident.contact,
+          statusTemplateKey(status),
+          smsVars({ name: resident.name, document: document.document, status }),
+        );
       }
 
       response.send({ message: `Document request status updated to ${status} successfully` });
@@ -648,7 +658,7 @@ export class DocumentRequestController {
         }).catch(() => null);
       }
       if (resident?.contact) {
-        sendNotification("payment", resident.contact, smsTemplates.paymentReceived(resident.name, document.document));
+        sendNotification("payment", resident.contact, "paymentReceived", smsVars({ name: resident.name, document: document.document }));
       }
 
       AuditLogService.create({
@@ -892,7 +902,7 @@ export class DocumentRequestController {
                 }).catch(() => null);
             }
             if (resident?.contact) {
-                sendNotification("payment", resident.contact, smsTemplates.paymentReceived(resident.name, document!.document));
+                sendNotification("payment", resident.contact, "paymentReceived", smsVars({ name: resident.name, document: document!.document }));
             }
 
             AuditLogService.create({

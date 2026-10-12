@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
+import { withBarangayLocality } from "@/app/utils/residentAddress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -717,7 +718,7 @@ function ResidentCard({
           )}
           <div className="flex items-center gap-2 text-xs text-gray-500">
             <MapPin className="size-3.5 text-gray-400 shrink-0" />
-            <span className="truncate">{resident.address}</span>
+            <span className="truncate">{withBarangayLocality(resident.address)}</span>
           </div>
         </div>
       </div>

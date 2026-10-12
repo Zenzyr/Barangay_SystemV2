@@ -62,3 +62,13 @@ export const resetPasswordLimiter = rateLimit({
   legacyHeaders: false,
   message: tooManyRequests(),
 });
+
+// Public/guest AI chat: every reply triggers a paid Gemini call, so bound
+// per-IP usage to keep the landing-page assistant from being abused.
+export const publicAiLimiter = rateLimit({
+  windowMs: WINDOW_MS,
+  limit: 20,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: tooManyRequests(),
+});

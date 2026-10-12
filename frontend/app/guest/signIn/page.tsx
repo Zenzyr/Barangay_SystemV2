@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import axiosInstance from "@/app/utils/axios";
 import useUserStore from "@/app/store/useUserStore";
+import { useBarangayLogo } from "@/app/hooks/useBarangayLogo";
 import { homeForRole } from "@/lib/constants/roles";
 import { errorAlert, successAlert } from "@/app/utils/alert";
 import {
@@ -60,6 +61,7 @@ function SignInContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setUser } = useUserStore();
+  const logoUrl = useBarangayLogo();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState(() =>
@@ -336,7 +338,7 @@ function SignInContent() {
             </Link>
             <Link href="/" className="flex items-center gap-2">
               <Image
-                src="/assets/logo.jpg"
+                src={logoUrl}
                 alt="Barangay Logo"
                 width={32}
                 height={32}
@@ -360,7 +362,7 @@ function SignInContent() {
           <div className="mb-8 flex flex-col items-center text-center">
             <div className="relative mb-3 size-16 overflow-hidden rounded-2xl shadow-lg shadow-sky-200/40 ring-2 ring-sky-200/60">
               <Image
-                src="/assets/logo.jpg"
+                src={logoUrl}
                 alt="Barangay Logo"
                 fill
                 sizes="64px"

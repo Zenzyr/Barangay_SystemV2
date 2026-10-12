@@ -84,6 +84,8 @@ interface ResidentCensusRecord {
   pensioner: string;
   isPWD: string;
   cellphone: string;
+  civilStatus: string;
+  voterStatus: string;
   accountId?: string;
 }
 
@@ -184,6 +186,8 @@ const EMPTY_FORM: Omit<ResidentCensusRecord, "_id"> = {
   pensioner: "",
   isPWD: "",
   cellphone: "",
+  civilStatus: "",
+  voterStatus: "",
 };
 
 // The account workflow reuses the census Sex field; map it to the gender
@@ -304,6 +308,9 @@ const EDUCATION_OPTIONS: { value: string; label: string }[] = [
   { value: "OTHER", label: "Other" },
 ];
 
+const CIVIL_STATUS_OPTIONS = ["Single", "Married", "Widowed", "Separated", "Divorced"];
+const VOTER_STATUS_OPTIONS = ["Registered", "Not Registered"];
+
 // Mirror of the backend's isUnknown set: these education values mean "unknown"
 // and show the placeholder instead of an option.
 const UNKNOWN_EDUCATION_VALUES = ["", "n/a", "na", "none", "null", "-", "undeclared", "not applicable"];
@@ -402,6 +409,8 @@ function ViewProfileModal({
         ["Occupation", record.occupation],
         ["Education", record.education],
         ["Purok", record.purok],
+        ["Civil Status", record.civilStatus],
+        ["Voter Status", record.voterStatus],
         ["Household Number", record.householdNumber],
         ["Cellphone", record.cellphone],
         ["Family Planning", record.familyPlanning],
@@ -466,9 +475,6 @@ function ViewProfileModal({
                       <div><p className="text-xs text-gray-400">Contact</p><p className="text-gray-700">{account.contact || "—"}</p></div>
                       <div><p className="text-xs text-gray-400">Civil Status</p><p className="text-gray-700">{account.civilStatus || "—"}</p></div>
                       <div><p className="text-xs text-gray-400">Voter Status</p><p className="text-gray-700">{account.voterStatus || "—"}</p></div>
-                      {account.address && (
-                        <div className="sm:col-span-2"><p className="text-xs text-gray-400">Address</p><p className="text-gray-700">{account.address}</p></div>
-                      )}
                       {account.idType && (
                         <div><p className="text-xs text-gray-400">ID Type</p><p className="text-gray-700">{account.idType.replace("_", " ")}</p></div>
                       )}
@@ -545,15 +551,13 @@ export default function ResidentCensusPage() {
   const [editingOriginalCellphone, setEditingOriginalCellphone] = useState<string | null>(null);
 
   // Account-creation sub-section of the Add Resident modal (new records only).
-  // Sex and purok are NOT duplicated here — they are reused from the census form.
+  // Only email + password live here; every other resident field is taken from
+  // the census form above.
   const [createAccount, setCreateAccount] = useState(false);
   const [accountEmail, setAccountEmail] = useState("");
   const [accountPassword, setAccountPassword] = useState("");
   const [accountConfirmPassword, setAccountConfirmPassword] = useState("");
   const [showAccountPassword, setShowAccountPassword] = useState(false);
-  const [accountAddress, setAccountAddress] = useState("");
-  const [accountCivilStatus, setAccountCivilStatus] = useState("");
-  const [accountVoterStatus, setAccountVoterStatus] = useState("");
 
   const { data: activePuroks = [] } = useQuery<{ name: string }[]>({
     queryKey: ["active-puroks"],
@@ -566,9 +570,6 @@ export default function ResidentCensusPage() {
     setAccountPassword("");
     setAccountConfirmPassword("");
     setShowAccountPassword(false);
-    setAccountAddress("");
-    setAccountCivilStatus("");
-    setAccountVoterStatus("");
   };
   const [saving, setSaving] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -632,6 +633,14 @@ export default function ResidentCensusPage() {
     const set = new Set(all.map((r) => r.purok));
     return Array.from(set).sort();
   }, [all]);
+
+  // Options for the form's Purok dropdown: the active puroks, plus the record's
+  // current purok if it is no longer active (so editing a legacy record keeps it).
+  const purokOptions = useMemo(() => {
+    const names = activePuroks.map((p) => p.name);
+    if (form.purok && !names.includes(form.purok)) return [...names, form.purok];
+    return names;
+  }, [activePuroks, form.purok]);
 
   const filtered = useMemo(() => {
     return all
@@ -781,19 +790,15 @@ export default function ResidentCensusPage() {
         errorAlert("Passwords do not match");
         return;
       }
-      if (!accountAddress.trim()) {
-        errorAlert("Address is required to create a login account");
-        return;
-      }
       if (form.sex !== "M" && form.sex !== "F") {
         errorAlert("Sex (M or F) is required to create a login account");
         return;
       }
-      if (!accountCivilStatus) {
+      if (!form.civilStatus) {
         errorAlert("Civil status is required to create a login account");
         return;
       }
-      if (!accountVoterStatus) {
+      if (!form.voterStatus) {
         errorAlert("Voter status is required to create a login account");
         return;
       }
@@ -818,12 +823,11 @@ export default function ResidentCensusPage() {
           email: accountEmail.trim(),
           password: accountPassword,
           contact: form.cellphone.trim(),
-          address: accountAddress.trim(),
           gender: sexToGender(form.sex),
           dateOfBirth: form.birthday,
-          civilStatus: accountCivilStatus,
+          civilStatus: form.civilStatus,
           purok: form.purok.trim(),
-          voterStatus: accountVoterStatus,
+          voterStatus: form.voterStatus,
           houseHoldNumber: form.householdNumber.trim() || "N/A",
         });
         successAlert("Resident and login account created. A welcome email was sent.");
@@ -1188,7 +1192,48 @@ export default function ResidentCensusPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Purok</Label>
-              <Input value={form.purok} onChange={(e) => setForm({ ...form, purok: e.target.value })} />
+              <Select value={form.purok} onValueChange={(v) => setForm({ ...form, purok: v })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select purok" />
+                </SelectTrigger>
+                <SelectContent>
+                  {purokOptions.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Civil Status</Label>
+              <Select value={form.civilStatus} onValueChange={(v) => setForm({ ...form, civilStatus: v })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select civil status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {CIVIL_STATUS_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Voter Status</Label>
+              <Select value={form.voterStatus} onValueChange={(v) => setForm({ ...form, voterStatus: v })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select voter status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {VOTER_STATUS_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Household ID</Label>
@@ -1331,35 +1376,8 @@ export default function ResidentCensusPage() {
                       onPaste={(e) => e.preventDefault()}
                     />
                   </div>
-                  <div className="space-y-1.5 sm:col-span-2">
-                    <Label>Address</Label>
-                    <Input value={accountAddress} onChange={(e) => setAccountAddress(e.target.value)} placeholder="Full address" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Civil Status</Label>
-                    <Select value={accountCivilStatus} onValueChange={setAccountCivilStatus}>
-                      <SelectTrigger className="w-full"><SelectValue placeholder="Select civil status" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Single">Single</SelectItem>
-                        <SelectItem value="Married">Married</SelectItem>
-                        <SelectItem value="Widowed">Widowed</SelectItem>
-                        <SelectItem value="Separated">Separated</SelectItem>
-                        <SelectItem value="Divorced">Divorced</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Voter Status</Label>
-                    <Select value={accountVoterStatus} onValueChange={setAccountVoterStatus}>
-                      <SelectTrigger className="w-full"><SelectValue placeholder="Select voter status" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Registered">Registered</SelectItem>
-                        <SelectItem value="Not Registered">Not Registered</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                   <p className="text-xs text-gray-500 sm:col-span-2">
-                    The resident&apos;s full name, sex, purok, cellphone, birthday, and household number above are reused for the account.
+                    Only the email and password are entered here. The resident&apos;s name, sex, purok, civil status, voter status, cellphone, birthday, and household number are taken from the form above.
                     The cellphone must be a valid 11-digit number (e.g. 09171234567), and the purok must be an active purok for the account to be created.
                   </p>
                 </div>
