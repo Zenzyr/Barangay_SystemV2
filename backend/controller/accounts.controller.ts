@@ -2273,42 +2273,20 @@ export class AccountController {
     input: unknown;
     convo: unknown;
   }): Promise<string> => {
-    const genAI = new GoogleGenerativeAI(
-      process.env.CHATBOT_API_KEY ||
+    const ai = new GoogleGenAI({
+      apiKey:
+        process.env.CHATBOT_API_KEY ||
         process.env.GEMINI_API_KEY ||
         process.env.GOOGLE_API_KEY ||
         "",
-    );
-
-    const model = genAI.getGenerativeModel({
-      model:
-        (process.env.CHATBOT_MODEL as string) ||
-        (process.env.GEMINI_MODEL as string) ||
-        "gemini-3.6-flash",
     });
 
-<<<<<<< HEAD
-      const residentsInfo = await AccountService.getAccountsForAI();
+    const modelName =
+      (process.env.CHATBOT_MODEL as string) ||
+      (process.env.GEMINI_MODEL as string) ||
+      "gemini-3.6-flash";
 
-
-
-      const ai = new GoogleGenAI({
-        apiKey:
-          process.env.CHATBOT_API_KEY ||
-          process.env.GEMINI_API_KEY ||
-          process.env.GOOGLE_API_KEY ||
-          "",
-      });
-
-      const modelName =
-        (process.env.CHATBOT_MODEL as string) ||
-        (process.env.GEMINI_MODEL as string) ||
-        "gemini-3.6-flash";
-
-      const prompt = `
-=======
     const prompt = `
->>>>>>> 4a857e5 (Update barangay system features)
       You are an AI assistant for the Barangay Information System.
 
       LANGUAGE RULES (most important):
@@ -2359,15 +2337,11 @@ export class AccountController {
             ${input}
        `;
 
-<<<<<<< HEAD
-      const result = await ai.models.generateContent({
-        model: modelName,
-        contents: prompt,
-      });
-      const aiReply = result.text ?? "";
-=======
-    const result = await model.generateContent(prompt);
-    return result.response.text();
+    const result = await ai.models.generateContent({
+      model: modelName,
+      contents: prompt,
+    });
+    return result.text ?? "";
   };
 
   static aiChatBot = async (request: AuthRequest, response: Response) => {
@@ -2413,7 +2387,6 @@ export class AccountController {
         input,
         convo,
       });
->>>>>>> 4a857e5 (Update barangay system features)
 
       response.send(aiReply);
     } catch (error) {
