@@ -1419,17 +1419,21 @@ export default function SignUpPage() {
                   </Label>
                   <div className="relative">
                     <Hash className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+                    <span className="absolute left-9 top-1/2 -translate-y-1/2 text-sm text-gray-500 select-none pointer-events-none">
+                      HH-
+                    </span>
                     <input
                       id="houseHoldNumber"
                       type="text"
-                      placeholder="e.g. HH-020 or HH-0011"
-                      value={houseHoldNumber}
+                      inputMode="numeric"
+                      placeholder="020 or 0011"
+                      value={houseHoldNumber.replace(/^HH-/i, "")}
                       onChange={(e) => {
                         const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
                         setHouseHoldNumber(digits ? `HH-${digits}` : "");
                       }}
                       onBlur={handleBlur("houseHoldNumber")}
-                      className={`w-full h-10 pl-10 pr-3 rounded-lg border bg-white text-sm text-gray-700 focus:ring-2 transition-all ${
+                      className={`w-full h-10 pl-16 pr-3 rounded-lg border bg-white text-sm text-gray-700 focus:ring-2 transition-all ${
                         touched.houseHoldNumber && errors.houseHoldNumber
                           ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
                           : "border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"

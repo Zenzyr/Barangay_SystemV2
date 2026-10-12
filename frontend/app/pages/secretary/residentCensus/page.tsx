@@ -1237,11 +1237,29 @@ export default function ResidentCensusPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Household ID</Label>
-              <Input
-                value={form.householdNumber}
-                onChange={(e) => setForm({ ...form, householdNumber: e.target.value })}
-                placeholder="e.g. HH-020 or HH-0011"
-              />
+              {editingId ? (
+                <Input
+                  value={form.householdNumber}
+                  onChange={(e) => setForm({ ...form, householdNumber: e.target.value })}
+                  placeholder="e.g. HH-020 or HH-0011"
+                />
+              ) : (
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 select-none pointer-events-none">
+                    HH-
+                  </span>
+                  <Input
+                    value={form.householdNumber.replace(/^HH-/i, "")}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+                      setForm({ ...form, householdNumber: digits ? `HH-${digits}` : "" });
+                    }}
+                    inputMode="numeric"
+                    placeholder="020 or 0011"
+                    className="pl-12"
+                  />
+                </div>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Cellphone</Label>
