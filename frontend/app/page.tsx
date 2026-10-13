@@ -59,7 +59,10 @@ export default function Home() {
       >
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 px-4 sm:px-6 py-3">
           {/* Logo + Brand */}
-          <Link href="/" className="flex min-w-0 items-center gap-2 sm:gap-3 group">
+          <Link
+            href="/"
+            className="flex min-w-0 items-center gap-2 sm:gap-3 group"
+          >
             <div className="relative w-10 h-10 shrink-0 rounded-xl overflow-hidden ring-2 ring-sky-200/50 group-hover:ring-sky-400/60 transition-all duration-300">
               <Image
                 src={logoUrl}
@@ -558,7 +561,7 @@ export default function Home() {
               >
                 Contact Developer
               </a>
-
+              {/* 
               <Link
                 href="/guest/signIn?mode=admin"
                 className="flex items-center gap-1.5 text-slate-500 hover:text-slate-300 transition-colors"
@@ -566,7 +569,7 @@ export default function Home() {
               >
                 <Shield className="size-3.5" />
                 Admin Access
-              </Link>
+              </Link> */}
             </div>
           </div>
         </div>
