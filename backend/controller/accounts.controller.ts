@@ -96,6 +96,11 @@ dotenv.config();
 const secret = process.env.JWT_SECRET || "";
 const GENERIC_LOGIN_MSG = "Invalid email or password";
 const EMAIL_VERIFY_PURPOSE = "email-verification";
+const CHAT_INPUT_MAX_LENGTH = 1000;
+const CHAT_HISTORY_MAX_ITEMS = 20;
+const CHAT_HISTORY_ITEM_MAX_LENGTH = 2000;
+const CHAT_PROVIDER_TIMEOUT_MS = 60000;
+const CHAT_INPUT_ERROR = `Please enter a message of up to ${CHAT_INPUT_MAX_LENGTH} characters.`;
 
 // Issues a signed, short-lived token proving the applicant correctly entered
 // an OTP for THIS exact address. registration (register) requires it.
@@ -2262,6 +2267,32 @@ export class AccountController {
    * Shared Gemini call for the resident chatbot and the public guest chatbot.
    * The caller decides which grounding/resident data is safe to expose.
    */
+  private static readChatRequest = (
+    body: unknown,
+  ): { input: string; convo: string[] } | null => {
+    const { input, convo } = (body ?? {}) as { input?: unknown; convo?: unknown };
+    const text = typeof input === "string" ? input.trim() : "";
+    if (!text || text.length > CHAT_INPUT_MAX_LENGTH) return null;
+    const history = Array.isArray(convo)
+      ? convo
+          .filter((entry): entry is string => typeof entry === "string")
+          .slice(-CHAT_HISTORY_MAX_ITEMS)
+          .map((entry) => entry.slice(0, CHAT_HISTORY_ITEM_MAX_LENGTH))
+      : [];
+    return { input: text, convo: history };
+  };
+
+  private static logChatError = (scope: string, error: unknown) => {
+    const status =
+      error && typeof error === "object" && "status" in error
+        ? (error as { status?: unknown }).status
+        : undefined;
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(
+      `[CHATBOT] ${scope} reply failed${status ? ` (provider status ${status})` : ""}: ${message}`,
+    );
+  };
+
   private static generateAiReply = async ({
     grounding,
     residentsInfo,
@@ -2270,21 +2301,28 @@ export class AccountController {
   }: {
     grounding: string;
     residentsInfo: string;
-    input: unknown;
-    convo: unknown;
+    input: string;
+    convo: string[];
   }): Promise<string> => {
-    const ai = new GoogleGenAI({
-      apiKey:
-        process.env.CHATBOT_API_KEY ||
-        process.env.GEMINI_API_KEY ||
-        process.env.GOOGLE_API_KEY ||
-        "",
-    });
+    const apiKey =
+      process.env.CHATBOT_API_KEY ||
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "No chatbot API key configured. Set CHATBOT_API_KEY or GEMINI_API_KEY in the backend environment.",
+      );
+    }
 
     const modelName =
       (process.env.CHATBOT_MODEL as string) ||
       (process.env.GEMINI_MODEL as string) ||
       "gemini-3.6-flash";
+
+    const ai = new GoogleGenAI({
+      apiKey,
+      httpOptions: { timeout: CHAT_PROVIDER_TIMEOUT_MS },
+    });
 
     const prompt = `
       You are an AI assistant for the Barangay Information System.
@@ -2331,23 +2369,49 @@ export class AccountController {
             ${residentsInfo}
 
             Previous Conversation:
-            ${Array.isArray(convo) ? convo.join("\n") : ""}
+            ${convo.join("\n")}
 
             User input/user qeustion:
             ${input}
        `;
 
-    const result = await ai.models.generateContent({
-      model: modelName,
-      contents: prompt,
-    });
-    return result.text ?? "";
+    let result;
+    try {
+      result = await ai.models.generateContent({
+        model: modelName,
+        contents: prompt,
+      });
+    } catch (error) {
+      const status =
+        error && typeof error === "object" && "status" in error
+          ? (error as { status?: unknown }).status
+          : undefined;
+      const detail = error instanceof Error ? error.message : String(error);
+      throw Object.assign(
+        new Error(`Gemini request failed (model "${modelName}"): ${detail}`),
+        { status },
+      );
+    }
+
+    const reply = (result.text ?? "").trim();
+    if (!reply) {
+      const finishReason = result.candidates?.[0]?.finishReason ?? "unknown";
+      const blockReason = result.promptFeedback?.blockReason ?? "none";
+      throw new Error(
+        `Gemini returned an empty reply (model "${modelName}", finishReason ${finishReason}, blockReason ${blockReason})`,
+      );
+    }
+    return reply;
   };
 
   static aiChatBot = async (request: AuthRequest, response: Response) => {
-    try {
-      const { input, convo } = request.body;
+    const chat = AccountController.readChatRequest(request.body);
+    if (!chat) {
+      response.status(400).json({ success: false, message: CHAT_INPUT_ERROR });
+      return;
+    }
 
+    try {
       const [grounding, residentsInfo] = await Promise.all([
         AIContextService.build(),
         AccountService.getAccountsForAI(),
@@ -2356,15 +2420,14 @@ export class AccountController {
       const aiReply = await AccountController.generateAiReply({
         grounding,
         residentsInfo,
-        input,
-        convo,
+        ...chat,
       });
 
       response.send(aiReply);
     } catch (error) {
-      console.error(error);
+      AccountController.logChatError("resident", error);
 
-      response.status(500).json({
+      response.status(502).json({
         success: false,
         message: "Failed to generate response",
       });
@@ -2376,23 +2439,26 @@ export class AccountController {
    * barangay data ONLY — resident records are never exposed to guests.
    */
   static guestChatBot = async (request: Request, response: Response) => {
-    try {
-      const { input, convo } = request.body;
+    const chat = AccountController.readChatRequest(request.body);
+    if (!chat) {
+      response.status(400).json({ success: false, message: CHAT_INPUT_ERROR });
+      return;
+    }
 
+    try {
       const grounding = await AIContextService.build();
 
       const aiReply = await AccountController.generateAiReply({
         grounding,
         residentsInfo: "",
-        input,
-        convo,
+        ...chat,
       });
 
       response.send(aiReply);
     } catch (error) {
-      console.error(error);
+      AccountController.logChatError("guest", error);
 
-      response.status(500).json({
+      response.status(502).json({
         success: false,
         message: "Failed to generate response",
       });

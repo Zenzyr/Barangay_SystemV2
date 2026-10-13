@@ -134,14 +134,11 @@ export default function Page() {
 
   if (isLoading) {
     return (
-      <>
+      <div className="mx-auto max-w-5xl space-y-4 px-4 py-8">
         <BackButton href="/pages/secretary/barangaySettings" />
-
-        <div className="mx-auto max-w-5xl space-y-4 px-4 py-8">
-          <Skeleton className="h-8 w-56" />
-          <Skeleton className="h-40 w-full" />
-        </div>
-      </>
+        <Skeleton className="h-8 w-56" />
+        <Skeleton className="h-40 w-full" />
+      </div>
     );
   }
 

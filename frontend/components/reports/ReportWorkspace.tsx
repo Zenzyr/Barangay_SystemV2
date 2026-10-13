@@ -316,7 +316,7 @@ export function ReportWorkspace({
       </div>
 
       {availableTypes.length > 1 && (
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-full sm:w-fit overflow-x-auto">
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-full sm:w-fit max-w-full overflow-x-auto">
         {availableTypes.map((t) => (
           <button
             key={t.value}

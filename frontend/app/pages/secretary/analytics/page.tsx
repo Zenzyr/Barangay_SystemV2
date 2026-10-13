@@ -42,7 +42,7 @@ export default function SecretaryAnalyticsPage() {
     <div className="w-full min-h-dvh p-4 sm:p-6 space-y-6">
       <BackButton />
       {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="size-11 rounded-xl bg-gradient-to-br from-sky-100 to-emerald-100 text-sky-600 flex items-center justify-center shadow-sm">
             <BarChart3 className="size-5" />
@@ -58,10 +58,10 @@ export default function SecretaryAnalyticsPage() {
         </div>
 
         {/* ── Shared date-range filter (respected by both tabs) ── */}
-        <div className="flex items-center gap-2 bg-white rounded-xl border border-slate-200/80 shadow-sm px-3 py-2">
+        <div className="flex items-center gap-2 self-start lg:self-auto max-w-full bg-white rounded-xl border border-slate-200/80 shadow-sm px-3 py-2">
           <CalendarRange className="size-4 text-slate-400 shrink-0" />
           <span className="text-xs font-medium text-slate-500 hidden sm:inline">Date range</span>
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             {RANGE_OPTIONS.map((opt) => (
               <button
                 key={opt.key}

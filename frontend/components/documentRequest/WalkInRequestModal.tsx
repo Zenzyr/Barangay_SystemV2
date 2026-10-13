@@ -13,7 +13,7 @@ import {
   DOCUMENT_DESCRIPTIONS,
   DOCUMENT_ICONS,
 } from "@/app/utils/documentRequestOptions";
-import { DocumentFieldsForm, FIELD_CONFIGS, isFieldsValid } from "@/app/utils/documentRequestFields";
+import { DocumentFieldsForm, FIELD_CONFIGS, hasFieldErrors, isFieldsValid } from "@/app/utils/documentRequestFields";
 import { apiErrorMessage, formatCurrency } from "@/app/utils/transactionFormat";
 import { Button } from "@/components/ui/button";
 import {
@@ -417,7 +417,10 @@ export default function WalkInRequestModal({ open, onOpenChange }: Props) {
   });
 
   const detailsReady = !!residentDetails && residentDetails.id === selectedResident?.id;
-  const isFormValid = detailsReady && isFieldsValid(currentDocFields, { ...autoValues, ...formData });
+  const isFormValid =
+    detailsReady &&
+    isFieldsValid(currentDocFields, { ...autoValues, ...formData }, selectedDocument) &&
+    !hasFieldErrors(manualFields, formData);
   const activeIndex = STEPS.findIndex((s) => s.key === step);
 
   return (
@@ -671,7 +674,7 @@ export default function WalkInRequestModal({ open, onOpenChange }: Props) {
                     {manualFields.length > 0 ? (
                       <div className="space-y-2">
                         <p className="text-sm font-medium text-slate-700">Request Details</p>
-                        <DocumentFieldsForm fields={manualFields} values={formData} onChange={updateField} />
+                        <DocumentFieldsForm fields={manualFields} values={formData} onChange={updateField} document={selectedDocument} />
                       </div>
                     ) : (
                       <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">

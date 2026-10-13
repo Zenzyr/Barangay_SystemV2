@@ -267,7 +267,7 @@ export default function Page() {
       </div>
 
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-full sm:w-fit">
+        <div className="flex shrink-0 gap-1 bg-gray-100 rounded-xl p-1 w-full sm:w-fit">
           {(
             [
               { key: "client", label: "My Requests", icon: CalendarCheck, count: mine.length },
@@ -298,7 +298,7 @@ export default function Page() {
             </button>
           ))}
         </div>
-        <div className="flex gap-1.5 overflow-x-auto pb-1 -mb-1">
+        <div className="flex min-w-0 gap-1.5 overflow-x-auto pb-1 -mb-1">
           {STATUS_FILTERS.map((s) => (
             <button
               key={s}

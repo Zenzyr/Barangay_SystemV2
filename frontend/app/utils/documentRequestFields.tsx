@@ -14,6 +14,15 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
+  FIELD_MAX_LENGTHS,
+  PROFILE_FIELD_KEYS,
+  TITLE_NO_PREFIX,
+  documentFieldError,
+  isFieldRequired,
+  normalizeTitleNo,
+  stripTitlePrefix,
+} from "@/app/utils/documentRequestValidation";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -296,6 +305,49 @@ interface DocumentFieldsFormProps {
   fields: string[];
   values: Record<string, string | number | null>;
   onChange: (key: string, value: string | number | null) => void;
+  document?: string | null;
+}
+
+export function TitleNoInput({
+  value,
+  onChange,
+  invalid,
+  className,
+  id,
+}: {
+  value: string | number | null | undefined;
+  onChange: (value: string) => void;
+  invalid?: boolean;
+  className?: string;
+  id?: string;
+}) {
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-sm font-medium text-slate-500">
+        {TITLE_NO_PREFIX}
+      </span>
+      <Input
+        id={id}
+        type="text"
+        inputMode="numeric"
+        placeholder="e.g. 025-2012002046"
+        value={stripTitlePrefix(String(value ?? ""))}
+        onChange={(e) => onChange(normalizeTitleNo(e.target.value))}
+        maxLength={FIELD_MAX_LENGTHS.titleNo - TITLE_NO_PREFIX.length}
+        aria-invalid={invalid || undefined}
+        className={`pl-10 ${className ?? ""}`}
+      />
+    </div>
+  );
+}
+
+export function FieldError({ id, message }: { id: string; message: string | null }) {
+  if (!message) return null;
+  return (
+    <p id={id} className="text-xs text-red-500">
+      {message}
+    </p>
+  );
 }
 
 /**
@@ -303,7 +355,7 @@ interface DocumentFieldsFormProps {
  * FIELD_CONFIGS. Used by the resident request wizard, the walk-in modal and
  * the edit-request modal to keep the field behavior identical everywhere.
  */
-export function DocumentFieldsForm({ fields, values, onChange }: DocumentFieldsFormProps) {
+export function DocumentFieldsForm({ fields, values, onChange, document }: DocumentFieldsFormProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {fields.map((fieldKey) => {
@@ -311,13 +363,17 @@ export function DocumentFieldsForm({ fields, values, onChange }: DocumentFieldsF
         if (!config) return null;
         const Icon = FIELD_ICONS[fieldKey];
         const currentValue = values[fieldKey] ?? "";
+        const inputId = `doc-field-${fieldKey}`;
+        const errorId = `${inputId}-error`;
+        const error = documentFieldError(fieldKey, currentValue);
         const label = (
-          <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+          <label htmlFor={inputId} className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
             {Icon && <Icon className="size-3.5 text-sky-500" />}
             {config.label}
-            {config.required && <span className="text-red-400">*</span>}
+            {isFieldRequired(fieldKey, config.required, document) && <span className="text-red-400">*</span>}
           </label>
         );
+        const inputClass = "h-9 border-slate-200 focus:border-sky-400 focus:ring-sky-400/20 bg-white";
 
         if (config.type === "select") {
           return (
@@ -327,7 +383,7 @@ export function DocumentFieldsForm({ fields, values, onChange }: DocumentFieldsF
                 value={String(currentValue)}
                 onValueChange={(val) => onChange(fieldKey, val)}
               >
-                <SelectTrigger className="w-full h-9 border-slate-200 focus:border-sky-400 focus:ring-sky-400/20 bg-white">
+                <SelectTrigger id={inputId} className="w-full h-9 border-slate-200 focus:border-sky-400 focus:ring-sky-400/20 bg-white">
                   <SelectValue placeholder={`Select ${config.label.toLowerCase()}`} />
                 </SelectTrigger>
                 <SelectContent>
@@ -338,6 +394,23 @@ export function DocumentFieldsForm({ fields, values, onChange }: DocumentFieldsF
                   ))}
                 </SelectContent>
               </Select>
+              <FieldError id={errorId} message={error} />
+            </div>
+          );
+        }
+
+        if (fieldKey === "titleNo") {
+          return (
+            <div key={fieldKey} className="space-y-1.5">
+              {label}
+              <TitleNoInput
+                id={inputId}
+                value={currentValue}
+                onChange={(val) => onChange(fieldKey, val)}
+                invalid={!!error}
+                className={inputClass}
+              />
+              <FieldError id={errorId} message={error} />
             </div>
           );
         }
@@ -347,15 +420,19 @@ export function DocumentFieldsForm({ fields, values, onChange }: DocumentFieldsF
             <div key={fieldKey} className="space-y-1.5">
               {label}
               <Input
+                id={inputId}
                 type="number"
                 placeholder={config.placeholder}
                 value={currentValue}
                 onChange={(e) =>
                   onChange(fieldKey, e.target.value ? Number(e.target.value) : null)
                 }
-                className="h-9 border-slate-200 focus:border-sky-400 focus:ring-sky-400/20 bg-white"
+                aria-invalid={!!error || undefined}
+                aria-describedby={error ? errorId : undefined}
+                className={inputClass}
                 min={0}
               />
+              <FieldError id={errorId} message={error} />
             </div>
           );
         }
@@ -364,12 +441,17 @@ export function DocumentFieldsForm({ fields, values, onChange }: DocumentFieldsF
           <div key={fieldKey} className="space-y-1.5">
             {label}
             <Input
+              id={inputId}
               type={config.type}
               placeholder={config.placeholder}
               value={String(currentValue)}
               onChange={(e) => onChange(fieldKey, e.target.value)}
-              className="h-9 border-slate-200 focus:border-sky-400 focus:ring-sky-400/20 bg-white"
+              maxLength={FIELD_MAX_LENGTHS[fieldKey]}
+              aria-invalid={!!error || undefined}
+              aria-describedby={error ? errorId : undefined}
+              className={inputClass}
             />
+            <FieldError id={errorId} message={error} />
           </div>
         );
       })}
@@ -378,11 +460,20 @@ export function DocumentFieldsForm({ fields, values, onChange }: DocumentFieldsF
 }
 
 /** True when every required field in `fields` has a non-empty value. */
-export function isFieldsValid(fields: string[], values: Record<string, string | number | null>): boolean {
+export function isFieldsValid(
+  fields: string[],
+  values: Record<string, string | number | null>,
+  document?: string | null,
+): boolean {
   return fields.every((fk) => {
     const config = FIELD_CONFIGS[fk];
-    if (!config?.required) return true;
     const v = values[fk];
-    return v !== null && v !== undefined && String(v).trim() !== "";
+    const empty = v === null || v === undefined || String(v).trim() === "";
+    if (empty) return !isFieldRequired(fk, config?.required, document);
+    return PROFILE_FIELD_KEYS.includes(fk) || !documentFieldError(fk, v);
   });
+}
+
+export function hasFieldErrors(fields: string[], values: Record<string, string | number | null>): boolean {
+  return fields.some((fk) => !!documentFieldError(fk, values[fk]));
 }

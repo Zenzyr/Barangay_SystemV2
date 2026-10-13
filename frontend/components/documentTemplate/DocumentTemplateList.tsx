@@ -143,12 +143,12 @@ export function DocumentTemplateList({
           </SelectContent>
         </Select>
         <span className="text-sm text-muted-foreground">{filtered.length} template(s)</span>
-        <div className="flex w-full gap-2 sm:ml-auto sm:w-auto">
-          <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending}>
+        <div className="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">
+          <Button variant="outline" size="sm" className="flex-auto sm:flex-none" onClick={() => seedMutation.mutate()} disabled={seedMutation.isPending}>
             <Sparkles className="mr-1 size-4" />
             {seedMutation.isPending ? "Seeding..." : "Seed Defaults"}
           </Button>
-          <Button size="sm" className="flex-1 sm:flex-none" asChild>
+          <Button size="sm" className="flex-auto sm:flex-none" asChild>
             <Link href={createHref}>
               <Plus className="mr-1 size-4" />
               Create Template

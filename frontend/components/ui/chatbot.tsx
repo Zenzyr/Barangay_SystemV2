@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import { isAxiosError } from "axios";
 import axiosInstance from "@/app/utils/axios";
 import useUserStore from "@/app/store/useUserStore";
 import { documentRequestInterface } from "@/app/types/documentRequest";
@@ -91,16 +92,28 @@ export default function Chatbot() {
         .map((m) => `${m.from === "user" ? "User" : "AI"}: ${m.text}`);
       const convo = [...prior, `User: ${text}`];
       setThinking(true);
+      const body = { input: text, convo };
       try {
-        const res = await axiosInstance.post(user ? "/account/ai" : "/public/ai", {
-          input: text,
-          convo,
-        });
+        let res;
+        try {
+          res = await axiosInstance.post(user ? "/account/ai" : "/public/ai", body);
+        } catch (err) {
+          const status = isAxiosError(err) ? err.response?.status : undefined;
+          if (!user || (status !== 401 && status !== 403)) throw err;
+          res = await axiosInstance.post("/public/ai", body);
+        }
         addBotMessage(String(res.data));
-      } catch {
-        addBotMessage(
-          "Sorry, I couldn't reach the AI assistant right now. Please try again in a moment."
-        );
+      } catch (err) {
+        const status = isAxiosError(err) ? err.response?.status : undefined;
+        if (status === 429) {
+          addBotMessage("You've sent a lot of messages in a short time. Please wait a few minutes and try again.");
+        } else if (status === 400) {
+          addBotMessage("Please keep your question under 1,000 characters and try again.");
+        } else {
+          addBotMessage(
+            "Sorry, I couldn't reach the AI assistant right now. Please try again in a moment."
+          );
+        }
       } finally {
         setThinking(false);
       }
@@ -238,7 +251,8 @@ export default function Chatbot() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Type your question..."
-              className="flex-1 h-9 rounded-full border border-gray-200 px-3.5 text-sm focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20"
+              maxLength={1000}
+              className="flex-1 min-w-0 h-9 rounded-full border border-gray-200 px-3.5 text-sm focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20"
             />
             <Button
               size="icon"

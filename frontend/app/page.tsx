@@ -57,10 +57,10 @@ export default function Home() {
             : "bg-white/20 backdrop-blur-md border-b border-white/10 shadow-sm"
         }`}
       >
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 px-4 sm:px-6 py-3">
           {/* Logo + Brand */}
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="relative w-10 h-10 rounded-xl overflow-hidden ring-2 ring-sky-200/50 group-hover:ring-sky-400/60 transition-all duration-300">
+          <Link href="/" className="flex min-w-0 items-center gap-2 sm:gap-3 group">
+            <div className="relative w-10 h-10 shrink-0 rounded-xl overflow-hidden ring-2 ring-sky-200/50 group-hover:ring-sky-400/60 transition-all duration-300">
               <Image
                 src={logoUrl}
                 alt="Barangay Logo"
@@ -69,7 +69,7 @@ export default function Home() {
                 className="object-cover"
               />
             </div>
-            <span className="text-lg font-bold bg-gradient-to-r from-sky-700 to-emerald-600 bg-clip-text text-transparent">
+            <span className="truncate text-base sm:text-lg font-bold bg-gradient-to-r from-sky-700 to-emerald-600 bg-clip-text text-transparent">
               Barangay Rabon
             </span>
           </Link>
@@ -97,7 +97,7 @@ export default function Home() {
           </nav>
 
           {/* Auth Buttons */}
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-3">
             <Link href="/guest/signIn">
               <Button
                 variant="ghost"
@@ -107,7 +107,7 @@ export default function Home() {
               </Button>
             </Link>
             <Link href="/guest/signUp">
-              <Button className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white shadow-md shadow-sky-200/50 hover:shadow-lg hover:shadow-sky-300/50 transition-all duration-300 font-semibold px-5">
+              <Button className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white shadow-md shadow-sky-200/50 hover:shadow-lg hover:shadow-sky-300/50 transition-all duration-300 font-semibold px-3 sm:px-5">
                 Sign Up
               </Button>
             </Link>

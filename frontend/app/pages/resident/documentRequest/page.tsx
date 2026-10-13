@@ -43,6 +43,13 @@ import {
   Eye,
 } from "lucide-react";
 import { getDocumentPrice } from "@/app/utils/documents";
+import { TitleNoInput, FieldError } from "@/app/utils/documentRequestFields";
+import {
+  FIELD_MAX_LENGTHS,
+  documentFieldError,
+  isFieldRequired,
+  normalizeTitleNo,
+} from "@/app/utils/documentRequestValidation";
 
 // ─── Field metadata ───────────────────────────────────────────────
 interface FieldConfig {
@@ -56,7 +63,7 @@ interface FieldConfig {
 
 interface ApiError {
   response?: {
-    data?: { existing?: documentRequestInterface; message?: string };
+    data?: { existing?: documentRequestInterface; message?: string } | string;
     status?: number;
   };
   message?: string;
@@ -409,6 +416,8 @@ export default function DocumentRequestPage() {
   const [duplicateExisting, setDuplicateExisting] = useState<documentRequestInterface | null>(null);
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [prefilledKeys, setPrefilledKeys] = useState<Set<string>>(new Set());
+  const [showErrors, setShowErrors] = useState(false);
 
   const dailyStatus = useDailyRequestStatus();
 
@@ -462,14 +471,7 @@ export default function DocumentRequestPage() {
   }, [selectedDocument]);
 
   // Fields that were auto-filled from the resident's profile
-  const autoFilledKeys = useMemo(() => {
-    const keys = new Set<string>();
-    for (const key of Object.keys(RESIDENT_DATA_FIELDS)) {
-      const value = formData[key];
-      if (value !== undefined && value !== null && value !== "") keys.add(key);
-    }
-    return keys;
-  }, [formData]);
+  const autoFilledKeys = prefilledKeys;
 
   // Fields the resident still needs to type in (not from their profile)
   const remainingManualFields = useMemo(
@@ -497,6 +499,8 @@ export default function DocumentRequestPage() {
     }
     setSelectedDocument(doc);
     setFormData(prefill);
+    setPrefilledKeys(new Set(Object.keys(prefill)));
+    setShowErrors(false);
     setStep("form");
   };
 
@@ -509,6 +513,8 @@ export default function DocumentRequestPage() {
   const resetForm = () => {
     setSelectedDocument(null);
     setFormData({});
+    setPrefilledKeys(new Set());
+    setShowErrors(false);
     setStep("select");
   };
 
@@ -548,14 +554,16 @@ export default function DocumentRequestPage() {
           const n = Number(value);
           if (isNaN(n) || n < 0) continue;
           payload[fieldKey] = n;
+        } else if (fieldKey === "titleNo") {
+          payload[fieldKey] = normalizeTitleNo(value);
         } else {
-          payload[fieldKey] = String(value);
+          payload[fieldKey] = String(value).trim();
         }
       }
     }
 
     // Include contact if available
-    if (formData.contact) payload.contact = String(formData.contact);
+    if (formData.contact) payload.contact = String(formData.contact).trim();
 
     return payload as unknown as documentRequestInterfaceInput;
   };
@@ -580,13 +588,13 @@ export default function DocumentRequestPage() {
     },
     onError: (err: ApiError) => {
       const data = err?.response?.data;
-      if (err?.response?.status === 409 && data?.existing) {
+      if (err?.response?.status === 409 && typeof data === "object" && data?.existing) {
         setDuplicateExisting(data.existing);
         setDuplicateOpen(true);
         return;
       }
       const message =
-        data?.message || err?.message || "Failed to submit document request";
+        (typeof data === "string" ? data : data?.message) || err?.message || "Failed to submit document request";
       toast.error(typeof message === "string" ? message : "Submission failed", {
         description: "Please check your information and try again.",
       });
@@ -594,16 +602,52 @@ export default function DocumentRequestPage() {
   });
 
   // ── Validation ────────────────────────────────────────────────
-  const isFormValid = useMemo(() => {
-    for (const fieldKey of currentDocFields) {
+  const showManualContact = !currentDocFields.includes("contact") && !autoFilledKeys.has("contact");
+
+  const validatedFields = useMemo(
+    () => (showManualContact ? [...remainingManualFields, "contact"] : remainingManualFields),
+    [remainingManualFields, showManualContact],
+  );
+
+  const fieldErrors = useMemo(() => {
+    const errors: Record<string, string> = {};
+    for (const fieldKey of validatedFields) {
+      const value = formData[fieldKey];
       const config = FIELD_CONFIGS[fieldKey];
-      if (config?.required) {
-        const value = formData[fieldKey];
-        if (!value || value === "") return false;
+      if (value === undefined || value === null || String(value).trim() === "") {
+        if (isFieldRequired(fieldKey, config?.required, selectedDocument)) {
+          errors[fieldKey] = `${config?.label ?? "This field"} is required.`;
+        }
+        continue;
       }
+      const error = documentFieldError(fieldKey, value);
+      if (error) errors[fieldKey] = error;
     }
-    return true;
-  }, [currentDocFields, formData]);
+    return errors;
+  }, [validatedFields, formData, selectedDocument]);
+
+  const isFormValid = Object.keys(fieldErrors).length === 0;
+
+  const visibleError = (fieldKey: string): string | null => {
+    const error = fieldErrors[fieldKey];
+    if (!error) return null;
+    const value = formData[fieldKey];
+    const hasValue = value !== undefined && value !== null && String(value).trim() !== "";
+    return showErrors || hasValue ? error : null;
+  };
+
+  const handleSubmit = () => {
+    if (!isFormValid) {
+      setShowErrors(true);
+      const firstInvalid = validatedFields.find((fieldKey) => fieldErrors[fieldKey]);
+      if (firstInvalid) window.document.getElementById(`doc-field-${firstInvalid}`)?.focus();
+      toast.error("Please correct the highlighted fields", {
+        description: "Some details are missing or not in the expected format.",
+      });
+      return;
+    }
+    submitMutation.mutate();
+  };
 
   // ── Render field ──────────────────────────────────────────────
   const renderField = (fieldKey: string) => {
@@ -612,20 +656,33 @@ export default function DocumentRequestPage() {
 
     const Icon = FIELD_ICONS[fieldKey];
     const currentValue = formData[fieldKey] ?? "";
+    const inputId = `doc-field-${fieldKey}`;
+    const errorId = `${inputId}-error`;
+    const error = visibleError(fieldKey);
+    const inputClass = "h-9 border-slate-200 focus:border-sky-400 focus:ring-sky-400/20 bg-white";
+
+    const label = (
+      <label htmlFor={inputId} className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+        {Icon && <Icon className="size-3.5 text-sky-500" />}
+        {config.label}
+        {isFieldRequired(fieldKey, config.required, selectedDocument) && <span className="text-red-400">*</span>}
+      </label>
+    );
 
     if (config.type === "select") {
       return (
         <div key={fieldKey} className="space-y-1.5">
-          <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-            {Icon && <Icon className="size-3.5 text-sky-500" />}
-            {config.label}
-            {config.required && <span className="text-red-400">*</span>}
-          </label>
+          {label}
           <Select
             value={String(currentValue)}
             onValueChange={(val) => updateField(fieldKey, val)}
           >
-            <SelectTrigger className="w-full h-9 border-slate-200 focus:border-sky-400 focus:ring-sky-400/20 bg-white">
+            <SelectTrigger
+              id={inputId}
+              aria-invalid={!!error || undefined}
+              aria-describedby={error ? errorId : undefined}
+              className="w-full h-9 border-slate-200 focus:border-sky-400 focus:ring-sky-400/20 bg-white"
+            >
               <SelectValue placeholder={`Select ${config.label.toLowerCase()}`} />
             </SelectTrigger>
             <SelectContent>
@@ -636,6 +693,23 @@ export default function DocumentRequestPage() {
               ))}
             </SelectContent>
           </Select>
+          <FieldError id={errorId} message={error} />
+        </div>
+      );
+    }
+
+    if (fieldKey === "titleNo") {
+      return (
+        <div key={fieldKey} className="space-y-1.5">
+          {label}
+          <TitleNoInput
+            id={inputId}
+            value={currentValue}
+            onChange={(val) => updateField(fieldKey, val)}
+            invalid={!!error}
+            className={inputClass}
+          />
+          <FieldError id={errorId} message={error} />
         </div>
       );
     }
@@ -643,41 +717,42 @@ export default function DocumentRequestPage() {
     if (config.type === "number") {
       return (
         <div key={fieldKey} className="space-y-1.5">
-          <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-            {Icon && <Icon className="size-3.5 text-sky-500" />}
-            {config.label}
-            {config.required && <span className="text-red-400">*</span>}
-          </label>
+          {label}
           <div className="relative">
             <Input
+              id={inputId}
               type="number"
               placeholder={config.placeholder}
               value={currentValue}
               onChange={(e) =>
                 updateField(fieldKey, e.target.value ? Number(e.target.value) : null)
               }
-              className="pl-3 h-9 border-slate-200 focus:border-sky-400 focus:ring-sky-400/20 bg-white"
+              aria-invalid={!!error || undefined}
+              aria-describedby={error ? errorId : undefined}
+              className={`pl-3 ${inputClass}`}
               min={0}
             />
           </div>
+          <FieldError id={errorId} message={error} />
         </div>
       );
     }
 
     return (
       <div key={fieldKey} className="space-y-1.5">
-        <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-          {Icon && <Icon className="size-3.5 text-sky-500" />}
-          {config.label}
-          {config.required && <span className="text-red-400">*</span>}
-        </label>
+        {label}
         <Input
+          id={inputId}
           type={config.type}
           placeholder={config.placeholder}
           value={String(currentValue)}
           onChange={(e) => updateField(fieldKey, e.target.value)}
-          className="h-9 border-slate-200 focus:border-sky-400 focus:ring-sky-400/20 bg-white"
+          maxLength={FIELD_MAX_LENGTHS[fieldKey]}
+          aria-invalid={!!error || undefined}
+          aria-describedby={error ? errorId : undefined}
+          className={inputClass}
         />
+        <FieldError id={errorId} message={error} />
       </div>
     );
   };
@@ -838,19 +913,25 @@ export default function DocumentRequestPage() {
                   )}
 
                   {/* Contact (manual only when absent from profile) */}
-                  {!currentDocFields.includes("contact") && !autoFilledKeys.has("contact") && (
+                  {showManualContact && (
                     <div className="space-y-1.5">
-                      <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+                      <label htmlFor="doc-field-contact" className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
                         <UserRound className="size-3.5 text-sky-500" />
                         Contact Number
                       </label>
                       <Input
+                        id="doc-field-contact"
                         type="text"
+                        inputMode="numeric"
                         placeholder="e.g. 09123456789"
                         value={String(formData.contact ?? "")}
                         onChange={(e) => updateField("contact", e.target.value)}
+                        maxLength={FIELD_MAX_LENGTHS.contact}
+                        aria-invalid={!!visibleError("contact") || undefined}
+                        aria-describedby={visibleError("contact") ? "doc-field-contact-error" : undefined}
                         className="h-9 border-slate-200 focus:border-sky-400 focus:ring-sky-400/20 bg-white"
                       />
+                      <FieldError id="doc-field-contact-error" message={visibleError("contact")} />
                     </div>
                   )}
                 </div>
@@ -859,8 +940,8 @@ export default function DocumentRequestPage() {
               {/* Submit */}
               <div className="flex items-center gap-3">
                 <Button
-                  onClick={() => submitMutation.mutate()}
-                  disabled={!isFormValid || submitMutation.isPending}
+                  onClick={handleSubmit}
+                  disabled={submitMutation.isPending}
                   className="flex-1 h-10 bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-medium shadow-lg shadow-sky-200/50 hover:shadow-emerald-200/50 transition-all disabled:opacity-50"
                 >
                   {submitMutation.isPending ? (
