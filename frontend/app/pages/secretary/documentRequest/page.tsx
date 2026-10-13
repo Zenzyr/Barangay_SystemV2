@@ -211,7 +211,7 @@ export default function SecretaryDocumentRequestsPage() {
   return (
     <div className="w-full min-h-dvh p-4 sm:p-6 space-y-6">
       {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="size-11 rounded-xl bg-gradient-to-br from-sky-100 to-emerald-100 text-sky-600 flex items-center justify-center shrink-0 shadow-sm">
             <ClipboardList className="size-5" />
@@ -225,7 +225,7 @@ export default function SecretaryDocumentRequestsPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-3 text-sm text-gray-500 bg-sky-50 rounded-xl px-4 py-2 border border-sky-100">
             <FileText className="size-4 text-sky-500" />
             <span>

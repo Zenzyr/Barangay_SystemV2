@@ -7,7 +7,7 @@ import {
   documentRequestInterface,
 } from "@/app/types/documentRequest";
 import { documentTypes } from "@/app/utils/documents";
-import { DocumentFieldsForm, isFieldsValid } from "@/app/utils/documentRequestFields";
+import { DocumentFieldsForm, hasFieldErrors, isFieldsValid } from "@/app/utils/documentRequestFields";
 import { DOCUMENT_NAMES } from "@/app/utils/documentRequestOptions";
 import { Button } from "@/components/ui/button";
 import {
@@ -103,7 +103,10 @@ export default function EditRequestModal({ open, onOpenChange, document: doc, ro
 
   if (!doc) return null;
 
-  const formValid = isFieldsValid(docFields, formData);
+  const formValid =
+    isFieldsValid(docFields, formData, doc.document) &&
+    !hasFieldErrors(docFields.filter((f) => f !== "dateIssued"), formData) &&
+    (docFields.includes("contact") || !hasFieldErrors(["contact"], formData));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -157,6 +160,7 @@ export default function EditRequestModal({ open, onOpenChange, document: doc, ro
                 fields={docFields.filter((f) => f !== "dateIssued")}
                 values={formData}
                 onChange={updateField}
+                document={doc.document}
               />
               {!docFields.includes("contact") && (
                 <div className="mt-4">

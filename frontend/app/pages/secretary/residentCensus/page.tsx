@@ -861,7 +861,7 @@ export default function ResidentCensusPage() {
       <BackButton />
 
       {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
             <div className="size-11 rounded-xl bg-gradient-to-br from-sky-100 to-emerald-100 text-sky-600 flex items-center justify-center shadow-sm">
@@ -873,7 +873,7 @@ export default function ResidentCensusPage() {
             </div>
           </div>
         </div>
-     <div className="flex items-center justify-center gap-2">
+     <div className="flex flex-wrap items-center lg:justify-center gap-2">
         <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
           <button
             type="button"

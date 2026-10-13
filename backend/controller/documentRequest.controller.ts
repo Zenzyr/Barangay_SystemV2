@@ -14,6 +14,10 @@ import { getPayMongoCheckoutDetails } from "../services/payment.service";
 import { AccountService } from "../services/acccount.service";
 import { ResidentCensusService } from "../services/residentCensus.service";
 import { documentDisplayName } from "../utils/documentNames";
+import {
+  validateNewDocumentRequestFields,
+  validateUpdatedDocumentRequestFields,
+} from "../utils/documentRequestValidation";
 
 const MAX_CASH_PAYMENT = 100000;
 
@@ -164,6 +168,11 @@ export class DocumentRequestController {
       ];
       if (!validDocs.includes(documentData.document)) {
         response.status(400).send("Invalid document type");
+        return;
+      }
+      const fieldError = validateNewDocumentRequestFields(documentData.document, documentData);
+      if (fieldError) {
+        response.status(400).send(fieldError);
         return;
       }
 
@@ -521,6 +530,11 @@ export class DocumentRequestController {
       }
       if (Object.keys(cleaned).length === 0) {
         response.status(400).send("No editable fields provided");
+        return;
+      }
+      const fieldError = validateUpdatedDocumentRequestFields(cleaned, current as unknown as Record<string, unknown>);
+      if (fieldError) {
+        response.status(400).send(fieldError);
         return;
       }
 
