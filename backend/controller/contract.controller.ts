@@ -11,6 +11,17 @@ import { formattedDate } from "../utils/customFunc";
 import { isObjectId } from "../utils/validation";
 import { isStaffRole } from "../utils/roles";
 
+// Releases every slot a service request holds — a whole-day request has several.
+const releaseServiceRequestSlots = async (serviceRequest: any) => {
+  const slots: string[] =
+    Array.isArray(serviceRequest?.scheduleSlots) && serviceRequest.scheduleSlots.length
+      ? serviceRequest.scheduleSlots.map((s: any) => String(s))
+      : serviceRequest?.scheduleSlot
+        ? [String(serviceRequest.scheduleSlot)]
+        : [];
+  await WorkScheduleService.releaseMany(slots);
+};
+
 /** Client, provider, or barangay staff may read a contract. */
 const canViewContract = (contract: any, account: any) => {
   const accountId = account._id.toString();
@@ -189,6 +200,8 @@ export class ContractController {
       // Keep the originating ServiceRequest in sync so it no longer counts as
       // an "open"/accepted request and can no longer be rescheduled.
       const serviceRequestId = (contract as any).serviceRequest?._id?.toString?.() ?? String((contract as any).serviceRequest);
+      const serviceRequestDoc: any = await ServiceRequestService.get(serviceRequestId).catch(() => null);
+      await releaseServiceRequestSlots(serviceRequestDoc);
       await ServiceRequestService.updateStatusIf(serviceRequestId, "ACCEPTED", "COMPLETED").catch(() => null);
 
       await UserActivityService.create({
@@ -263,9 +276,7 @@ export class ContractController {
       const serviceRequest: any = await ServiceRequestService.get(
         String(contract.serviceRequest?._id || contract.serviceRequest),
       ).catch(() => null);
-      if (serviceRequest?.scheduleSlot) {
-        await WorkScheduleService.release(serviceRequest.scheduleSlot);
-      }
+      await releaseServiceRequestSlots(serviceRequest);
       await ServiceRequestService.updateStatusIf(
         String(contract.serviceRequest?._id || contract.serviceRequest),
         "ACCEPTED",

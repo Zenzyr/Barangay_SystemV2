@@ -60,6 +60,7 @@ import { SystemInfoService } from "../services/systemInfo.service";
 import { AIContextService } from "../services/ai/aiContext.service";
 
 import { WorkService } from "../services/work.service";
+import { ContractService } from "../services/contract.service";
 import { ScheduleError, WorkScheduleService, formatSlotLabel, localDateString } from "../services/workSchedule.service";
 import { AuditLogService } from "../services/auditLog.service";
 import { ROLES, ROLE_LIST, isStaffRole, isOfficeRole } from "../utils/roles";
@@ -2238,22 +2239,26 @@ export class AccountController {
         return;
       }
 
-      if (workerAccount.availability && workerAccount.availability !== "AVAILABLE") {
-        // NOT_AVAILABLE is an explicit opt-out — always blocked. BUSY is
-        // system-managed (an active service contract) and only blocks the
-        // current day; future-date bookings are allowed and managed by the
-        // slot calendar and capacity.
-        const blocked =
-          workerAccount.availability === "NOT_AVAILABLE" ||
-          String(scheduledDate) <= localDateString(new Date());
-        if (blocked) {
+      if (workerAccount.availability === "NOT_AVAILABLE") {
+        // NOT_AVAILABLE is an explicit opt-out — always blocked.
+        response
+          .status(400)
+          .send("This worker is currently not available and cannot be booked");
+        return;
+      }
+
+      // BUSY is system-managed (an active service contract). It blocks the
+      // current day and the contract's own service date; any other future date
+      // is still allowed and managed by the slot calendar and capacity.
+      if (workerAccount.availability === "BUSY") {
+        const active = await ContractService.getActiveByProvider(worker);
+        const contractDate = active?.startDate || "";
+        const isTodayOrPast = String(scheduledDate) <= localDateString(new Date());
+        const isContractDate = !!contractDate && String(scheduledDate) === contractDate;
+        if (isTodayOrPast || isContractDate) {
           response
             .status(400)
-            .send(
-              workerAccount.availability === "NOT_AVAILABLE"
-                ? "This worker is currently not available and cannot be booked"
-                : "This worker is busy today. Please choose a future date."
-            );
+            .send("This worker is busy on the selected date. Please choose another date.");
           return;
         }
       }

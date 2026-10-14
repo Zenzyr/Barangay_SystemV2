@@ -42,7 +42,6 @@ import {
   ShieldOff,
   ShieldAlert,
   Loader2,
-  AlertTriangle,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/BackButton";
 
@@ -276,12 +275,6 @@ function UsersContent() {
                           )}
                           <div className="min-w-0">
                             <p className="font-medium text-gray-800 truncate">{a.name}</p>
-                            {a.possibleDuplicate?.status === "review" && (
-                              <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-amber-600">
-                                <AlertTriangle className="size-3 shrink-0" />
-                                Possible duplicate — review
-                              </p>
-                            )}
                             <p className="text-xs text-gray-500 md:hidden truncate">{a.email}</p>
                           </div>
                         </div>

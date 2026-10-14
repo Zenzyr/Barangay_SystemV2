@@ -45,6 +45,7 @@ export interface WorkRequestItem {
   scheduleStartTime: string | null;
   scheduleEndTime: string | null;
   scheduleLabel: string | null;
+  wholeDay: boolean;
   location: string;
   budget: number | null;
   notes: string;

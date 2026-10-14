@@ -16,6 +16,10 @@ const ServiceRequestSchema = new Schema({
     scheduleStartTime: { type: String, required: false },
     scheduleEndTime: { type: String, required: false },
     scheduleSlot: { type: Schema.Types.ObjectId, ref: "ScheduleSlot", required: false },
+    // A whole-day contract reserves every configured slot for the date; the
+    // slot ids are kept here so they can all be released together.
+    wholeDay: { type: Boolean, required: false, default: false },
+    scheduleSlots: [{ type: Schema.Types.ObjectId, ref: "ScheduleSlot" }],
 }, { timestamps: true });
 
 ServiceRequestSchema.index({ client: 1, createdAt: -1 });

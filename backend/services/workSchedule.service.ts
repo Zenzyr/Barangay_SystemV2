@@ -174,7 +174,8 @@ export class WorkScheduleService {
     providerId: string,
     date: string,
     availability: "AVAILABLE" | "BUSY" | "NOT_AVAILABLE" | undefined,
-    now: Date = new Date()
+    now: Date = new Date(),
+    busyDates: string[] = []
   ): Promise<DayAvailability> {
     if (!isObjectId(providerId)) throw new ScheduleError("A valid provider is required");
     const config = await this.getConfig();
@@ -189,10 +190,24 @@ export class WorkScheduleService {
       return { provider: providerId, date, open: false, closedReason: "This worker is not accepting work requests", slots: [] };
     }
 
-    // BUSY is system-managed (an active service contract). It only blocks
-    // same-day bookings — future dates are handled by the slot calendar.
-    if (availability === "BUSY" && date === localDateString(now)) {
-      return { provider: providerId, date, open: false, closedReason: "This worker is busy today. Please choose another date.", slots: [] };
+    // BUSY is system-managed (an active service contract). It blocks the
+    // current day and the contract's own service date — future dates are
+    // otherwise handled by the slot calendar and capacity.
+    if (availability === "BUSY") {
+      const isToday = date === localDateString(now);
+      const isContractDate = busyDates.includes(date);
+      if (isToday || isContractDate) {
+        return {
+          provider: providerId,
+          date,
+          open: false,
+          closedReason:
+            isContractDate && !isToday
+              ? "This worker is booked for a service contract on this date. Please choose another date."
+              : "This worker is busy today. Please choose another date.",
+          slots: [],
+        };
+      }
     }
 
     const existing = await ScheduleSlotModel.find({ provider: providerId, date }).lean();
@@ -276,6 +291,31 @@ export class WorkScheduleService {
     return reserved;
   }
 
+  // Reserves every configured slot for a date so the client takes the
+  // provider's whole day. Atomic: if any slot cannot be taken, the slots
+  // reserved so far are released and the error is re-thrown.
+  static async reserveDay(providerId: string, date: unknown, now: Date = new Date()) {
+    if (!isObjectId(providerId)) throw new ScheduleError("A valid provider is required");
+    const config = await this.getConfig();
+    const dateError = this.validateDate(date, config, now);
+    if (dateError) throw new ScheduleError(dateError);
+
+    const dateStr = date as string;
+    const reserved: any[] = [];
+    try {
+      for (const slot of config.slots) {
+        reserved.push(await this.reserve(providerId, dateStr, slot.startTime, now));
+      }
+    } catch (error) {
+      await this.releaseMany(reserved.map((slot) => slot._id));
+      throw error;
+    }
+
+    const first = config.slots[0];
+    const last = config.slots[config.slots.length - 1];
+    return { date: dateStr, startTime: first.startTime, endTime: last.endTime, slots: reserved };
+  }
+
   static async release(slotId: unknown) {
     if (!slotId || !isObjectId(String(slotId))) return null;
     return ScheduleSlotModel.findOneAndUpdate(
@@ -283,5 +323,10 @@ export class WorkScheduleService {
       { $inc: { bookedCount: -1 } },
       { new: true },
     );
+  }
+
+  static async releaseMany(slotIds: unknown[]) {
+    const valid = (slotIds || []).filter((id) => id && isObjectId(String(id)));
+    await Promise.all(valid.map((id) => this.release(id)));
   }
 }

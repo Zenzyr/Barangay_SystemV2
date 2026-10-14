@@ -16,6 +16,8 @@ export interface serviceRequestInterfaceInput {
   scheduleStartTime?: string;
   scheduleEndTime?: string;
   scheduleSlot?: string;
+  wholeDay?: boolean;
+  scheduleSlots?: string[];
 }
 
 export interface serviceRequestInterface extends serviceRequestInterfaceInput {

@@ -27,6 +27,17 @@ export class ContractService {
       .sort({ createdAt: -1 });
   }
 
+  // A provider is only ever BUSY while a contract is open, so at most one is
+  // active at a time. Used to block that contract's service date as well.
+  static async getActiveByProvider(providerId: string) {
+    return await ContractModel.findOne({
+      provider: providerId,
+      status: { $in: ["ACTIVE", "COMPLETION_REQUESTED"] },
+    })
+      .sort({ createdAt: -1 })
+      .select("startDate");
+  }
+
   static async requestCompletion(id: string) {
     return await ContractModel.findOneAndUpdate(
       { _id: id, status: "ACTIVE" },

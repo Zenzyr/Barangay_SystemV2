@@ -4,6 +4,7 @@ import { WorkService } from "../services/work.service";
 import { WorkRequestService, WorkRequestKind } from "../services/workRequest.service";
 import { AccountService } from "../services/acccount.service";
 import { ScheduleError, WorkScheduleService } from "../services/workSchedule.service";
+import { ContractService } from "../services/contract.service";
 import { AuditLogService } from "../services/auditLog.service";
 import { NotificationService } from "../services/notification.service";
 import { isObjectId } from "../utils/validation";
@@ -85,10 +86,17 @@ export class WorkController {
         return;
       }
       const workerAccount = await AccountService.get(provider);
+      const busyDates: string[] = [];
+      if (workerAccount?.availability === "BUSY") {
+        const active = await ContractService.getActiveByProvider(provider);
+        if (active?.startDate) busyDates.push(active.startDate);
+      }
       const availability = await WorkScheduleService.getAvailability(
         provider,
         date,
-        workerAccount?.availability as "AVAILABLE" | "BUSY" | "NOT_AVAILABLE" | undefined
+        workerAccount?.availability as "AVAILABLE" | "BUSY" | "NOT_AVAILABLE" | undefined,
+        new Date(),
+        busyDates
       );
       response.send(availability);
     } catch (error) {
@@ -118,7 +126,7 @@ export class WorkController {
         response.status(400).json({ message: "Invalid work request id" });
         return;
       }
-      const { scheduledDate, startTime } = request.body ?? {};
+      const { scheduledDate, startTime, wholeDay } = request.body ?? {};
       const account = request.account;
       if (!account) {
         response.status(401).json({ message: "Authentication required" });
@@ -130,7 +138,7 @@ export class WorkController {
         id: account._id.toString(),
         asClient: !staff,
       };
-      const updated = await WorkRequestService.reschedule(kind, id, scheduledDate, startTime, actor);
+      const updated = await WorkRequestService.reschedule(kind, id, scheduledDate, startTime, actor, wholeDay === true || wholeDay === "true");
       response.send(updated);
     } catch (error) {
       if (sendScheduleError(response, error)) return;

@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { DatePickerGrid, TimeSlotGrid, useWorkScheduleConfig } from "./SchedulePicker";
 import { ScheduleBlock } from "./WorkRequestCard";
 import { CalendarClock, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export function RescheduleDialog({
   item,
@@ -25,6 +26,7 @@ export function RescheduleDialog({
   const { data: config } = useWorkScheduleConfig(open);
   const [date, setDate] = useState<string | null>(null);
   const [startTime, setStartTime] = useState<string | null>(null);
+  const [wholeDay, setWholeDay] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [resolvedItem, setResolvedItem] = useState(item);
@@ -32,15 +34,25 @@ export function RescheduleDialog({
     setResolvedItem(item);
     setDate(item?.scheduledDate ?? null);
     setStartTime(null);
+    setWholeDay(item?.wholeDay ?? false);
     setError(null);
   }
 
+  const isService = item?.kind === "service";
   const selectedSlot = config?.slots.find((s) => s.startTime === startTime);
-  const proposedLabel = selectedSlot ? `${formatTime12h(selectedSlot.startTime)} – ${formatTime12h(selectedSlot.endTime)}` : null;
+  const proposedLabel = wholeDay
+    ? "Whole day"
+    : selectedSlot
+      ? `${formatTime12h(selectedSlot.startTime)} – ${formatTime12h(selectedSlot.endTime)}`
+      : null;
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const res = await axiosInstance.patch(`/work/requests/${item?.kind}/${item?._id}/schedule`, { scheduledDate: date, startTime });
+      const res = await axiosInstance.patch(`/work/requests/${item?.kind}/${item?._id}/schedule`, {
+        scheduledDate: date,
+        startTime,
+        wholeDay,
+      });
       return res.data as WorkRequestItem;
     },
     onSuccess: (updated) => {
@@ -89,17 +101,46 @@ export function RescheduleDialog({
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-700">New time slot</p>
+              {isService && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWholeDay((v) => !v);
+                    setStartTime(null);
+                    setError(null);
+                  }}
+                  aria-pressed={wholeDay}
+                  className={cn(
+                    "w-full rounded-xl border p-3 text-left transition-all flex items-start gap-3",
+                    wholeDay ? "border-sky-400 bg-sky-50/60 ring-2 ring-sky-200" : "border-gray-200 hover:border-sky-300",
+                  )}
+                >
+                  <div className={cn("size-8 rounded-lg flex items-center justify-center shrink-0", wholeDay ? "bg-sky-100 text-sky-600" : "bg-gray-100 text-gray-400")}>
+                    <CalendarClock className="size-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">Take the whole day</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Reserve every time slot for the new date.</p>
+                  </div>
+                </button>
+              )}
               {error && <p className="text-sm text-rose-700 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">{error}</p>}
-              <TimeSlotGrid
-                providerId={item.provider?._id}
-                date={date}
-                value={startTime}
-                currentSlot={{ date: item.scheduledDate, startTime: item.scheduleStartTime }}
-                onChange={(t) => {
-                  setStartTime(t);
-                  setError(null);
-                }}
-              />
+              {wholeDay ? (
+                <p className="text-sm text-sky-800 bg-sky-50 border border-sky-100 rounded-lg px-3 py-2">
+                  The provider&apos;s entire day will be reserved.
+                </p>
+              ) : (
+                <TimeSlotGrid
+                  providerId={item.provider?._id}
+                  date={date}
+                  value={startTime}
+                  currentSlot={{ date: item.scheduledDate, startTime: item.scheduleStartTime }}
+                  onChange={(t) => {
+                    setStartTime(t);
+                    setError(null);
+                  }}
+                />
+              )}
             </div>
             {date && proposedLabel && (
               <div className="space-y-1.5">
@@ -113,7 +154,7 @@ export function RescheduleDialog({
               </Button>
               <Button
                 className="flex-1 bg-gradient-to-r from-sky-500 to-emerald-500 text-white"
-                disabled={!date || !startTime || mutation.isPending}
+                disabled={!date || (!wholeDay && !startTime) || mutation.isPending}
                 onClick={() => mutation.mutate()}
               >
                 {mutation.isPending && <Loader2 className="size-4 animate-spin" />}

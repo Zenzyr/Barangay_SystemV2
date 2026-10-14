@@ -48,8 +48,18 @@ export interface WorkRequestProvider {
 
 type Step = "type" | "details" | "date" | "time" | "review" | "done";
 
-const STEPS: { key: Exclude<Step, "done">; label: string }[] = [
-  { key: "type", label: "Category" },
+// Each request type has its own flow:
+//  - Quick Booking: choose the service, describe it, pick a slot, review.
+//  - Service Contract: additionally capture location/budget/notes before scheduling.
+const BOOKING_STEPS: { key: Exclude<Step, "done">; label: string }[] = [
+  { key: "type", label: "Request" },
+  { key: "date", label: "Date" },
+  { key: "time", label: "Time" },
+  { key: "review", label: "Review" },
+];
+
+const SERVICE_STEPS: { key: Exclude<Step, "done">; label: string }[] = [
+  { key: "type", label: "Request" },
   { key: "details", label: "Details" },
   { key: "date", label: "Date" },
   { key: "time", label: "Time" },
@@ -63,6 +73,7 @@ interface Confirmation {
   scheduledDate: string;
   startTime: string;
   endTime: string;
+  wholeDay?: boolean;
 }
 
 export function CreateWorkRequestModal({
@@ -89,6 +100,7 @@ export function CreateWorkRequestModal({
   const [date, setDate] = useState<string | null>(null);
   const [startTime, setStartTime] = useState<string | null>(null);
   const [slotLabel, setSlotLabel] = useState("");
+  const [wholeDay, setWholeDay] = useState(false);
   const [slotError, setSlotError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [checking, setChecking] = useState(false);
@@ -110,6 +122,7 @@ export function CreateWorkRequestModal({
     setDate(null);
     setStartTime(null);
     setSlotLabel("");
+    setWholeDay(false);
     setSlotError(null);
     setConfirmation(null);
   } else if (!open && wasOpen) {
@@ -121,16 +134,20 @@ export function CreateWorkRequestModal({
   const finalService = serviceType === "__custom__" ? customServiceType.trim() : serviceType;
   const budgetNum = budget === "" ? 0 : Number(budget);
   const budgetValid = budget === "" || (Number.isFinite(budgetNum) && budgetNum >= 0);
+  const steps = kind === "service" ? SERVICE_STEPS : BOOKING_STEPS;
 
   const canContinue: Record<Exclude<Step, "done">, boolean> = {
-    type: !!skill && !!finalService && !!selectedSkill && isSkillAvailable(selectedSkill),
-    details:
+    type:
+      !!skill &&
+      !!finalService &&
+      !!selectedSkill &&
+      isSkillAvailable(selectedSkill) &&
       description.trim().length > 0 &&
-      description.trim().length <= MAX_DESCRIPTION &&
-      (kind === "booking" || (location.trim().length > 0 && budgetValid)),
+      description.trim().length <= MAX_DESCRIPTION,
+    details: location.trim().length > 0 && budgetValid,
     date: !!date,
-    time: !!startTime,
-    review: !!date && !!startTime,
+    time: wholeDay ? !!date : !!startTime,
+    review: !!date && (wholeDay || !!startTime),
   };
 
   const goTo = (next: Step) => {
@@ -164,6 +181,7 @@ export function CreateWorkRequestModal({
         notes: notes.trim(),
         scheduledDate: date,
         startTime,
+        wholeDay,
       });
       return res.data;
     },
@@ -176,6 +194,7 @@ export function CreateWorkRequestModal({
         scheduledDate: data?.scheduledDate || date || "",
         startTime: data?.scheduleStartTime || startTime || "",
         endTime: data?.scheduleEndTime || "",
+        wholeDay: kind === "service" && wholeDay,
       });
       setStep("done");
     },
@@ -194,7 +213,7 @@ export function CreateWorkRequestModal({
   });
 
   const finalCheckAndSubmit = async () => {
-    if (!date || !startTime) return;
+    if (!date || (!wholeDay && !startTime)) return;
     setChecking(true);
     try {
       const latest = await queryClient.fetchQuery<DayAvailability>({
@@ -202,10 +221,16 @@ export function CreateWorkRequestModal({
         queryFn: async () => (await axiosInstance.get("/work/schedule/availability", { params: { provider: provider._id, date } })).data,
         staleTime: 0,
       });
-      const slot = latest.slots.find((s) => s.startTime === startTime);
-      if (!latest.open || !slot || slot.status !== "available") {
+      const ok = wholeDay
+        ? latest.open && latest.slots.length > 0 && latest.slots.every((s) => s.status === "available")
+        : !!latest.slots.find((s) => s.startTime === startTime && s.status === "available");
+      if (!ok) {
         setStartTime(null);
-        setSlotError("That time slot was just taken. Please choose another available slot.");
+        setSlotError(
+          wholeDay
+            ? "The provider's whole day is no longer fully available. Please choose another date."
+            : "That time slot was just taken. Please choose another available slot.",
+        );
         setStep("time");
         return;
       }
@@ -218,9 +243,11 @@ export function CreateWorkRequestModal({
     submitMutation.mutate();
   };
 
-  const activeIndex = STEPS.findIndex((s) => s.key === step);
-  const previous: Partial<Record<Step, Step>> = { details: "type", date: "details", time: "date", review: "time" };
-  const nextStep: Partial<Record<Step, Step>> = { type: "details", details: "date", date: "time", time: "review" };
+  const stepKeys = steps.map((s) => s.key);
+  const activeIndex = step === "done" ? -1 : stepKeys.indexOf(step);
+  const previous: Step | undefined = activeIndex > 0 ? stepKeys[activeIndex - 1] : undefined;
+  const nextStep: Step | undefined =
+    activeIndex >= 0 && activeIndex < stepKeys.length - 1 ? stepKeys[activeIndex + 1] : undefined;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -248,7 +275,7 @@ export function CreateWorkRequestModal({
           </DialogHeader>
           {step !== "done" && (
             <div className="flex items-center gap-1.5 mt-4 overflow-x-auto">
-              {STEPS.map((s, i) => (
+              {steps.map((s, i) => (
                 <div key={s.key} className="flex items-center gap-1.5 flex-1 last:flex-none min-w-fit">
                   <div
                     className={cn(
@@ -263,7 +290,7 @@ export function CreateWorkRequestModal({
                     <span>{i + 1}</span>
                     <span className="hidden sm:inline">{s.label}</span>
                   </div>
-                  {i < STEPS.length - 1 && <div className="h-px flex-1 min-w-2 bg-gray-200" />}
+                  {i < steps.length - 1 && <div className="h-px flex-1 min-w-2 bg-gray-200" />}
                 </div>
               ))}
             </div>
@@ -349,11 +376,7 @@ export function CreateWorkRequestModal({
                   className="h-10 border-gray-200"
                 />
               )}
-            </>
-          )}
 
-          {step === "details" && (
-            <>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700">What do you need done?</label>
                 <Textarea
@@ -367,25 +390,26 @@ export function CreateWorkRequestModal({
                   {description.trim().length}/{MAX_DESCRIPTION}
                 </p>
               </div>
-              {kind === "service" && (
-                <>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-gray-700">Location</label>
-                    <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Where will the work be done?" className="h-10 border-gray-200" />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-gray-700">Budget (optional)</label>
-                      <Input type="number" min={0} value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="0.00" className="h-10 border-gray-200" />
-                      {!budgetValid && <p className="text-xs text-rose-600">Budget must be zero or more.</p>}
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-gray-700">Notes (optional)</label>
-                      <Input value={notes} maxLength={500} onChange={(e) => setNotes(e.target.value)} placeholder="Extra notes" className="h-10 border-gray-200" />
-                    </div>
-                  </div>
-                </>
-              )}
+            </>
+          )}
+
+          {step === "details" && (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">Location</label>
+                <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Where will the work be done?" className="h-10 border-gray-200" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700">Budget (optional)</label>
+                  <Input type="number" min={0} value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="0.00" className="h-10 border-gray-200" />
+                  {!budgetValid && <p className="text-xs text-rose-600">Budget must be zero or more.</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700">Notes (optional)</label>
+                  <Input value={notes} maxLength={500} onChange={(e) => setNotes(e.target.value)} placeholder="Extra notes" className="h-10 border-gray-200" />
+                </div>
+              </div>
             </>
           )}
 
@@ -409,23 +433,60 @@ export function CreateWorkRequestModal({
           {step === "time" && (
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium text-gray-700">Choose a time slot</p>
+                <p className="text-sm font-medium text-gray-700">{wholeDay ? "Whole day" : "Choose a time slot"}</p>
                 <span className="text-xs text-gray-500 flex items-center gap-1">
                   <CalendarDays className="size-3.5" />
                   {formatScheduleDate(date)}
                 </span>
               </div>
+              {kind === "service" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWholeDay((v) => !v);
+                    setStartTime(null);
+                    setSlotLabel("");
+                    setSlotError(null);
+                  }}
+                  aria-pressed={wholeDay}
+                  className={cn(
+                    "w-full rounded-xl border p-3 text-left transition-all flex items-start gap-3",
+                    wholeDay ? "border-sky-400 bg-sky-50/60 ring-2 ring-sky-200" : "border-gray-200 hover:border-sky-300",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "size-8 rounded-lg flex items-center justify-center shrink-0",
+                      wholeDay ? "bg-sky-100 text-sky-600" : "bg-gray-100 text-gray-400",
+                    )}
+                  >
+                    <CalendarDays className="size-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">Take the whole day</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Reserve every time slot on {formatScheduleDate(date)} for this service contract.
+                    </p>
+                  </div>
+                </button>
+              )}
               {slotError && <p className="text-sm text-rose-700 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">{slotError}</p>}
-              <TimeSlotGrid
-                providerId={provider._id}
-                date={date}
-                value={startTime}
-                onChange={(t, slot) => {
-                  setStartTime(t);
-                  setSlotLabel(slot.label);
-                  setSlotError(null);
-                }}
-              />
+              {wholeDay ? (
+                <p className="text-sm text-sky-800 bg-sky-50 border border-sky-100 rounded-lg px-3 py-2">
+                  The provider&apos;s entire day will be reserved. They won&apos;t be bookable by anyone else that day.
+                </p>
+              ) : (
+                <TimeSlotGrid
+                  providerId={provider._id}
+                  date={date}
+                  value={startTime}
+                  onChange={(t, slot) => {
+                    setStartTime(t);
+                    setSlotLabel(slot.label);
+                    setSlotError(null);
+                  }}
+                />
+              )}
             </div>
           )}
 
@@ -443,7 +504,7 @@ export function CreateWorkRequestModal({
                   <CalendarCheck className="size-4 text-sky-600 mt-0.5 shrink-0" />
                   <div>
                     <p className="font-semibold text-gray-900">{formatScheduleDate(date)}</p>
-                    <p className="text-gray-600">{slotLabel || (startTime ? formatTime12h(startTime) : "")}</p>
+                    <p className="text-gray-600">{wholeDay ? "Whole day" : slotLabel || (startTime ? formatTime12h(startTime) : "")}</p>
                   </div>
                 </div>
                 <p className="text-gray-600 whitespace-pre-line">{description.trim()}</p>
@@ -480,8 +541,9 @@ export function CreateWorkRequestModal({
                 <div>
                   <p className="text-sm font-semibold text-gray-900">{formatScheduleDate(confirmation.scheduledDate)}</p>
                   <p className="text-sm text-gray-600">
-                    {formatTime12h(confirmation.startTime)}
-                    {confirmation.endTime && ` – ${formatTime12h(confirmation.endTime)}`}
+                    {confirmation.wholeDay
+                      ? "Whole day"
+                      : `${formatTime12h(confirmation.startTime)}${confirmation.endTime ? ` – ${formatTime12h(confirmation.endTime)}` : ""}`}
                   </p>
                 </div>
               </div>
@@ -498,12 +560,12 @@ export function CreateWorkRequestModal({
             <>
               <Button
                 variant="outline"
-                onClick={() => (previous[step] ? goTo(previous[step] as Step) : onOpenChange(false))}
+                onClick={() => (previous ? goTo(previous) : onOpenChange(false))}
                 className="h-10 border-gray-200 text-gray-600"
                 disabled={submitMutation.isPending || checking}
               >
                 <ArrowLeft className="size-4" />
-                {previous[step] ? "Back" : "Cancel"}
+                {previous ? "Back" : "Cancel"}
               </Button>
               {step === "review" ? (
                 <Button
@@ -516,7 +578,7 @@ export function CreateWorkRequestModal({
                 </Button>
               ) : (
                 <Button
-                  onClick={() => nextStep[step] && goTo(nextStep[step] as Step)}
+                  onClick={() => nextStep && goTo(nextStep)}
                   disabled={!canContinue[step]}
                   className="flex-1 h-10 bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-medium disabled:opacity-40"
                 >

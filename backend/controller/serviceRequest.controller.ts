@@ -10,6 +10,17 @@ import { formattedDate } from "../utils/customFunc";
 import { isObjectId, isNonEmptyString, MAX_DESCRIPTION_LENGTH } from "../utils/validation";
 import { ScheduleError, WorkScheduleService, formatSlotLabel } from "../services/workSchedule.service";
 
+// Releases every slot a request holds — a whole-day request has several.
+const releaseRequestSlots = async (serviceRequest: any) => {
+  const slots: string[] =
+    Array.isArray(serviceRequest?.scheduleSlots) && serviceRequest.scheduleSlots.length
+      ? serviceRequest.scheduleSlots.map((s: any) => String(s))
+      : serviceRequest?.scheduleSlot
+        ? [String(serviceRequest.scheduleSlot)]
+        : [];
+  await WorkScheduleService.releaseMany(slots);
+};
+
 export class ServiceRequestController {
 
   static create = async (request: AuthRequest, response: Response) => {
@@ -21,6 +32,7 @@ export class ServiceRequestController {
       }
 
       const { provider, skill, serviceType, description, scheduledDate, startTime, location, budget, notes } = request.body;
+      const wholeDay = request.body.wholeDay === true || request.body.wholeDay === "true";
 
       if (!isObjectId(provider)) {
         response.status(400).send("A valid provider is required");
@@ -47,8 +59,10 @@ export class ServiceRequestController {
         response.status(400).send("Notes must be at most 500 characters");
         return;
       }
-      if (!scheduledDate || !startTime) {
-        response.status(400).send("Please select a schedule date and an available time slot");
+      if (!scheduledDate || (!wholeDay && !startTime)) {
+        response
+          .status(400)
+          .send(wholeDay ? "Please select a schedule date" : "Please select a schedule date and an available time slot");
         return;
       }
 
@@ -74,9 +88,17 @@ export class ServiceRequestController {
         return;
       }
 
-      let slot;
+      let slot: any;
+      let day: any;
+      const reservedIds: string[] = [];
       try {
-        slot = await WorkScheduleService.reserve(provider, scheduledDate, startTime);
+        if (wholeDay) {
+          day = await WorkScheduleService.reserveDay(provider, scheduledDate);
+          reservedIds.push(...day.slots.map((s: any) => s._id.toString()));
+        } else {
+          slot = await WorkScheduleService.reserve(provider, scheduledDate, startTime);
+          reservedIds.push(slot._id.toString());
+        }
       } catch (error) {
         if (error instanceof ScheduleError) {
           response.status(error.status).send(error.message);
@@ -84,6 +106,28 @@ export class ServiceRequestController {
         }
         throw error;
       }
+
+      const schedule = wholeDay && day
+        ? {
+            preferredDate: day.date,
+            preferredTime: "Whole day",
+            scheduledDate: day.date,
+            scheduleStartTime: day.startTime,
+            scheduleEndTime: day.endTime,
+            scheduleSlot: day.slots[0]._id.toString(),
+            wholeDay: true,
+            scheduleSlots: reservedIds,
+          }
+        : {
+            preferredDate: slot.date,
+            preferredTime: formatSlotLabel(slot.startTime, slot.endTime),
+            scheduledDate: slot.date,
+            scheduleStartTime: slot.startTime,
+            scheduleEndTime: slot.endTime,
+            scheduleSlot: slot._id.toString(),
+            wholeDay: false,
+            scheduleSlots: reservedIds,
+          };
 
       let serviceRequest;
       try {
@@ -93,19 +137,14 @@ export class ServiceRequestController {
           skill,
           serviceType,
           description: description.trim(),
-          preferredDate: slot.date,
-          preferredTime: formatSlotLabel(slot.startTime, slot.endTime),
           location,
           budget,
           notes,
           status: "PENDING",
-          scheduledDate: slot.date,
-          scheduleStartTime: slot.startTime,
-          scheduleEndTime: slot.endTime,
-          scheduleSlot: slot._id.toString(),
+          ...schedule,
         });
       } catch (error) {
-        await WorkScheduleService.release(slot._id);
+        await WorkScheduleService.releaseMany(reservedIds);
         throw error;
       }
 
@@ -115,11 +154,11 @@ export class ServiceRequestController {
         date: formattedDate(),
       });
 
-      const when = `${new Date(`${slot.date}T00:00:00`).toLocaleDateString("en-PH", {
+      const when = `${new Date(`${schedule.scheduledDate}T00:00:00`).toLocaleDateString("en-PH", {
         year: "numeric",
         month: "long",
         day: "numeric",
-      })}, ${formatSlotLabel(slot.startTime, slot.endTime)}`;
+      })}, ${wholeDay ? "Whole day" : formatSlotLabel(schedule.scheduleStartTime, schedule.scheduleEndTime)}`;
       NotificationService.create({
         accountId: provider,
         title: "New Service Request",
@@ -304,9 +343,7 @@ export class ServiceRequestController {
         response.status(409).send("This request was already updated. Please reload and try again.");
         return;
       }
-      if ((serviceRequest as any).scheduleSlot) {
-        await WorkScheduleService.release((serviceRequest as any).scheduleSlot);
-      }
+      await releaseRequestSlots(serviceRequest);
 
       NotificationService.create({
         accountId: serviceRequest.client._id.toString(),
@@ -368,9 +405,7 @@ export class ServiceRequestController {
         response.status(409).send("This request was already updated. Please reload and try again.");
         return;
       }
-      if ((serviceRequest as any).scheduleSlot) {
-        await WorkScheduleService.release((serviceRequest as any).scheduleSlot);
-      }
+      await releaseRequestSlots(serviceRequest);
 
       await UserActivityService.create({
         accountId: client._id.toString(),

@@ -32,6 +32,7 @@ export interface WorkRequestView {
   scheduleStartTime: string | null;
   scheduleEndTime: string | null;
   scheduleLabel: string | null;
+  wholeDay: boolean;
   location: string;
   budget: number | null;
   notes: string;
@@ -77,7 +78,11 @@ const scheduleOf = (doc: any) => {
     scheduledDate: hasSchedule ? doc.scheduledDate : null,
     scheduleStartTime: hasSchedule ? doc.scheduleStartTime : null,
     scheduleEndTime: hasSchedule ? doc.scheduleEndTime : null,
-    scheduleLabel: hasSchedule ? formatSlotLabel(doc.scheduleStartTime, doc.scheduleEndTime) : null,
+    scheduleLabel: hasSchedule
+      ? doc.wholeDay
+        ? "Whole day"
+        : formatSlotLabel(doc.scheduleStartTime, doc.scheduleEndTime)
+      : null,
   };
 };
 
@@ -109,6 +114,7 @@ export const toWorkRequestViewFromWork = (doc: any): WorkRequestView => {
     client: party(doc.client),
     provider: party(doc.worker),
     ...scheduleOf(doc),
+    wholeDay: false,
     location: withBarangayLocality(doc.client?.address),
     budget: null,
     notes: "",
@@ -126,6 +132,7 @@ export const toWorkRequestViewFromService = (doc: any): WorkRequestView => ({
   client: party(doc.client),
   provider: party(doc.provider),
   ...scheduleOf(doc),
+  wholeDay: !!doc.wholeDay,
   location: doc.location || "",
   budget: typeof doc.budget === "number" ? doc.budget : null,
   notes: doc.notes || "",
@@ -230,6 +237,7 @@ export class WorkRequestService {
     date: unknown,
     startTime: unknown,
     actor?: { name: string; id?: string; asClient?: boolean },
+    wholeDay = false,
   ) {
     const record: any = await this.getRecord(kind, id);
     if (!record) throw new ScheduleError("Work request not found", 404, "NOT_FOUND");
@@ -242,7 +250,7 @@ export class WorkRequestService {
     if (!eligible.includes(view.status)) {
       throw new ScheduleError(`A ${view.status} work request can no longer be rescheduled`, 400, "INVALID_STATUS");
     }
-    if (view.scheduledDate === date && view.scheduleStartTime === startTime) {
+    if (view.scheduledDate === date && view.scheduleStartTime === startTime && view.wholeDay === wholeDay) {
       throw new ScheduleError("The work request is already scheduled for this slot", 400, "SAME_SLOT");
     }
     const previousWhen = view.scheduledDate && view.scheduleStartTime
@@ -252,21 +260,49 @@ export class WorkRequestService {
     const providerId = view.provider?._id;
     if (!providerId) throw new ScheduleError("The provider for this request no longer exists", 400, "NO_PROVIDER");
 
-    const newSlot = await WorkScheduleService.reserve(providerId, date, startTime);
-    const previousSlot = record.scheduleSlot ? String(record.scheduleSlot) : null;
+    // Whole-day requests reserve every slot for the day; otherwise a single slot.
+    const useWholeDay = kind === "service" && wholeDay;
+    const reservedIds: string[] = [];
+    let newSlot: { date: string; startTime: string; endTime: string };
+    let scheduleSlot: string;
+    let scheduleStartTime: string;
+    let scheduleEndTime: string;
+    if (useWholeDay) {
+      const day = await WorkScheduleService.reserveDay(providerId, date);
+      reservedIds.push(...day.slots.map((s: any) => String(s._id)));
+      scheduleSlot = String(day.slots[0]._id);
+      scheduleStartTime = day.startTime;
+      scheduleEndTime = day.endTime;
+      newSlot = { date: day.date, startTime: day.startTime, endTime: day.endTime };
+    } else {
+      const reserved = await WorkScheduleService.reserve(providerId, date, startTime);
+      reservedIds.push(String(reserved._id));
+      scheduleSlot = String(reserved._id);
+      scheduleStartTime = reserved.startTime;
+      scheduleEndTime = reserved.endTime;
+      newSlot = { date: reserved.date, startTime: reserved.startTime, endTime: reserved.endTime };
+    }
+    const previousSlotIds: string[] =
+      Array.isArray(record.scheduleSlots) && record.scheduleSlots.length
+        ? record.scheduleSlots.map((s: any) => String(s))
+        : record.scheduleSlot
+          ? [String(record.scheduleSlot)]
+          : [];
 
     const Model: any = kind === "booking" ? WorkModel : ServiceRequestModel;
-    const guard: Record<string, any> = { _id: id, scheduleSlot: previousSlot ?? null };
+    const guard: Record<string, any> = { _id: id, scheduleSlot: record.scheduleSlot ?? null };
 
     const update: Record<string, any> = {
       scheduledDate: newSlot.date,
-      scheduleStartTime: newSlot.startTime,
-      scheduleEndTime: newSlot.endTime,
-      scheduleSlot: newSlot._id,
+      scheduleStartTime,
+      scheduleEndTime,
+      scheduleSlot,
     };
     if (kind === "service") {
       update.preferredDate = newSlot.date;
-      update.preferredTime = formatSlotLabel(newSlot.startTime, newSlot.endTime);
+      update.preferredTime = useWholeDay ? "Whole day" : formatSlotLabel(newSlot.startTime, newSlot.endTime);
+      update.wholeDay = useWholeDay;
+      update.scheduleSlots = reservedIds;
     }
 
     const updated = await Model.findOneAndUpdate(guard, { $set: update }, { new: true })
@@ -274,11 +310,11 @@ export class WorkRequestService {
       .populate(kind === "booking" ? "worker" : "provider", PARTY_FIELDS);
 
     if (!updated) {
-      await WorkScheduleService.release(newSlot._id);
+      await WorkScheduleService.releaseMany(reservedIds);
       throw new ScheduleError("This work request was changed by someone else. Please reload and try again.", 409, "CONFLICT");
     }
 
-    if (previousSlot) await WorkScheduleService.release(previousSlot);
+    if (previousSlotIds.length) await WorkScheduleService.releaseMany(previousSlotIds);
 
     if (kind === "service") {
       await ContractService.syncStartDateByServiceRequest(id, newSlot.date).catch(() => null);
