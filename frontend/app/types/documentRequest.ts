@@ -95,6 +95,8 @@ export interface documentRequestInterface {
     requestDate?: string | null;
     requestTime?: string | null;
     source?: "online" | "walk-in";
+    counterPaymentIntent?: boolean;
+    counterPaymentIntentAt?: string | null;
     isArchived?: boolean;
     archivedAt?: string | null;
     statusHistory?: statusHistoryEntry[];

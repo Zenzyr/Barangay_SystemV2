@@ -839,6 +839,72 @@ export class DocumentRequestController {
     }
 
 
+    static requestCounterPayment = async (request: AuthRequest, response: Response) => {
+        try {
+            const { id } = request.params;
+            if (!isObjectId(id)) {
+                response.status(400).send("Invalid document request id");
+                return;
+            }
+            const account = request.account;
+            if (!account) {
+                response.status(401).send("Authentication required");
+                return;
+            }
+            const current: any = await DocumentRequestService.get(id);
+            if (!current) {
+                response.status(404).send("Document request not found");
+                return;
+            }
+            const residentId = String(current.resident?._id || current.resident);
+            if (!isOfficeRole(account.role) && String(account._id) !== residentId) {
+                response.status(403).send("You can only update your own requests");
+                return;
+            }
+            if (current.isPaid) {
+                response.status(409).send("This request has already been paid");
+                return;
+            }
+            if (amountDueOf(current) <= 0) {
+                response.status(400).send("This request has no fee to pay");
+                return;
+            }
+            if (current.counterPaymentIntent) {
+                response.send({ message: "The treasurer has already been notified" });
+                return;
+            }
+
+            const document = await DocumentRequestService.setCounterPaymentIntent(id, true);
+            if (!document) {
+                response.status(404).send("Document request not found");
+                return;
+            }
+
+            const resident = document.resident as any;
+            const payerName = resident?.name || document.fullName || "A resident";
+            const documentName = documentDisplayName(document.document);
+            const recipients = await AccountService.getAll({
+                role: { $in: [ROLES.TREASURER, ROLES.SUPER_ADMIN] },
+                isSuspended: { $ne: true },
+            });
+            await Promise.all(
+                (recipients ?? []).map((staff: any) =>
+                    NotificationService.create({
+                        accountId: staff._id.toString(),
+                        title: "Counter Payment Requested",
+                        message: `${payerName} will pay for ${documentName} at the Barangay Hall. Record the payment once received.`,
+                        type: "payment",
+                    }).catch(() => null)
+                )
+            );
+
+            response.send({ message: "The treasurer has been notified" });
+        } catch (error) {
+            console.error("[COUNTER PAYMENT INTENT ERROR]", error);
+            response.status(500).send("Failed to notify the treasurer");
+        }
+    }
+
     static onlinePayment = async (request: AuthRequest, response: Response) => {
         try {
             const { documentID, checkoutSessionId } = request.body;
@@ -895,10 +961,6 @@ export class DocumentRequestController {
                 response.send("success");
                 return;
             }
-
-            // Online payment marks the request ready for the secretary to print
-            // and release — payment alone never releases the document.
-            await DocumentRequestService.updateStatus(documentID, "ready");
 
             await UserActivityService.create({
                 accountId: account._id.toString(),

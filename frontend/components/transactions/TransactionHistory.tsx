@@ -22,7 +22,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/ui/shared/StatusBadge";
-import { PAYMENT_VERIFICATION_CONFIG } from "@/lib/constants/status";
 import { ReceiptDialog } from "./ReceiptDialog";
 import {
   ArrowDown,
@@ -122,13 +121,11 @@ const FILTER_GRID: Record<number, string> = {
 
 export function TransactionHistory({
   scope,
-  showVerification = false,
   baseFilters,
   hiddenFilters = [],
   onViewDetails,
 }: {
   scope: "staff" | "mine";
-  showVerification?: boolean;
   baseFilters?: Partial<TransactionFilters>;
   hiddenFilters?: (keyof TransactionFilters)[];
   onViewDetails?: (item: TransactionItem) => void;
@@ -219,20 +216,13 @@ export function TransactionHistory({
 
   const items = data?.items ?? [];
   const colSpan = isStaff ? 8 : 7;
-  const filterCount = 2 + [shows("paymentMethod"), shows("paymentStatus"), shows("document"), isStaff && shows("resident"), showVerification && shows("verificationStatus")].filter(Boolean).length;
-  const summaryCards = showVerification
-    ? [
-        { label: "Verified Collections", value: formatCurrency(data?.summary.verifiedAmount), hint: `${data?.summary.verifiedCount ?? 0} verified`, tone: "text-emerald-700" },
-        { label: "Pending Verification", value: formatCurrency(data?.summary.pendingVerificationAmount), hint: `${data?.summary.pendingVerificationCount ?? 0} awaiting review`, tone: "text-amber-700" },
-        { label: "Outstanding", value: formatCurrency(data?.summary.unpaidAmount), hint: `${data?.summary.unpaidCount ?? 0} unpaid`, tone: "text-sky-700" },
-        { label: "Rejected Payments", value: data?.summary.rejectedCount ?? 0, hint: "Excluded from collections", tone: "text-rose-700" },
-      ]
-    : [
-        { label: "Total Paid", value: formatCurrency(data?.summary.paidAmount), hint: "", tone: "text-emerald-700" },
-        { label: "Paid Transactions", value: data?.summary.paidCount ?? 0, hint: "", tone: "text-sky-700" },
-        { label: "Outstanding", value: formatCurrency(data?.summary.unpaidAmount), hint: "", tone: "text-amber-700" },
-        { label: "Unpaid Requests", value: data?.summary.unpaidCount ?? 0, hint: "", tone: "text-rose-700" },
-      ];
+  const filterCount = 2 + [shows("paymentMethod"), shows("paymentStatus"), shows("document"), isStaff && shows("resident")].filter(Boolean).length;
+  const summaryCards = [
+    { label: "Total Paid", value: formatCurrency(data?.summary.paidAmount), hint: "", tone: "text-emerald-700" },
+    { label: "Paid Transactions", value: data?.summary.paidCount ?? 0, hint: "", tone: "text-sky-700" },
+    { label: "Outstanding", value: formatCurrency(data?.summary.unpaidAmount), hint: "", tone: "text-amber-700" },
+    { label: "Unpaid Requests", value: data?.summary.unpaidCount ?? 0, hint: "", tone: "text-rose-700" },
+  ];
 
   return (
     <div className="space-y-5">
@@ -306,17 +296,6 @@ export function TransactionHistory({
             <FilterSelect value={filters.document || ""} onChange={(v) => updateFilter("document", v)} placeholder="All documents" options={[...DOCUMENT_OPTIONS]} />
           </div>
           )}
-          {showVerification && shows("verificationStatus") && (
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-gray-500">Verification</label>
-              <FilterSelect
-                value={filters.verificationStatus || ""}
-                onChange={(v) => updateFilter("verificationStatus", v)}
-                placeholder="All verification"
-                options={["pending", "verified", "rejected"].map((v) => ({ value: v, label: PAYMENT_VERIFICATION_CONFIG[v].label }))}
-              />
-            </div>
-          )}
           {isStaff && shows("resident") && (
             <div className="space-y-1">
               <label className="text-[11px] font-medium text-gray-500">Resident</label>
@@ -376,7 +355,6 @@ export function TransactionHistory({
                     <TableCell>
                       <p className="font-mono text-xs font-semibold text-gray-900">{t.receiptNumber || t.transactionNumber}</p>
                       <p className="text-[11px] text-gray-400">
-                        {showVerification && t.receiptNumber ? `${t.transactionNumber} · ` : ""}
                         {REQUEST_SOURCE_LABELS[t.requestSource]} request
                       </p>
                     </TableCell>
@@ -392,11 +370,7 @@ export function TransactionHistory({
                     </TableCell>
                     <TableCell className="text-sm font-semibold text-gray-900">{formatCurrency(t.amount)}</TableCell>
                     <TableCell>
-                      {showVerification && t.verificationStatus ? (
-                        <StatusBadge status={t.verificationStatus} config={PAYMENT_VERIFICATION_CONFIG} className="whitespace-nowrap" />
-                      ) : (
-                        <PaymentStatusBadge status={t.paymentStatus} />
-                      )}
+                      <PaymentStatusBadge status={t.paymentStatus} />
                     </TableCell>
                     <TableCell className="hidden lg:table-cell text-xs text-gray-500">{formatDateTime(t.transactionDate)}</TableCell>
                     <TableCell className="text-right">
@@ -410,9 +384,9 @@ export function TransactionHistory({
                         </button>
                         <button
                           type="button"
-                          disabled={!t.receiptAvailable && !(showVerification && t.receiptVoided)}
+                          disabled={!t.receiptAvailable}
                           onClick={() => setReceiptId(t._id)}
-                          title={t.receiptAvailable ? "View receipt" : showVerification && t.receiptVoided ? "View voided receipt" : "Receipt available once paid"}
+                          title={t.receiptAvailable ? "View receipt" : "Receipt available once paid"}
                           className="inline-flex h-7 items-center gap-1 px-2 rounded-lg text-xs font-medium text-sky-700 hover:bg-sky-50 disabled:text-gray-300 disabled:hover:bg-transparent"
                         >
                           <Receipt className="size-3" /> Receipt

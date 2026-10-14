@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
 import { TransactionItem } from "@/app/types/transaction.type";
@@ -27,7 +26,6 @@ interface Props {
 
 export function RecordPaymentDialog({ open, onOpenChange, transaction }: Props) {
   const queryClient = useQueryClient();
-  const router = useRouter();
   const [tendered, setTendered] = useState("");
 
   const amountDue = transaction?.amount ?? 0;
@@ -52,11 +50,10 @@ export function RecordPaymentDialog({ open, onOpenChange, transaction }: Props) 
       onOpenChange(false);
       setTendered("");
       successAlert(
-        `Payment recorded successfully${change ? ` (change: ${formatCurrency(change)})` : ""}. Receipt No. ${
+        `Payment recorded and verified successfully${change ? ` (change: ${formatCurrency(change)})` : ""}. Receipt No. ${
           data.receiptNumber ?? "N/A"
-        }. Redirecting to verify the payment...`,
+        }.`,
       );
-      router.push("/pages/treasurer/payment-verification");
     },
     onError: (err) => {
       errorAlert(apiErrorMessage(err, "Failed to record payment"));

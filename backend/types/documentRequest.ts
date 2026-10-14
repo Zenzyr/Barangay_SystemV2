@@ -49,6 +49,8 @@ export interface documentRequestInterfaceInput {
     requestDate?: string,
     requestTime?: string,
     source?: "online" | "walk-in",
+    counterPaymentIntent?: boolean,
+    counterPaymentIntentAt?: Date | string,
     isArchived?: boolean,
     archivedAt?: Date | string,
     statusHistory?: { status: string; at: Date | string }[],
@@ -123,6 +125,8 @@ export interface documentRequestInterface {
     requestDate?: string,
     requestTime?: string,
     source?: "online" | "walk-in",
+    counterPaymentIntent?: boolean,
+    counterPaymentIntentAt?: Date | string,
     isArchived?: boolean,
     checkoutSessionId?: string | null,
 

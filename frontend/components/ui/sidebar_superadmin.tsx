@@ -16,6 +16,7 @@ import {
   X,
   ChevronRight,
   ShieldCheck,
+  Gavel,
 } from "lucide-react"
 import { useState } from "react"
 import type { LucideIcon } from "lucide-react"
@@ -50,6 +51,7 @@ const navigationGroups: NavGroup[] = [
     label: "Administration",
     items: [
       { title: "Users & Roles", url: "/pages/superadmin/users", icon: Users },
+      { title: "Suspension Appeals", url: "/pages/superadmin/appeals", icon: Gavel },
       { title: "Residents", url: "/pages/secretary/residentCensus", icon: UserRoundCheck },
       { title: "Officials", url: "/pages/secretary/barangaySettings/officials", icon: Landmark },
       { title: "Puroks", url: "/pages/secretary/barangaySettings/puroks", icon: MapPin },

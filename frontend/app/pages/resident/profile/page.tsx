@@ -184,6 +184,7 @@ export default function ProfilePage() {
       experience: number;
       proficiency: string;
       serviceTypes: string[];
+      customServiceTypes?: string[];
     }) => {
       const res = await axiosInstance.post(`/account/${user?._id}/skills`, skill);
       return res.data;

@@ -27,7 +27,11 @@ function PaymentSuccessContent() {
       const doc = docRes.data;
       
       if (!doc.checkoutSessionId) {
-          throw new Error("No session ID found for this document.");
+          throw new Error(
+            doc.isPaid
+              ? "This request has already been paid, so no online payment is needed."
+              : "No payment session was found for this request. Please start a new payment."
+          );
       }
 
       // Now, proceed with payment verification using the stored ID

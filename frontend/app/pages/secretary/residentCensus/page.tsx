@@ -99,41 +99,62 @@ interface ImportResult {
 // Parses a CSV string into rows of objects. Handles quoted fields so names
 // like "Munar,Orlando Munar" stay in a single column. Uses the first row's
 // headers as object keys, which are normalized to the census field names.
+// Maps a header (lowercased, stripped of punctuation) onto the canonical
+// camelCase census field name the backend expects. Both the canonical names
+// and common aliases must resolve to the exact key, otherwise the backend
+// falls back to "N/A" for that column.
+const HEADER_FIELDS: Record<string, string> = {
+  name: "name",
+  fullname: "name",
+  sex: "sex",
+  gender: "sex",
+  birthday: "birthday",
+  birthdate: "birthday",
+  dob: "birthday",
+  dateofbirth: "birthday",
+  age: "age",
+  occupation: "occupation",
+  education: "education",
+  purok: "purok",
+  purock: "purok",
+  householdnumber: "householdNumber",
+  household: "householdNumber",
+  householdno: "householdNumber",
+  is4ps: "is4Ps",
+  p4ps: "is4Ps",
+  fourps: "is4Ps",
+  isp4ps: "is4Ps",
+  soloparent: "soloParent",
+  soloparentstatus: "soloParent",
+  familyplanning: "familyPlanning",
+  familyplanningmethod: "familyPlanning",
+  issenior: "isSenior",
+  senior: "isSenior",
+  seniorcitizen: "isSenior",
+  isseniorcitizen: "isSenior",
+  hpnmaintenance: "hpnMaintenance",
+  hypertensionmaintenance: "hpnMaintenance",
+  hppmaintenance: "hpnMaintenance",
+  pensioner: "pensioner",
+  ispwd: "isPWD",
+  pwd: "isPWD",
+  cellphone: "cellphone",
+  contact: "cellphone",
+  contactnumber: "cellphone",
+  mobilenumber: "cellphone",
+  mobile: "cellphone",
+  phonenumber: "cellphone",
+  address: "address",
+  street: "address",
+  civilstatus: "civilStatus",
+  civil: "civilStatus",
+  voterstatus: "voterStatus",
+  voter: "voterStatus",
+};
+
 function normalizeHeader(header: string): string {
   const h = header.toLowerCase().replace(/[^a-z0-9]/g, "");
-  const aliases: Record<string, string> = {
-    gender: "sex",
-    birthdate: "birthday",
-    dob: "birthday",
-    household: "householdNumber",
-    householdno: "householdNumber",
-    householdnumber: "householdNumber",
-    p4ps: "is4Ps",
-    fourps: "is4Ps",
-    isp4ps: "is4Ps",
-    senior: "isSenior",
-    seniorcitizen: "isSenior",
-    isseniorcitizen: "isSenior",
-    hypertensionmaintenance: "hpnMaintenance",
-    hppmaintenance: "hpnMaintenance",
-    contact: "cellphone",
-    contactnumber: "cellphone",
-    mobile: "cellphone",
-    ispwd: "isPWD",
-    pwd: "isPWD",
-  };
-  if (aliases[h]) return aliases[h];
-  switch (h) {
-    case "is4ps":
-    case "soloparent":
-    case "familyplanning":
-    case "hpnmaintenance":
-    case "pensioner":
-    case "cellphone":
-      return h;
-    default:
-      return h;
-  }
+  return HEADER_FIELDS[h] ?? h;
 }
 
 function parseCsv(text: string): Record<string, string>[] {

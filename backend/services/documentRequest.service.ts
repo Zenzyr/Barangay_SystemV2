@@ -188,6 +188,16 @@ export class DocumentRequestService {
     ).populate("resident", "-password");
   }
 
+  static async setCounterPaymentIntent(id: string, requested: boolean) {
+    const update: Record<string, any> = requested
+      ? { $set: { counterPaymentIntent: true, counterPaymentIntentAt: new Date() } }
+      : { $set: { counterPaymentIntent: false }, $unset: { counterPaymentIntentAt: 1 } };
+    return await DocumentRequestModel.findByIdAndUpdate(id, update, { new: true }).populate(
+      "resident",
+      "-password"
+    );
+  }
+
   static buildReceiptNumber(id: string, paidAt: Date = new Date()): string {
     const pad = (n: number) => String(n).padStart(2, "0");
     const stamp = `${paidAt.getFullYear()}${pad(paidAt.getMonth() + 1)}${pad(paidAt.getDate())}`;
@@ -209,11 +219,15 @@ export class DocumentRequestService {
     }
   ) {
     const paidAt = details.paidAt ?? new Date();
-    const prior: any = await DocumentRequestModel.findById(id).select("paymentHistory").lean();
+    const prior: any = await DocumentRequestModel.findById(id).select("paymentHistory status").lean();
     const rejections = (prior?.paymentHistory ?? []).filter((h: any) => h.action === "rejected").length;
     const baseReceipt = DocumentRequestService.buildReceiptNumber(id, paidAt);
     const receiptNumber = rejections ? `${baseReceipt}-${rejections + 1}` : baseReceipt;
 
+    // Payments are confirmed the moment they are recorded: online checkouts are
+    // validated against PayMongo before this runs, and over-the-counter cash is
+    // handed directly to staff. They are therefore auto-verified rather than
+    // waiting for a separate treasurer verification step.
     const set: Record<string, any> = {
       isPaid: true,
       paymentMethod: details.paymentMethod,
@@ -221,43 +235,73 @@ export class DocumentRequestService {
       amountPaid: details.amountPaid,
       paidAt,
       receiptNumber,
-      paymentVerificationStatus: "pending",
+      paymentVerificationStatus: "verified",
+      paymentVerifiedAt: paidAt,
+      counterPaymentIntent: false,
     };
     const unset: Record<string, 1> = {
-      paymentVerifiedBy: 1,
-      paymentVerifiedAt: 1,
       paymentRejectedBy: 1,
       paymentRejectedAt: 1,
       paymentRejectionReason: 1,
+      counterPaymentIntentAt: 1,
     };
+    // Paying at the counter voids any pending online checkout so the resident
+    // cannot complete the PayMongo session and be charged a second time.
+    if (details.paymentMethod === "over-the-counter") {
+      unset.checkoutSessionId = 1;
+    }
     const optional = {
       amountTendered: details.amountTendered,
       changeGiven: details.changeGiven,
       paymentReference: details.paymentReference || undefined,
       paymentProcessedBy: details.paymentProcessedBy,
+      paymentVerifiedBy: details.paymentProcessedBy,
     };
     for (const [key, value] of Object.entries(optional)) {
       if (value !== undefined) set[key] = value;
       else unset[key] = 1;
     }
 
-    return await DocumentRequestModel.findOneAndUpdate(
+    const snapshot = paymentSnapshot({ ...set, ...optional });
+    const at = new Date();
+
+    const document = await DocumentRequestModel.findOneAndUpdate(
       { _id: id, isPaid: { $ne: true } },
       {
         $set: set,
         $unset: unset,
         $push: {
           paymentHistory: {
-            action: "recorded",
-            at: new Date(),
-            by: details.paymentProcessedBy,
-            byName: details.recordedByName,
-            snapshot: paymentSnapshot({ ...set, ...optional }),
+            $each: [
+              {
+                action: "recorded",
+                at,
+                by: details.paymentProcessedBy,
+                byName: details.recordedByName,
+                snapshot,
+              },
+              {
+                action: "verified",
+                at,
+                by: details.paymentProcessedBy,
+                byName: details.recordedByName,
+                note: "Auto-verified on payment",
+                snapshot,
+              },
+            ],
           },
         },
       },
       { new: true }
     ).populate("resident", "-password");
+    if (!document) return null;
+
+    // A paid request becomes ready for the secretary to print and release —
+    // payment alone never releases the document.
+    if (prior?.status !== "ready") {
+      return await DocumentRequestService.updateStatus(id, "ready");
+    }
+    return document;
   }
 
   static async clearPayment(id: string, actor?: { id: string; name: string }) {

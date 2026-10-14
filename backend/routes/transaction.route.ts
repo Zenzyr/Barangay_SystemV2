@@ -13,8 +13,5 @@ route.get("/summary", authenticateJWT, requirePermissions(PERMISSIONS.TREASURER_
 route.get("/:id/receipt", authenticateJWT, handler(TransactionController.getReceipt));
 route.post("/:id/receipt/reprint", authenticateJWT, requirePermissions(PERMISSIONS.RECEIPTS_REPRINT), handler(TransactionController.logReprint));
 route.get("/:id", authenticateJWT, requirePermissions(PERMISSIONS.PAYMENTS_DETAILS_VIEW), handler(TransactionController.getDetail));
-route.patch("/:id/verify", authenticateJWT, requirePermissions(PERMISSIONS.PAYMENTS_VERIFY), handler(TransactionController.verify));
-route.patch("/:id/reject", authenticateJWT, requirePermissions(PERMISSIONS.PAYMENTS_REJECT), handler(TransactionController.reject));
-route.patch("/:id/correct", authenticateJWT, requirePermissions(PERMISSIONS.PAYMENTS_CORRECT), handler(TransactionController.correct));
 
 export default route;

@@ -25,7 +25,21 @@ import { AnalyticsSummary } from "./analytics.type";
 
 export type InsightSeverity = "warning" | "info" | "positive";
 
-export interface InsightItem {
+/** Optional, provider-agnostic metadata that enriches an insight/recommendation. */
+export interface InsightMeta {
+  /** The raw numbers from the analytics payload that support this item. */
+  evidence?: string[];
+  /** Staff role that should own the follow-up, when identifiable. */
+  responsibleRole?: string;
+  /** What success looks like once the action is taken. */
+  expectedOutcome?: string;
+  /** Suggested timeframe, e.g. "This week", "Within 3 days". */
+  timeframe?: string;
+  /** Deterministic priority score (0-100) — never set by the model. */
+  priorityScore?: number;
+}
+
+export interface InsightItem extends InsightMeta {
   id: string;
   category: string;
   title: string; // "Insight" — the observation
@@ -34,7 +48,7 @@ export interface InsightItem {
   severity: InsightSeverity;
 }
 
-export interface RecommendationItem {
+export interface RecommendationItem extends InsightMeta {
   id: string;
   category: string;
   title: string; // "Recommendation" headline
@@ -57,7 +71,12 @@ export interface AIProviderInfo {
   connected: boolean; // false while a real model isn't wired up
 }
 
-export type AIInsightResult = AIInsightOutput & AIProviderInfo;
+/** Provider output + provider metadata. `notice` only appears on fallback. */
+export type AIInsightResult = AIInsightOutput &
+  AIProviderInfo & {
+    notice?: string;
+    scoringVersion?: string;
+  };
 
 /** Contract every AI provider must implement. */
 export interface AIInsightProvider {

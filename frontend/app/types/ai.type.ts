@@ -11,7 +11,21 @@ export interface AnalyticsPeriod {
 
 export type InsightSeverity = "warning" | "info" | "positive";
 
-export interface InsightItem {
+/** Optional, provider-agnostic metadata on an insight/recommendation. */
+export interface InsightMeta {
+  /** The raw numbers from the analytics payload that support this item. */
+  evidence?: string[];
+  /** Staff role that should own the follow-up, when identifiable. */
+  responsibleRole?: string;
+  /** What success looks like once the action is taken. */
+  expectedOutcome?: string;
+  /** Suggested timeframe, e.g. "This week", "Within 3 days". */
+  timeframe?: string;
+  /** Deterministic priority score (0-100). */
+  priorityScore?: number;
+}
+
+export interface InsightItem extends InsightMeta {
   id: string;
   category: string;
   title: string;
@@ -20,7 +34,7 @@ export interface InsightItem {
   severity: InsightSeverity;
 }
 
-export interface RecommendationItem {
+export interface RecommendationItem extends InsightMeta {
   id: string;
   category: string;
   title: string;
@@ -36,6 +50,7 @@ export interface AnalyticsInsightsResponse {
   insights: InsightItem[];
   recommendations: RecommendationItem[];
   confidence: number | null;
+  notice?: string;
   period?: AnalyticsPeriod;
 }
 
@@ -56,11 +71,34 @@ export interface DecisionSupportAnalysis {
       totalRequests: number;
       completedRequests: number;
       completionRate: number;
+      statusCounts?: {
+        pending: number;
+        processing: number;
+        ready: number;
+        released: number;
+        cancelled: number;
+        rejected: number;
+        toClaim: number;
+        completed: number;
+      };
+      pendingRequests?: number;
+      processingRequests?: number;
+      readyRequests?: number;
+      rejectedRequests?: number;
+      cancelledRequests?: number;
       revenueCollected: number;
       pendingRevenue: number;
       unpaidCount: number;
       backlogCount: number;
+      overdueRequests?: number;
+      oldestPendingAgeDays?: number | null;
+      averageProcessingTimeDays?: number | null;
+      processingTimeAvailable?: boolean;
       weekOverWeekChange: number;
+      pendingVerificationCount?: number;
+      rejectedPaymentCount?: number;
+      counterPaymentCount?: number;
+      blockedFromRelease?: number;
       totalUsers: number;
       activeUsers: number;
       pendingUsers: number;
@@ -68,6 +106,7 @@ export interface DecisionSupportAnalysis {
       growthRate: number;
       topDocument: { name: string; count: number; pct: number } | null;
       peakDay: { name: string; count: number } | null;
+      peakHour?: { name: string; count: number } | null;
     };
     community?: {
       totalResidents: number;
@@ -91,6 +130,11 @@ export interface DecisionSupportAnalysis {
         recommendedProgram: string;
       }[];
     };
+    limitations?: {
+      secretaryAvailability?: string;
+      requirementDelays?: string;
+      recurringTrend?: string;
+    };
   };
   insights: InsightItem[];
   recommendations: RecommendationItem[];
@@ -98,6 +142,8 @@ export interface DecisionSupportAnalysis {
   provider: string;
   providerLabel: string;
   connected: boolean;
+  notice?: string;
+  scoringVersion?: string;
   summary: string;
   createdAt: string;
   updatedAt: string;

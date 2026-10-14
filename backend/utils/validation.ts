@@ -135,6 +135,62 @@ export const MAX_SKILL_NAME_LENGTH = 80;
 export const withinLength = (value: unknown, max: number): boolean =>
   typeof value === "string" && value.trim().length <= max;
 
+// ── Resident skills ──────────────────────────────────────────────
+
+export const MIN_SKILL_NAME_LENGTH = 2;
+export const MAX_SERVICE_TYPE_LENGTH = 60;
+export const MIN_SERVICE_TYPE_LENGTH = 2;
+export const MAX_SERVICE_TYPES = 10;
+
+const SKILL_NAME_REGEX = /^[a-zA-ZñÑ\s.'&-]+$/;
+const SERVICE_TYPE_REGEX = /^[a-zA-ZñÑ0-9\s.'&/()-]+$/;
+
+export const skillNameError = (value: unknown): string | null => {
+  if (typeof value !== "string" || !value.trim())
+    return "Please enter a valid skill";
+  const trimmed = value.trim().replace(/\s+/g, " ");
+  if (trimmed.length < MIN_SKILL_NAME_LENGTH)
+    return `Please enter a valid skill (at least ${MIN_SKILL_NAME_LENGTH} characters)`;
+  if (trimmed.length > MAX_SKILL_NAME_LENGTH)
+    return `Please enter a valid skill (at most ${MAX_SKILL_NAME_LENGTH} characters)`;
+  if (!SKILL_NAME_REGEX.test(trimmed))
+    return "Please enter a valid skill (letters, spaces, and - . ' & only)";
+  return null;
+};
+
+/** Trims, collapses whitespace, drops empties, and removes case-insensitive duplicates. */
+export const normalizeServiceTypes = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of value) {
+    const trimmed = String(item ?? "")
+      .trim()
+      .replace(/\s+/g, " ");
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(trimmed);
+  }
+  return result;
+};
+
+/** Validates a single user-entered ("Other, specify") service type. */
+export const customServiceTypeError = (value: unknown): string | null => {
+  if (typeof value !== "string" || !value.trim())
+    return "Please enter a valid service type";
+  const trimmed = value.trim().replace(/\s+/g, " ");
+  if (
+    trimmed.length < MIN_SERVICE_TYPE_LENGTH ||
+    trimmed.length > MAX_SERVICE_TYPE_LENGTH
+  )
+    return `Please enter a valid service type (between ${MIN_SERVICE_TYPE_LENGTH} and ${MAX_SERVICE_TYPE_LENGTH} characters)`;
+  if (!SERVICE_TYPE_REGEX.test(trimmed))
+    return "Please enter a valid service type (letters, numbers, spaces, and - . ' & / ( ) only)";
+  return null;
+};
+
 // ── Password strength (mirrors frontend rules) ───────────────────
 
 export const passwordStrengthError = (password: string): string | null => {

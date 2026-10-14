@@ -53,6 +53,8 @@ export class DecisionSupportService {
       provider: result.provider,
       providerLabel: result.providerLabel,
       connected: result.connected,
+      notice: result.notice ?? "",
+      scoringVersion: result.scoringVersion ?? "",
       summary: summaryOf(insights, recommendations),
     });
 

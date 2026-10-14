@@ -19,6 +19,7 @@ export interface TransactionItem {
   amountTendered: number | null;
   changeGiven: number | null;
   paymentStatus: PaymentStatus;
+  counterPaymentIntent: boolean;
   requestStatus: string;
   transactionDate: string;
   paidAt: string | null;
@@ -42,11 +43,6 @@ export interface TransactionListResponse {
     unpaidCount: number;
     paidAmount: number;
     unpaidAmount: number;
-    verifiedCount: number;
-    verifiedAmount: number;
-    pendingVerificationCount: number;
-    pendingVerificationAmount: number;
-    rejectedCount: number;
   };
 }
 
@@ -59,7 +55,6 @@ export interface TransactionFilters {
   document?: string;
   source?: "online" | "walk-in" | "";
   resident?: string;
-  verificationStatus?: VerificationStatus | "";
   receipt?: "issued" | "";
 }
 
@@ -116,17 +111,14 @@ export interface TransactionDetail extends TransactionItem {
 export interface TreasurerDashboard {
   date: string;
   timeZone: string;
-  today: { collected: number; verifiedCount: number; pendingAmount: number; transactions: number };
-  pendingVerification: { count: number; amount: number };
+  today: { collected: number; transactions: number };
   totals: {
     collected: number;
-    verifiedCount: number;
+    count: number;
     monthCollected: number;
     cashCollected: number;
     onlineCollected: number;
-    rejectedCount: number;
   };
-  lastSevenDays: { day: string; collected: number; pending: number; transactions: number }[];
-  oldestPending: TransactionItem[];
+  lastSevenDays: { day: string; collected: number; transactions: number }[];
   recent: TransactionItem[];
 }

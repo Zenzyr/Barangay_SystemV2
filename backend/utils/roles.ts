@@ -32,9 +32,6 @@ export const PERMISSIONS = {
   TREASURER_DASHBOARD_VIEW: "treasurer.dashboard.view",
   PAYMENTS_VIEW: "payments.view",
   PAYMENTS_DETAILS_VIEW: "payments.details.view",
-  PAYMENTS_VERIFY: "payments.verify",
-  PAYMENTS_REJECT: "payments.reject",
-  PAYMENTS_CORRECT: "payments.correct",
   RECEIPTS_VIEW: "receipts.view",
   RECEIPTS_REPRINT: "receipts.reprint",
   COLLECTION_REPORTS_VIEW: "reports.collections.view",
@@ -54,11 +51,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, readonly Permission[]> = {
     PERMISSIONS.RECEIPTS_REPRINT,
   ],
   [ROLES.SUPER_ADMIN]: ALL_PERMISSIONS.filter(
-    (p) =>
-      p !== PERMISSIONS.TREASURER_DASHBOARD_VIEW &&
-      p !== PERMISSIONS.PAYMENTS_VERIFY &&
-      p !== PERMISSIONS.PAYMENTS_REJECT &&
-      p !== PERMISSIONS.PAYMENTS_CORRECT,
+    (p) => p !== PERMISSIONS.TREASURER_DASHBOARD_VIEW,
   ),
   [ROLES.TREASURER]: ALL_PERMISSIONS,
 };

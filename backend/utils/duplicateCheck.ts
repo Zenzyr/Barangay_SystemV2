@@ -218,32 +218,46 @@ interface RawIdentity {
   contact?: unknown;
 }
 
+// Normalized, immutable view of one record. Normalizing is comparatively
+// expensive (regex + date parsing), so it is computed ONCE per record and
+// reused for every comparison — see normalizeIdentity().
+interface NormCore {
+  nameKey: string;
+  first: string;
+  last: string;
+  dob: string | null;
+  gender: string;
+  contact: string;
+}
+
+function normalizeIdentity(raw: RawIdentity): NormCore {
+  return {
+    nameKey: nameKey(raw.name),
+    first: firstName(raw.name),
+    last: surname(raw.name),
+    dob: normalizeDate(raw.dob),
+    gender: genderNorm(raw.gender),
+    contact: contactNorm(raw.contact),
+  };
+}
+
 // ── Person-to-person match ───────────────────────────────────────────
 // Never treats a name match alone as a duplicate. Date of birth (or a
 // phone number) must agree before we call two records the same person.
-export function matchPerson(c: RawIdentity, e: RawIdentity): MatchLevel {
-  const fullEq = !!nameKey(c.name) && nameKey(c.name) === nameKey(e.name);
-  const firstEq =
-    !!firstName(c.name) && firstName(c.name) === firstName(e.name);
-  const lastEq = !!surname(c.name) && surname(c.name) === surname(e.name);
+export function matchNormalized(c: NormCore, e: NormCore): MatchLevel {
+  const fullEq = !!c.nameKey && c.nameKey === e.nameKey;
+  const firstEq = !!c.first && c.first === e.first;
+  const lastEq = !!c.last && c.last === e.last;
 
-  const dobC = normalizeDate(c.dob);
-  const dobE = normalizeDate(e.dob);
-  const dobEq = !!dobC && !!dobE && dobC === dobE;
-
-  const gC = genderNorm(c.gender);
-  const gE = genderNorm(e.gender);
-  const genderConflict = !!gC && !!gE && gC !== gE;
-
-  const contactC = contactNorm(c.contact);
-  const contactE = contactNorm(e.contact);
-  const contactEq = !!contactC && !!contactE && contactC === contactE;
+  const dobEq = !!c.dob && !!e.dob && c.dob === e.dob;
+  const genderConflict = !!c.gender && !!e.gender && c.gender !== e.gender;
+  const contactEq = !!c.contact && !!e.contact && c.contact === e.contact;
 
   // Same name but a KNOWN different DOB → different people (e.g. two
   if (fullEq || (firstEq && lastEq)) {
     if (dobEq) return genderConflict ? "likely" : "confident";
     if (contactEq) return genderConflict ? "likely" : "confident";
-    if (dobC && dobE) return "clean";
+    if (c.dob && e.dob) return "clean";
     return "likely"; // name matches but DOB missing somewhere — uncertain
   }
 
@@ -258,6 +272,10 @@ export function matchPerson(c: RawIdentity, e: RawIdentity): MatchLevel {
   if (firstEq && dobEq) return "likely";
 
   return "clean";
+}
+
+export function matchPerson(c: RawIdentity, e: RawIdentity): MatchLevel {
+  return matchNormalized(normalizeIdentity(c), normalizeIdentity(e));
 }
 
 // Sorted unique identity keys for the deterministic race-safe hash.
@@ -395,40 +413,144 @@ const REASON_BY_LEVEL: Record<MatchLevel, string> = {
   clean: "No match",
 };
 
+const KIND_RANK: Record<RecordKind, number> = { account: 0, census: 1 };
+
+interface NormRef {
+  ref: IdentityRef;
+  rank: number;
+  idx: number;
+  norm: NormCore;
+  // The other side of this record's account⇄census link, if any:
+  //   account → its censusId, census → its accountId.
+  linkedId: string;
+}
+
 export async function buildDuplicateReport(): Promise<DuplicateReportEntry[]> {
   const [accounts, census] = await Promise.all([
-    AccountModel.find({}).select("_id name dateOfBirth gender contact").lean(),
+    AccountModel.find({})
+      .select("_id name dateOfBirth gender contact censusId")
+      .lean(),
     ResidentCensusModel.find({})
-      .select("_id name birthday sex cellphone")
+      .select("_id name birthday sex cellphone accountId")
       .lean(),
   ]);
 
-  const acctRefs = accounts.map((a) => toIdentityRef("account", a));
-  const censusRefs = census.map((r) => toIdentityRef("census", r));
-
-  const entries: DuplicateReportEntry[] = [];
-  const add = (a: IdentityRef, b: IdentityRef) => {
-    const level = matchPerson(
-      { name: a.name, dob: a.dob, gender: a.gender, contact: a.contact },
-      { name: b.name, dob: b.dob, gender: b.gender, contact: b.contact },
-    );
-    if (level !== "clean") {
-      entries.push({ a, b, level, reason: REASON_BY_LEVEL[level] });
-    }
+  const toNormRef = (kind: RecordKind, r: any, idx: number): NormRef => {
+    const ref = toIdentityRef(kind, r);
+    const linkedId =
+      kind === "account"
+        ? r.censusId
+          ? String(r.censusId)
+          : ""
+        : r.accountId
+          ? String(r.accountId)
+          : "";
+    return {
+      ref,
+      rank: KIND_RANK[kind],
+      idx,
+      norm: normalizeIdentity({
+        name: ref.name,
+        dob: ref.dob,
+        gender: ref.gender,
+        contact: ref.contact,
+      }),
+      linkedId,
+    };
   };
 
-  for (let i = 0; i < acctRefs.length; i++) {
-    for (let j = i + 1; j < acctRefs.length; j++) add(acctRefs[i], acctRefs[j]);
-  }
-  for (const a of acctRefs) {
-    for (const bc of censusRefs) add(a, bc);
-  }
-  for (let i = 0; i < censusRefs.length; i++) {
-    for (let j = i + 1; j < censusRefs.length; j++)
-      add(censusRefs[i], censusRefs[j]);
+  const items: NormRef[] = [
+    ...accounts.map((a, i) => toNormRef("account", a, i)),
+    ...census.map((r, i) => toNormRef("census", r, i)),
+  ];
+
+  // ── Blocking ───────────────────────────────────────────────────────
+  // matchNormalized() can only return non-"clean" for a pair that shares at
+  // least one of these cheap keys:
+  //   nk : identical full-name token set            (fullEq)
+  //   fl : identical first + surname                (firstEq && lastEq)
+  //   cd : identical canonical contact + DOB        (contactEq && dobEq)
+  //   ld : identical surname + DOB                  (lastEq && dobEq)
+  //   fd : identical first name + DOB               (firstEq && dobEq)
+  // Bucketing by these keys turns the old all-pairs O(n²) scan into
+  // comparisons inside (small) buckets only.
+  const buckets = new Map<string, NormRef[]>();
+  const push = (key: string, item: NormRef) => {
+    const list = buckets.get(key);
+    if (list) list.push(item);
+    else buckets.set(key, [item]);
+  };
+  for (const item of items) {
+    const { nameKey: nk, first, last, dob, contact } = item.norm;
+    if (nk) push(`nk|${nk}`, item);
+    if (first && last) push(`fl|${first}|${last}`, item);
+    if (contact && dob) push(`cd|${contact}|${dob}`, item);
+    if (last && dob) push(`ld|${last}|${dob}`, item);
+    if (first && dob) push(`fd|${first}|${dob}`, item);
   }
 
-  return entries.slice(0, 500);
+  // Evaluate every candidate pair exactly once, in a canonical orientation
+  // (account before census; lower index first) that matches the ordering the
+  // old pairwise loops produced.
+  const seen = new Set<string>();
+  const found: { order: [number, number, number]; entry: DuplicateReportEntry }[] =
+    [];
+
+  const consider = (x: NormRef, y: NormRef) => {
+    let a = x;
+    let b = y;
+    if (a.rank > b.rank || (a.rank === b.rank && a.idx > b.idx)) {
+      a = y;
+      b = x;
+    }
+    if (a.rank === b.rank && a.idx === b.idx) return;
+    const key = `${a.rank}:${a.idx}|${b.rank}:${b.idx}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    const level = matchNormalized(a.norm, b.norm);
+    if (level === "clean") return;
+
+    // An account and the census record it is linked to describe the SAME
+    // person by design (a resident may have both an account and a census
+    // entry, cross-linked via account.censusId ⇄ census.accountId). That is
+    // the expected one-person/two-records state, not a duplicate — skip it.
+    // A DIFFERENT, unlinked account colliding with the same census person is
+    // still reported below.
+    if (a.rank !== b.rank) {
+      const account = a.rank === 0 ? a : b;
+      const censusRef = a.rank === 0 ? b : a;
+      if (
+        (account.linkedId && account.linkedId === censusRef.ref.id) ||
+        (censusRef.linkedId && censusRef.linkedId === account.ref.id)
+      ) {
+        return;
+      }
+    }
+
+    // Category preserves the original emission order:
+    // 0 = account↔account, 1 = account↔census, 2 = census↔census.
+    const category = a.rank === 0 && b.rank === 0 ? 0 : a.rank === 0 ? 1 : 2;
+    found.push({
+      order: [category, a.idx, b.idx],
+      entry: { a: a.ref, b: b.ref, level, reason: REASON_BY_LEVEL[level] },
+    });
+  };
+
+  for (const list of buckets.values()) {
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) consider(list[i], list[j]);
+    }
+  }
+
+  found.sort(
+    (p, q) =>
+      p.order[0] - q.order[0] ||
+      p.order[1] - q.order[1] ||
+      p.order[2] - q.order[2],
+  );
+
+  return found.slice(0, 500).map((f) => f.entry);
 }
 
 function toIdentityRef(kind: RecordKind, r: any): IdentityRef {

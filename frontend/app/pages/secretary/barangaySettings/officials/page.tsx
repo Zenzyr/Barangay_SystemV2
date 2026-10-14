@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { BackButton } from "@/components/ui/BackButton";
 import useBarangaySettingsStore from "@/app/store/useBarangaySettingsStore";
+import useUserStore from "@/app/store/useUserStore";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { officialsApi } from "@/app/utils/barangayApi";
@@ -32,10 +33,14 @@ interface ApiError {
 export default function Page() {
   const router = useRouter();
   const store = useBarangaySettingsStore();
+  const { user } = useUserStore();
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<officialInterface | null>(null);
   const [formKey, setFormKey] = useState(0);
+
+  // Secretary may add officials; editing/removal stay super admin only.
+  const canManage = user?.role === "super_admin";
 
   const { data: officials = [], isLoading } = useQuery({
     queryKey: ["officials"],
@@ -240,6 +245,7 @@ const isSingle = SINGLE_HOLDER_POSITIONS.includes(
             onEdit={openEdit}
             onToggle={toggleStatus}
             onDelete={removeOfficial}
+            canManage={canManage}
           />
         )}
 
@@ -251,13 +257,14 @@ const isSingle = SINGLE_HOLDER_POSITIONS.includes(
               being deleted.
             </p>
           ) : (
-            <OfficialTable
-              officials={previous}
-              onEdit={openEdit}
-              onToggle={toggleStatus}
-              onDelete={removeOfficial}
-              muted
-            />
+          <OfficialTable
+            officials={previous}
+            onEdit={openEdit}
+            onToggle={toggleStatus}
+            onDelete={removeOfficial}
+            canManage={canManage}
+            muted
+          />
           )}
         </div>
       </div>
@@ -289,12 +296,14 @@ function OfficialTable({
   onEdit,
   onToggle,
   onDelete,
+  canManage,
   muted,
 }: {
   officials: officialInterface[];
   onEdit: (o: officialInterface) => void;
   onToggle: (o: officialInterface) => void;
   onDelete: (o: officialInterface) => void;
+  canManage: boolean;
   muted?: boolean;
 }) {
   return (
@@ -325,20 +334,24 @@ function OfficialTable({
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <Button variant="ghost" size="sm" onClick={() => onEdit(o)} title="Edit">
-              <Pencil className="size-4" />
-            </Button>
-            <Button
-              variant={o.status === "active" ? "ghost" : "outline"}
-              size="sm"
-              onClick={() => onToggle(o)}
-              title={o.status === "active" ? "Deactivate" : "Activate"}
-            >
-              <Power className="size-4" />
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => onDelete(o)} title="Delete">
-              <Trash2 className="size-4 text-rose-500" />
-            </Button>
+            {canManage && (
+              <>
+                <Button variant="ghost" size="sm" onClick={() => onEdit(o)} title="Edit">
+                  <Pencil className="size-4" />
+                </Button>
+                <Button
+                  variant={o.status === "active" ? "ghost" : "outline"}
+                  size="sm"
+                  onClick={() => onToggle(o)}
+                  title={o.status === "active" ? "Deactivate" : "Activate"}
+                >
+                  <Power className="size-4" />
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => onDelete(o)} title="Delete">
+                  <Trash2 className="size-4 text-rose-500" />
+                </Button>
+              </>
+            )}
           </div>
         </div>
       ))}

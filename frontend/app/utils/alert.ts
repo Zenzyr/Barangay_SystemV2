@@ -9,6 +9,15 @@ export const errorAlert = (text: string) => {
   toast.error(text);
 };
 
+export const infoAlert = (text: string, title = "Heads up") => {
+  Swal.fire({
+    title,
+    text,
+    icon: "info",
+    confirmButtonText: "Got it",
+  });
+};
+
 export const confirmAlert = (
   text: string,
   buttonText: string,

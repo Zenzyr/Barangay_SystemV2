@@ -255,6 +255,8 @@ function actionTitle(log: auditLog): string {
         return "Started Reviewing a Suspension Appeal";
       case "login":
         return "Signed In";
+      case "login_new_device":
+        return "Signed In From a New Device";
       case "login_failed":
         return "Failed Sign-In Attempt";
       case "login_locked":
@@ -333,6 +335,7 @@ function actionSummary(log: auditLog): string {
     if (log.action === "appeal_rejected") return `${person}'s suspension appeal was rejected`;
     if (log.action === "appeal_under_review") return `${person}'s suspension appeal is under review`;
     if (log.action === "login") return `${person} signed in`;
+    if (log.action === "login_new_device") return `${person} signed in from a new device`;
     if (log.action === "login_failed") return `${person} entered incorrect credentials`;
     if (log.action === "login_locked") return `${person}'s account was locked after failed attempts`;
     if (log.action === "password_change") return `${person}'s password was changed`;
@@ -502,7 +505,7 @@ function detailRows(log: auditLog): DetailRow[] {
         { label: "Appeal Status", before: humanizeValue(log.previousValue), after: humanizeValue(log.newValue) },
       ];
     }
-    if (log.action === "login" || log.action === "login_failed" || log.action === "login_locked") {
+    if (log.action === "login" || log.action === "login_new_device" || log.action === "login_failed" || log.action === "login_locked") {
       const ip = toObj(log.newValue).ip;
       return [
         { label: "User", before: "", after: person },
@@ -608,7 +611,7 @@ const ACTION_FILTERS: ActionFilterOption[] = [
   {
     value: "auth",
     label: "Sign-ins & Passwords",
-    codes: ["login", "login_failed", "login_locked", "password_change", "password_reset", "resubmit"],
+    codes: ["login", "login_new_device", "login_failed", "login_locked", "password_change", "password_reset", "resubmit"],
   },
   {
     value: "payments",

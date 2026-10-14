@@ -30,6 +30,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { purokApi } from "@/app/utils/barangayApi";
+import useUserStore from "@/app/store/useUserStore";
 import { successAlert, errorAlert } from "@/app/utils/alert";
 import { purokInterface, purokInput } from "@/app/types/purok.type";
 import { BackButton } from "@/components/ui/BackButton";
@@ -60,6 +61,10 @@ interface PurokResident {
 export default function Page() {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const { user } = useUserStore();
+
+  // Secretary may add puroks; edit/status/delete stay super admin only.
+  const canManage = user?.role === "super_admin";
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<purokInterface | null>(null);
@@ -215,34 +220,42 @@ export default function Page() {
                           icon: Users,
                           onClick: () => setViewing(p),
                         },
-                        {
-                          key: "edit",
-                          label: "Edit",
-                          icon: Pencil,
-                          onClick: () => {
-                            setEditing(p);
-                            setModalOpen(true);
-                          },
-                        },
-                        {
-                          key: "status",
-                          label:
-                            p.status === "active" ? "Deactivate" : "Activate",
-                          icon: Power,
-                          onClick: () =>
-                            statusMut.mutate({
-                              id: p._id,
-                              status:
-                                p.status === "active" ? "inactive" : "active",
-                            }),
-                        },
-                        {
-                          key: "delete",
-                          label: "Delete",
-                          icon: Trash2,
-                          className: "text-rose-500",
-                          onClick: () => removePurok(p),
-                        },
+                        ...(canManage
+                          ? ([
+                              {
+                                key: "edit",
+                                label: "Edit",
+                                icon: Pencil,
+                                onClick: () => {
+                                  setEditing(p);
+                                  setModalOpen(true);
+                                },
+                              },
+                              {
+                                key: "status",
+                                label:
+                                  p.status === "active"
+                                    ? "Deactivate"
+                                    : "Activate",
+                                icon: Power,
+                                onClick: () =>
+                                  statusMut.mutate({
+                                    id: p._id,
+                                    status:
+                                      p.status === "active"
+                                        ? "inactive"
+                                        : "active",
+                                  }),
+                              },
+                              {
+                                key: "delete",
+                                label: "Delete",
+                                icon: Trash2,
+                                className: "text-rose-500",
+                                onClick: () => removePurok(p),
+                              },
+                            ] as RequestActionItem[])
+                          : []),
                       ]}
                     />
                   </TableCell>

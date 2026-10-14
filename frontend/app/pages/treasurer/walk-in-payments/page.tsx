@@ -17,13 +17,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { RecordPaymentDialog } from "./components/RecordPaymentDialog";
-import { HandCoins, Search, Inbox, Banknote, RefreshCw } from "lucide-react";
+import { HandCoins, Search, Inbox, Banknote, RefreshCw, MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const SOURCE_TABS: { value: "all" | "walk-in" | "online"; label: string }[] = [
   { value: "all", label: "All" },
   { value: "walk-in", label: "Walk-in" },
-  { value: "online", label: "Dashboard" },
+  { value: "online", label: "Online" },
 ];
 
 const formatRequestDate = (value: string | null | undefined): string => {
@@ -54,7 +54,9 @@ export default function Page() {
   });
 
   const items = useMemo(() => {
-    const list = data?.items ?? [];
+    const list = [...(data?.items ?? [])].sort(
+      (a, b) => Number(b.counterPaymentIntent) - Number(a.counterPaymentIntent),
+    );
     const q = search.trim().toLowerCase();
     if (!q) return list;
     return list.filter(
@@ -71,7 +73,7 @@ export default function Page() {
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900">Walk-in Payments</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Record cash payments for walk-in and dashboard (online) document requests. Once paid, the secretary can print the document.
+            Record cash payments for walk-in and online document requests. Once paid, the secretary can print the document.
           </p>
         </div>
       </div>
@@ -128,7 +130,7 @@ export default function Page() {
             <Inbox className="size-8 mx-auto text-slate-300" />
             <p className="mt-2 text-sm font-medium text-slate-600">No unpaid requests</p>
             <p className="text-xs text-slate-400 mt-0.5">
-              Unpaid walk-in and dashboard document requests will appear here for you to collect payment.
+              Unpaid walk-in and online document requests will appear here for you to collect payment.
             </p>
           </div>
         ) : (
@@ -149,6 +151,12 @@ export default function Page() {
                     <TableCell>
                       <p className="text-sm font-medium text-slate-800">{t.residentName}</p>
                       <p className="text-xs text-slate-400">{t.transactionNumber}</p>
+                      {t.counterPaymentIntent && (
+                        <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                          <MapPin className="size-3" />
+                          Counter payment requested
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm text-slate-600">{t.documentName}</TableCell>
                     <TableCell className="text-sm text-slate-500">{formatRequestDate(t.transactionDate)}</TableCell>

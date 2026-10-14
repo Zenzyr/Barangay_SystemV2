@@ -61,6 +61,11 @@ const AccountSchema = new Schema(
     // login refuses accounts explicitly marked false.
     emailVerified: { type: Boolean, required: false, default: false },
     emailVerifiedAt: { type: Date, required: false },
+    // Last successful sign-in fingerprint. Compared against the incoming
+    // request on each login to detect and warn about a new device/location.
+    lastLoginAt: { type: Date, required: false },
+    lastLoginIp: { type: String, required: false, default: "" },
+    lastLoginUserAgent: { type: String, required: false, default: "" },
     resetCodeHash: { type: String, required: false },
     resetCodeExpires: { type: Date, required: false },
     // Brute-force protection for the password-reset code: failed verify attempts

@@ -53,7 +53,7 @@ import {
 } from "../utils/idVerificationToken";
 import { NotificationService } from "../services/notification.service";
 import { LoginAttemptService } from "../services/loginAttempt.service";
-import { LOGIN_MAX_ATTEMPTS, LOGIN_LOCK_MINUTES, loginLockedEmailHtml } from "../utils/loginSecurity";
+import { LOGIN_MAX_ATTEMPTS, LOGIN_LOCK_MINUTES, loginLockedEmailHtml, newDeviceLoginEmailHtml, isNewDeviceLogin } from "../utils/loginSecurity";
 import { ResidentCensusService } from "../services/residentCensus.service";
 import { GoogleGenAI } from "@google/genai";
 import { SystemInfoService } from "../services/systemInfo.service";
@@ -82,6 +82,10 @@ import {
   maskPhMobile,
   normalizePhMobile,
   withinLength,
+  skillNameError,
+  normalizeServiceTypes,
+  customServiceTypeError,
+  MAX_SERVICE_TYPES,
   householdNumberError,
   MAX_NAME_LENGTH,
   MAX_ADDRESS_LENGTH,
@@ -90,6 +94,10 @@ import {
   passwordStrengthError,
   MAX_DESCRIPTION_LENGTH,
 } from "../utils/validation";
+import {
+  canonicalServiceType,
+  isKnownServiceType,
+} from "../utils/serviceTypes";
 
 dotenv.config();
 
@@ -1436,17 +1444,62 @@ export class AccountController {
         response.status(400).send("Invalid account id");
         return;
       }
-      const cleanServiceTypes = Array.isArray(serviceTypes)
-        ? serviceTypes.map((s: unknown) => String(s || "").trim()).filter(Boolean)
-        : [];
-      if (!skill || experience === undefined || !proficiency) {
+      if (experience === undefined || !proficiency) {
         response
           .status(400)
           .send("All fields are required: skill, experience, proficiency");
         return;
       }
+      const skillError = skillNameError(skill);
+      if (skillError) {
+        response.status(400).send(skillError);
+        return;
+      }
+      const catalogServiceTypes = normalizeServiceTypes(serviceTypes);
+      const customServiceTypesInput = normalizeServiceTypes(
+        request.body.customServiceTypes
+      );
+
+      const unknownServiceType = catalogServiceTypes.find(
+        (serviceType) => !isKnownServiceType(serviceType)
+      );
+      if (unknownServiceType) {
+        response
+          .status(400)
+          .send(
+            `Please enter a valid service type ("${unknownServiceType}" is not in the list)`
+          );
+        return;
+      }
+      for (const customServiceType of customServiceTypesInput) {
+        const customError = customServiceTypeError(customServiceType);
+        if (customError) {
+          response.status(400).send(customError);
+          return;
+        }
+      }
+
+      const seenServiceTypes = new Set<string>();
+      const cleanServiceTypes: string[] = [];
+      for (const serviceType of [
+        ...catalogServiceTypes.map(
+          (value) => canonicalServiceType(value) ?? value
+        ),
+        ...customServiceTypesInput,
+      ]) {
+        const key = serviceType.toLowerCase();
+        if (seenServiceTypes.has(key)) continue;
+        seenServiceTypes.add(key);
+        cleanServiceTypes.push(serviceType);
+      }
       if (cleanServiceTypes.length === 0) {
-        response.status(400).send("At least one service type is required");
+        response.status(400).send("Please enter a valid service type");
+        return;
+      }
+      if (cleanServiceTypes.length > MAX_SERVICE_TYPES) {
+        response
+          .status(400)
+          .send(`Please select at most ${MAX_SERVICE_TYPES} service types`);
         return;
       }
       const experienceNumber = Number(experience);
@@ -2836,6 +2889,56 @@ export class AccountController {
 
       const token = jwt.sign({ id: account._id }, secret, { expiresIn: "3d" });
 
+      const loginIp = String(request.ip || request.socket?.remoteAddress || "unknown");
+      const loginUserAgent = String(request.headers["user-agent"] || "unknown");
+
+      // New-device detection: only warn once there is a prior sign-in to
+      // compare against (a first-ever login is the baseline, not an anomaly)
+      // and only when the device fingerprint actually changed.
+      const isNewDevice = isNewDeviceLogin(account, {
+        ip: loginIp,
+        userAgent: loginUserAgent,
+      });
+
+      if (isNewDevice) {
+        const when = formattedDate();
+
+        NotificationService.create({
+          accountId: account._id.toString(),
+          title: "New sign-in to your account",
+          message: `Your account was signed in from a new device or location at ${when}. If this wasn't you, change your password immediately.`,
+          type: "security",
+        }).catch(() => null);
+
+        sendEmail(
+          account.email,
+          "New sign-in to your Barangay Rabon account",
+          newDeviceLoginEmailHtml({
+            name: account.name,
+            when,
+            ip: loginIp,
+            userAgent: loginUserAgent,
+          })
+        ).catch(() => null);
+
+        AuditLogService.create({
+          actor: account.name,
+          actorId: account._id.toString(),
+          action: "login_new_device",
+          entity: "account",
+          entityId: account._id.toString(),
+          entityLabel: account.name,
+          newValue: { ip: loginIp, userAgent: loginUserAgent },
+        }).catch(() => null);
+      }
+
+      // Remember this sign-in so the next one can be compared against it.
+      AccountService.recordLogin(account._id.toString(), {
+        at: new Date(),
+        ip: loginIp,
+        userAgent: loginUserAgent,
+      }).catch(() => null);
+
       AuditLogService.create({
         actor: account.name,
         actorId: account._id.toString(),
@@ -2844,7 +2947,8 @@ export class AccountController {
         entityId: account._id.toString(),
         entityLabel: account.name,
         newValue: {
-          ip: String(request.ip || request.socket?.remoteAddress || "unknown"),
+          ip: loginIp,
+          userAgent: loginUserAgent,
         },
       }).catch(() => null);
 

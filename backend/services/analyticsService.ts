@@ -2,7 +2,7 @@ import DocumentRequestModel from "../model/documentRequest.model";
 import AccountModel from "../model/account.model";
 import { CommunityAnalyticsService } from "./communityAnalyticsService";
 import { RecommendationService } from "./recommendationService";
-import { safeRate } from "../utils/analyticsRules";
+import { safeRate, SCORING_VERSION } from "../utils/analyticsRules";
 import {
   AnalyticsSummary,
   AnalyticsOverview,
@@ -31,6 +31,22 @@ const DOCUMENT_NAMES: Record<string, string> = {
 };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+// Maps any stored status onto one of the tracked status buckets. Unknown /
+// legacy values stay unchanged (they simply won't increment a bucket).
+function primaryStatus(status: string): keyof AnalyticsOverview["statusCounts"] {
+  switch (status) {
+    case "pending": return "pending";
+    case "processing": return "processing";
+    case "ready": return "ready";
+    case "released": return "released";
+    case "cancelled": return "cancelled";
+    case "rejected": return "rejected";
+    case "to claim": return "toClaim";
+    case "completed": return "completed";
+    default: return status as keyof AnalyticsOverview["statusCounts"];
+  }
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────
 export function dateFromObjectId(id: string): Date {
@@ -108,6 +124,15 @@ export class AnalyticsService {
       overview,
       community: communitySummary,
       trends,
+      limitations: {
+        secretaryAvailability:
+          "Secretary and staff availability is not tracked in the current database schema, so workload/staffing indicators are unavailable.",
+        requirementDelays:
+          "There is no field recording requests held up for missing requirements, so requirement-driven delay counts are unavailable (backlog age is the closest proxy).",
+        recurringTrend:
+          "Recurrence (is an issue present in more than one period) requires prior AnalyticsSnapshots; the scoring system flags recurrence when the current period is worse than its direct predecessor.",
+      },
+      scoringVersion: SCORING_VERSION,
     };
   }
 
@@ -130,6 +155,45 @@ export class AnalyticsService {
     const activeDocs = docs.filter((d) => !d.isPaid && !isFinished(d));
     const pendingRevenue = activeDocs.reduce((sum, d) => sum + (Number(d.price) || 0), 0);
     const unpaidCount = activeDocs.length;
+
+    // Live status distribution.
+    const statusCounts: AnalyticsOverview["statusCounts"] = {
+      pending: 0, processing: 0, ready: 0, released: 0, cancelled: 0, rejected: 0, toClaim: 0, completed: 0,
+    };
+    docs.forEach((d) => {
+      if (typeof primaryStatus(d.status) === "string") statusCounts[primaryStatus(d.status)]++;
+    });
+
+    // Backlog: pending/processing older than 3 days + the age of the oldest one.
+    const threshold = new Date(now.getTime() - 3 * 86_400_000);
+    const backlog = docs.filter(
+      (d) => (d.status === "pending" || d.status === "processing") && dateFromObjectId(d._id) < threshold
+    );
+    const backlogCount = backlog.length;
+    const oldestPendingAgeDays = backlog.length
+      ? Math.max(0, Math.round((now.getTime() - Math.min(...backlog.map((d) => dateFromObjectId(d._id).getTime()))) / 86_400_000))
+      : null;
+
+    // Average processing time from creation to the first released/completed
+    // entry in the status history. Unavailable when no finished request has a
+    // usable terminal timestamp.
+    let durations: number[] = [];
+    docs.forEach((d) => {
+      if (!isFinished(d)) return;
+      const created = dateFromObjectId(d._id).getTime();
+      const history: any[] = Array.isArray(d.statusHistory) ? d.statusHistory : [];
+      const terminal = history
+        .filter((h) => h && (h.status === "released" || h.status === "completed") && h.at)
+        .map((h) => new Date(h.at).getTime())
+        .sort((a, b) => a - b)[0];
+      const end = terminal !== undefined ? terminal : d.dateIssued ? new Date(d.dateIssued).getTime() : NaN;
+      if (Number.isFinite(end) && end >= created) {
+        durations.push((end - created) / 86_400_000);
+      }
+    });
+    const averageProcessingTimeDays =
+      durations.length > 0 ? Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 100) / 100 : null;
+    const processingTimeAvailable = durations.length > 0;
 
     const totalUsers = accounts.length;
     const activeUsers = accounts.filter((a) => a.status === "approved").length;
@@ -154,7 +218,8 @@ export class AnalyticsService {
           ? 100
           : 0;
 
-    // Week-over-week request volume.
+    // Week-over-week request volume. Handles a previous-period value of zero:
+    // any volume now is treated as +100% growth (never division by zero).
     const thisWeekStart = new Date(now.getTime() - 7 * 86_400_000);
     const lastWeekStart = new Date(now.getTime() - 14 * 86_400_000);
     let thisWeek = 0;
@@ -171,11 +236,11 @@ export class AnalyticsService {
           ? 100
           : 0;
 
-    // Backlog: pending/processing older than 3 days.
-    const threshold = new Date(now.getTime() - 3 * 86_400_000);
-    const backlogCount = docs.filter(
-      (d) => (d.status === "pending" || d.status === "processing") && dateFromObjectId(d._id) < threshold
-    ).length;
+    // ── Payments & revenue ─────────────────────────────────────────
+    const pendingVerificationCount = docs.filter((d) => d.paymentVerificationStatus === "pending").length;
+    const rejectedPaymentCount = docs.filter((d) => d.paymentVerificationStatus === "rejected").length;
+    const counterPaymentCount = docs.filter((d) => d.counterPaymentIntent && !d.isPaid).length;
+    const blockedFromRelease = docs.filter((d) => d.status === "ready" && !d.isPaid).length;
 
     // Most requested document.
     const docCounts: Record<string, number> = {};
@@ -200,15 +265,44 @@ export class AnalyticsService {
       if (count > 0 && (!peakDay || count > peakDay.count)) peakDay = { name: WEEKDAYS[i], count };
     });
 
+    // Peak hour of day (24h buckets).
+    const hourCounts = new Array(24).fill(0);
+    docs.forEach((d) => {
+      const requestedHour = typeof d.requestTime === "string" && /^\d{1,2}(:\d{2})?$/.test(d.requestTime)
+        ? parseInt(d.requestTime.split(":")[0], 10)
+        : dateFromObjectId(d._id).getHours();
+      if (requestedHour >= 0 && requestedHour < 24) hourCounts[requestedHour]++;
+    });
+    let peakHour: { name: string; count: number } | null = null;
+    hourCounts.forEach((count, hour) => {
+      if (count > 0 && (!peakHour || count > peakHour.count)) {
+        peakHour = { name: `${String(hour).padStart(2, "0")}:00`, count };
+      }
+    });
+
     return {
       totalRequests: docs.length,
       completedRequests: completed,
       completionRate,
+      statusCounts,
+      pendingRequests: statusCounts.pending,
+      processingRequests: statusCounts.processing,
+      readyRequests: statusCounts.ready,
+      rejectedRequests: statusCounts.rejected,
+      cancelledRequests: statusCounts.cancelled,
       revenueCollected,
       pendingRevenue,
       unpaidCount,
       backlogCount,
+      overdueRequests: backlogCount,
+      oldestPendingAgeDays,
+      averageProcessingTimeDays,
+      processingTimeAvailable,
       weekOverWeekChange,
+      pendingVerificationCount,
+      rejectedPaymentCount,
+      counterPaymentCount,
+      blockedFromRelease,
       totalUsers,
       activeUsers,
       pendingUsers,
@@ -216,6 +310,7 @@ export class AnalyticsService {
       growthRate,
       topDocument: topEntry || null,
       peakDay,
+      peakHour,
     };
   }
 

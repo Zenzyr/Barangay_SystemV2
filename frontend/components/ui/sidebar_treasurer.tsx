@@ -2,7 +2,6 @@
 import {
   LayoutDashboard,
   ReceiptText,
-  ShieldCheck,
   Receipt,
   FileBarChart,
   HandCoins,
@@ -15,7 +14,6 @@ const navigationItems: NavItem[] = [
   { title: "Dashboard", url: "/pages/treasurer/dashboard", icon: LayoutDashboard, permission: PERMISSIONS.TREASURER_DASHBOARD_VIEW },
   { title: "Payment Transactions", url: "/pages/treasurer/payment-transactions", icon: ReceiptText, permission: PERMISSIONS.PAYMENTS_VIEW },
   { title: "Walk-in Payments", url: "/pages/treasurer/walk-in-payments", icon: HandCoins, permission: PERMISSIONS.PAYMENTS_VIEW },
-  { title: "Payment Verification", url: "/pages/treasurer/payment-verification", icon: ShieldCheck, permission: PERMISSIONS.PAYMENTS_VERIFY },
   { title: "Receipts", url: "/pages/treasurer/receipts", icon: Receipt, permission: PERMISSIONS.RECEIPTS_VIEW },
   { title: "Collection Reports", url: "/pages/treasurer/collection-reports", icon: FileBarChart, permission: PERMISSIONS.COLLECTION_REPORTS_VIEW },
   { title: "Account Settings", url: "/pages/treasurer/account", icon: UserCog },

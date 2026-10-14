@@ -16,6 +16,8 @@ const DecisionSupportAnalysisSchema = new Schema({
   provider: { type: String, default: 'rule-based' },
   providerLabel: { type: String, default: '' },
   connected: { type: Boolean, default: false },
+  notice: { type: String, default: '' },
+  scoringVersion: { type: String, default: '' },
   summary: { type: String, default: '' },
 }, { timestamps: true });
 

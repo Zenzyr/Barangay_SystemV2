@@ -156,6 +156,21 @@ export class AccountService {
     return await AccountModel.findByIdAndUpdate(id, { password: hashedPassword }, { new: true });
   }
 
+  /** Records the fingerprint of a successful sign-in for new-device detection. */
+  static async recordLogin(id: string, data: { at: Date; ip: string; userAgent: string }) {
+    return await AccountModel.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          lastLoginAt: data.at,
+          lastLoginIp: data.ip,
+          lastLoginUserAgent: data.userAgent,
+        },
+      },
+      { new: true },
+    ).select("-password");
+  }
+
   static async getResidentsWithSkills(filter: { skill?: string; serviceType?: string; availability?: string; location?: string; search?: string } = {}) {
     const query: Record<string, any> = { status: 'approved' };
 

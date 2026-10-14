@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
 import useUserStore from "@/app/store/useUserStore";
 import { documentRequestInterface } from "@/app/types/documentRequest";
@@ -27,7 +27,7 @@ import {
   DOCUMENT_NAMES,
   formatRequestDate,
 } from "@/app/utils/documentRequestOptions";
-import { confirmAlert, errorAlert } from "@/app/utils/alert";
+import { confirmAlert, errorAlert, successAlert } from "@/app/utils/alert";
 import { StatusBadge } from "@/components/ui/shared/StatusBadge";
 import { DailyRequestStatusCard } from "@/components/documentRequest/DailyRequestStatusCard";
 import useDailyRequestStatus from "@/app/hooks/useDailyRequestStatus";
@@ -43,6 +43,7 @@ import {
   PhilippinePeso,
   Wallet,
   CreditCard,
+  MapPin,
   Eye,
   PencilLine,
   Trash2,
@@ -50,6 +51,14 @@ import {
   Loader2,
   Download,
 } from "lucide-react";
+
+const amountDueOf = (doc: documentRequestInterface): number => {
+  const fee = Number(doc.feeAtRequest);
+  if (Number.isFinite(fee)) return fee;
+  const price = Number(doc.price);
+  if (Number.isFinite(price)) return price;
+  return getDocumentPrice(doc.document);
+};
 
 export default function MyDocumentsPage() {
   const { user } = useUserStore();
@@ -68,6 +77,7 @@ export default function MyDocumentsPage() {
   const dailyStatus = useDailyRequestStatus();
 
   // ── Fetch documents for this resident ─────────────────────────
+  const queryClient = useQueryClient();
   const { data: documents, isLoading } = useQuery<documentRequestInterface[]>({
     queryKey: ["document-requests", "resident", user?._id],
     queryFn: async () => {
@@ -78,6 +88,31 @@ export default function MyDocumentsPage() {
     },
     enabled: !!user?._id,
   });
+
+  // ── Flag request for counter payment + notify the treasurer ───
+  const counterPaymentMutation = useMutation({
+    mutationFn: (documentId: string) =>
+      axiosInstance.post(
+        `/document-request/${documentId}/payment/counter-intent`,
+      ),
+    onSuccess: (res) => {
+      successAlert(res.data?.message || "The treasurer has been notified.");
+      queryClient.invalidateQueries({
+        queryKey: ["document-requests", "resident", user?._id],
+      });
+    },
+    onError: () => {
+      errorAlert("Could not notify the treasurer. Please try again.");
+    },
+  });
+
+  const handleCounterPayment = (documentId: string) => {
+    confirmAlert(
+      "This will let the treasurer know you plan to pay in cash at the Barangay Hall.",
+      "Notify treasurer",
+      () => counterPaymentMutation.mutate(documentId),
+    );
+  };
 
   // ── Filter by search ──────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -279,6 +314,20 @@ export default function MyDocumentsPage() {
                           <Wallet className="size-3" />
                           {doc.isPaid ? "Paid" : "Unpaid"}
                         </span>
+                        {!doc.isPaid && amountDueOf(doc) > 0 && (
+                          <p
+                            className={`flex items-center gap-1 text-[11px] mt-1 ${
+                              doc.counterPaymentIntent
+                                ? "text-emerald-600"
+                                : "text-gray-400"
+                            }`}
+                          >
+                            <MapPin className="size-3 shrink-0" />
+                            {doc.counterPaymentIntent
+                              ? "Treasurer notified — pay at the Barangay Hall"
+                              : "or pay at the Barangay Hall"}
+                          </p>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
@@ -299,7 +348,7 @@ export default function MyDocumentsPage() {
                                   key: "download",
                                   label: "Download PDF",
                                   icon: Download,
-                                  disabled: !doc.isPaid,
+                                  disabled: !doc.isPaid && amountDueOf(doc) > 0,
                                   onClick: async () => {
                                     try {
                                       const { generateDocumentPDFFromDOCX } =
@@ -316,7 +365,7 @@ export default function MyDocumentsPage() {
                                   key: "preview",
                                   label: "Preview PDF",
                                   icon: Eye,
-                                  disabled: !doc.isPaid,
+                                  disabled: !doc.isPaid && amountDueOf(doc) > 0,
                                   onClick: async () => {
                                     try {
                                       const { viewDocumentPDFFromDOCX } =
@@ -329,7 +378,7 @@ export default function MyDocumentsPage() {
                                     }
                                   },
                                 },
-                                ...(!doc.isPaid
+                                ...(!doc.isPaid && amountDueOf(doc) > 0
                                   ? [
                                       {
                                         key: "pay",
@@ -348,6 +397,18 @@ export default function MyDocumentsPage() {
                                               : String(doc.resident || ""),
                                             doc._id,
                                           ),
+                                      },
+                                      {
+                                        key: "pay-counter",
+                                        label: doc.counterPaymentIntent
+                                          ? "Treasurer notified"
+                                          : "Pay at the Barangay Hall",
+                                        icon: MapPin,
+                                        disabled: !!doc.counterPaymentIntent,
+                                        className:
+                                          "text-emerald-600 hover:bg-emerald-50",
+                                        onClick: () =>
+                                          handleCounterPayment(doc._id),
                                       },
                                     ]
                                   : []),

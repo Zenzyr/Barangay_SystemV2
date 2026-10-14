@@ -6,25 +6,20 @@ import { useQuery } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
 import { TransactionItem, TreasurerDashboard } from "@/app/types/transaction.type";
 import { apiErrorMessage, formatChannel, formatCurrency, formatDateTime, formatLongDate } from "@/app/utils/transactionFormat";
-import { PAYMENT_VERIFICATION_CONFIG } from "@/lib/constants/status";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardCard } from "@/components/ui/dashboard-card";
 import { DataEmpty, DataError } from "@/components/ui/data-state-renderer";
-import { StatusBadge } from "@/components/ui/shared/StatusBadge";
 import { CollectionTrendChart } from "@/components/reports/CollectionTrendChart";
 import { PaymentMethodBadge } from "@/components/transactions/TransactionHistory";
 import { TransactionDetailDialog } from "@/components/transactions/TransactionDetailDialog";
 import {
   ArrowUpRight,
   BarChart3,
-  CheckCircle2,
   Coins,
   FileBarChart,
-  Hourglass,
   LayoutDashboard,
   Receipt,
   ReceiptText,
-  ShieldCheck,
   Wallet,
 } from "lucide-react";
 
@@ -43,7 +38,6 @@ function TransactionRow({ item, onOpen }: { item: TransactionItem; onOpen: (id: 
       </div>
       <div className="flex flex-col items-end gap-1 shrink-0">
         <span className="text-sm font-semibold text-gray-900">{formatCurrency(item.amount)}</span>
-        {item.verificationStatus && <StatusBadge status={item.verificationStatus} config={PAYMENT_VERIFICATION_CONFIG} className="hidden sm:inline-flex" />}
       </div>
     </button>
   );
@@ -62,7 +56,7 @@ export default function Page() {
     {
       label: "Today's Collection",
       value: formatCurrency(data?.today.collected),
-      hint: data ? `${data.today.verifiedCount} verified today${data.today.pendingAmount ? ` · ${formatCurrency(data.today.pendingAmount)} pending` : ""}` : "",
+      hint: data ? `${data.today.transactions} transaction${data.today.transactions !== 1 ? "s" : ""} today` : "",
       icon: Coins,
       href: "/pages/treasurer/collection-reports",
       bg: "bg-gradient-to-br from-emerald-50 to-white",
@@ -82,17 +76,6 @@ export default function Page() {
       text: "text-sky-700",
     },
     {
-      label: "Pending Verification",
-      value: String(data?.pendingVerification.count ?? 0),
-      hint: data ? `${formatCurrency(data.pendingVerification.amount)} awaiting review` : "",
-      icon: Hourglass,
-      href: "/pages/treasurer/payment-verification",
-      bg: "bg-gradient-to-br from-amber-50 to-white",
-      iconBg: "bg-amber-100",
-      iconColor: "text-amber-600",
-      text: "text-amber-700",
-    },
-    {
       label: "Total Collected",
       value: formatCurrency(data?.totals.collected),
       hint: data ? `${formatCurrency(data.totals.monthCollected)} this month` : "",
@@ -108,7 +91,7 @@ export default function Page() {
   const series = (data?.lastSevenDays ?? []).map((d) => ({
     label: new Date(`${d.day}T00:00:00`).toLocaleDateString("en-PH", { weekday: "short", day: "numeric" }),
     collected: d.collected,
-    pending: d.pending,
+    pending: 0,
   }));
 
   return (
@@ -121,21 +104,10 @@ export default function Page() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900">Treasurer Dashboard</h1>
             <p className="text-sm text-gray-500 mt-0.5">
-              Collections and payment verification{data ? ` · ${formatLongDate(data.date)}` : ""}
+              Collections overview{data ? ` · ${formatLongDate(data.date)}` : ""}
             </p>
           </div>
         </div>
-        {!!data?.pendingVerification.count && (
-          <Link
-            href="/pages/treasurer/payment-verification"
-            className="flex items-center gap-2 text-sm rounded-xl px-4 py-2 border bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100 transition-colors"
-          >
-            <ShieldCheck className="size-4" />
-            <span>
-              <strong>{data.pendingVerification.count}</strong> payment{data.pendingVerification.count !== 1 ? "s" : ""} awaiting verification
-            </span>
-          </Link>
-        )}
       </div>
 
       {isError ? (
@@ -161,11 +133,10 @@ export default function Page() {
             ))}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6">
             <DashboardCard
               title="Collections — Last 7 Days"
               icon={BarChart3}
-              className="lg:col-span-2"
               headerAction={
                 <Link href="/pages/treasurer/collection-reports" className="text-xs text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1">
                   Reports <ArrowUpRight className="size-3" />
@@ -173,7 +144,7 @@ export default function Page() {
               }
             >
               <div className="p-4">
-                {isLoading ? <Skeleton className="h-60 w-full" /> : <CollectionTrendChart rows={series} height={240} />}
+                {isLoading ? <Skeleton className="h-60 w-full" /> : <CollectionTrendChart rows={series} height={240} showPending={false} />}
                 {data && (
                   <div className="grid grid-cols-2 gap-3 mt-3 text-xs">
                     <div className="rounded-xl bg-emerald-50/60 border border-emerald-100 px-3 py-2">
@@ -185,31 +156,6 @@ export default function Page() {
                       <p className="text-sm font-semibold text-sky-700">{formatCurrency(data.totals.onlineCollected)}</p>
                     </div>
                   </div>
-                )}
-              </div>
-            </DashboardCard>
-
-            <DashboardCard
-              title="Awaiting Verification"
-              icon={Hourglass}
-              headerAction={
-                <Link href="/pages/treasurer/payment-verification" className="text-xs text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1">
-                  View all <ArrowUpRight className="size-3" />
-                </Link>
-              }
-            >
-              <div className="divide-y divide-gray-100">
-                {isLoading ? (
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="px-5 py-3.5">
-                      <Skeleton className="h-4 w-32 mb-1" />
-                      <Skeleton className="h-3 w-44" />
-                    </div>
-                  ))
-                ) : !data?.oldestPending.length ? (
-                  <DataEmpty title="All caught up" description="There are no payments waiting for verification." icon={CheckCircle2} />
-                ) : (
-                  data.oldestPending.map((item) => <TransactionRow key={item._id} item={item} onOpen={setOpenId} />)
                 )}
               </div>
             </DashboardCard>
@@ -251,7 +197,6 @@ export default function Page() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
-              { title: "Verify Payments", desc: "Review walk-in and online payments", href: "/pages/treasurer/payment-verification", icon: ShieldCheck, bg: "bg-amber-50", color: "text-amber-600" },
               { title: "Receipts", desc: "Search, view, and reprint receipts", href: "/pages/treasurer/receipts", icon: Receipt, bg: "bg-sky-50", color: "text-sky-600" },
               { title: "Collection Reports", desc: "Daily, weekly, and monthly totals", href: "/pages/treasurer/collection-reports", icon: FileBarChart, bg: "bg-emerald-50", color: "text-emerald-600" },
             ].map((link) => (

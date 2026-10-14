@@ -99,6 +99,11 @@ const DocumentSchema = new Schema({
     requestTime : { type: String, required: false },
     // "online" = resident requested in-app; "walk-in" = secretary filed on behalf.
     source : { type: String, enum: ["online", "walk-in"], default: "online" },
+    // Resident signalled they intend to settle this request in cash at the
+    // Barangay Hall. Used to flag the request for the treasurer and cleared
+    // automatically once a payment is recorded.
+    counterPaymentIntent : { type: Boolean, default: false },
+    counterPaymentIntentAt : { type: Date, required: false },
     // Soft-delete/archive for completed records so history/audit is preserved.
     isArchived : { type: Boolean, default: false },
     archivedAt : { type: Date, required: false },

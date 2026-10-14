@@ -23,6 +23,7 @@ route.patch("/:id/payment", authenticateJWT, handler(DocumentRequestController.u
 route.patch("/:id/snapshot", authenticateJWT, handler(DocumentRequestController.saveSnapshot))
 route.delete("/:id", authenticateJWT, handler(DocumentRequestController.delete))
 route.post("/:id/payment/online", authenticateJWT, handler(DocumentRequestController.onlinePayment))
+route.post("/:id/payment/counter-intent", authenticateJWT, handler(DocumentRequestController.requestCounterPayment))
 route.post("/:id/session", authenticateJWT, handler(DocumentRequestController.saveCheckoutSession))
 
 

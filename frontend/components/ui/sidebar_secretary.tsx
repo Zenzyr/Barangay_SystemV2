@@ -24,14 +24,20 @@ const navigationItems: NavItem[] = [
   { title: "Dashboard", url: "/pages/secretary/home", icon: Home },
   { title: "Analytics", url: "/pages/secretary/analytics", icon: BarChart3 },
   { title: "Decision Support", url: "/pages/secretary/decisionSupport", icon: Sparkles },
-  { title: "Verify Resident", url: "/pages/secretary/verifyResident", icon: UserPlus2 },
+  {
+    title: "Verify Resident",
+    icon: UserPlus2,
+    children: [
+      { title: "Verify Residents", url: "/pages/secretary/verifyResident", icon: UserPlus2 },
+      { title: "Resident Census", url: "/pages/secretary/residentCensus", icon: ClipboardList },
+    ],
+  },
   { title: "Document Requests", url: "/pages/secretary/documentRequest", icon: FileText },
   { title: "Document Templates", url: "/pages/secretary/document-templates", icon: FileStack },
   { title: "Request History", url: "/pages/secretary/requestHistory", icon: History },
   { title: "Transactions", url: "/pages/secretary/transactions", icon: ReceiptText },
   { title: "Reports", url: "/pages/secretary/reports", icon: FileBarChart },
   { title: "Work Requests", url: "/pages/secretary/workRequests", icon: Hammer },
-  { title: "Resident Census", url: "/pages/secretary/residentCensus", icon: ClipboardList },
   { title: "Resident Skills", url: "/pages/secretary/residentSkills", icon: Award },
   {
     title: "Settings",

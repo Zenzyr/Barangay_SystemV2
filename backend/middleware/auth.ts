@@ -14,8 +14,8 @@ const secret = process.env.JWT_SECRET || "";
 /**
  * Guards a route to a set of allowed roles. Must run after authenticateJWT.
  * Canonical roles: "resident", "secretary", "super_admin".
- * - Legislative configuration (settings, officials, purok writes, rule writes,
- *   role management) is limited to super_admin.
+ * - Legislative configuration (settings, editing/removal of officials &
+ *   puroks, rule writes, role management) is limited to super_admin.
  * - Operational staff endpoints accept ("secretary", "super_admin").
  */
 export const requireRoles = (...roles: string[]) => {

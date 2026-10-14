@@ -16,10 +16,10 @@ export default function Page() {
         </div>
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900">Payment Transactions</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Walk-in and online payments for document requests, with verification status</p>
+          <p className="text-sm text-gray-500 mt-0.5">Walk-in and online payments for document requests</p>
         </div>
       </div>
-      <TransactionHistory scope="staff" showVerification onViewDetails={(t) => setOpenId(t._id)} />
+      <TransactionHistory scope="staff" onViewDetails={(t) => setOpenId(t._id)} />
       <TransactionDetailDialog transactionId={openId} onOpenChange={(o) => !o && setOpenId(null)} />
     </div>
   );

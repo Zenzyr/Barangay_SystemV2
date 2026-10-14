@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import DocumentRequestModel from "../model/documentRequest.model";
 import AccountModel from "../model/account.model";
 import { BarangaySettingsService } from "./barangaySettings.service";
-import { DocumentRequestService, paymentSnapshot } from "./documentRequest.service";
+import { DocumentRequestService } from "./documentRequest.service";
 import { documentDisplayName } from "../utils/documentNames";
 import { withBarangayLocality } from "../utils/residentAddress";
 
@@ -13,9 +13,6 @@ export type PaymentStatus = "paid" | "unpaid";
 export type VerificationStatus = "pending" | "verified" | "rejected";
 
 export const VERIFICATION_STATUSES: VerificationStatus[] = ["pending", "verified", "rejected"];
-export const ONLINE_PAYMENT_CHANNELS = ["paymongo", "gcash", "paymaya", "grab_pay", "card", "dob", "qrph", "billease"];
-export const OVER_THE_COUNTER_CHANNELS = ["cash"];
-export const MAX_TENDERED_AMOUNT = 100000;
 
 export interface TransactionFilters {
   resident?: string;
@@ -54,6 +51,7 @@ export interface TransactionItem {
   amountTendered: number | null;
   changeGiven: number | null;
   paymentStatus: PaymentStatus;
+  counterPaymentIntent: boolean;
   requestStatus: string;
   transactionDate: string;
   paidAt: string | null;
@@ -200,6 +198,7 @@ export const toTransactionItem = (doc: any): TransactionItem => ({
   amountTendered: typeof doc.amountTendered === "number" ? doc.amountTendered : null,
   changeGiven: typeof doc.changeGiven === "number" ? doc.changeGiven : null,
   paymentStatus: doc.isPaid ? "paid" : "unpaid",
+  counterPaymentIntent: doc.counterPaymentIntent === true,
   requestStatus: doc.status,
   transactionDate: new Date(doc._txAt).toISOString(),
   paidAt: doc.paidAt ? new Date(doc.paidAt).toISOString() : null,
@@ -267,11 +266,6 @@ export class TransactionService {
                 paidCount: { $sum: { $cond: [{ $eq: ["$isPaid", true] }, 1, 0] } },
                 paidAmount: { $sum: { $cond: [{ $eq: ["$isPaid", true] }, "$_amount", 0] } },
                 unpaidAmount: { $sum: { $cond: [{ $eq: ["$isPaid", true] }, 0, "$_amount"] } },
-                verifiedCount: { $sum: { $cond: [{ $eq: ["$_verification", "verified"] }, 1, 0] } },
-                verifiedAmount: { $sum: { $cond: [{ $eq: ["$_verification", "verified"] }, "$_amount", 0] } },
-                pendingVerificationCount: { $sum: { $cond: [{ $eq: ["$_verification", "pending"] }, 1, 0] } },
-                pendingVerificationAmount: { $sum: { $cond: [{ $eq: ["$_verification", "pending"] }, "$_amount", 0] } },
-                rejectedCount: { $sum: { $cond: [{ $eq: ["$_verification", "rejected"] }, 1, 0] } },
               },
             },
           ],
@@ -284,11 +278,6 @@ export class TransactionService {
       paidCount: 0,
       paidAmount: 0,
       unpaidAmount: 0,
-      verifiedCount: 0,
-      verifiedAmount: 0,
-      pendingVerificationCount: 0,
-      pendingVerificationAmount: 0,
-      rejectedCount: 0,
     };
     return {
       items: (result?.items ?? []).map(toTransactionItem),
@@ -301,11 +290,6 @@ export class TransactionService {
         unpaidCount: totals.count - totals.paidCount,
         paidAmount: totals.paidAmount,
         unpaidAmount: totals.unpaidAmount,
-        verifiedCount: totals.verifiedCount,
-        verifiedAmount: round2(totals.verifiedAmount),
-        pendingVerificationCount: totals.pendingVerificationCount,
-        pendingVerificationAmount: round2(totals.pendingVerificationAmount),
-        rejectedCount: totals.rejectedCount,
       },
     };
   }
@@ -416,38 +400,31 @@ export class TransactionService {
     const today = dateKeyInTimezone(now);
     const monthStart = `${today.slice(0, 7)}-01`;
     const weekStart = shiftDateKey(today, -6);
-    const isVerified = { $eq: ["$_verification", "verified"] };
-    const isPending = { $eq: ["$_verification", "pending"] };
     const isToday = { $eq: ["$_day", today] };
 
     const [result] = await DocumentRequestModel.aggregate([
       { $match: recordedPaymentScope() },
       ...transactionBaseStages(),
-      { $match: { _verification: { $in: VERIFICATION_STATUSES } } },
+      { $match: { _verification: { $ne: "rejected" } } },
       {
         $facet: {
           totals: [
             {
               $group: {
                 _id: null,
-                todayCollected: { $sum: { $cond: [{ $and: [isToday, isVerified] }, "$_amount", 0] } },
-                todayVerifiedCount: { $sum: { $cond: [{ $and: [isToday, isVerified] }, 1, 0] } },
-                todayPendingAmount: { $sum: { $cond: [{ $and: [isToday, isPending] }, "$_amount", 0] } },
+                todayCollected: { $sum: { $cond: [isToday, "$_amount", 0] } },
                 todayTransactions: { $sum: { $cond: [isToday, 1, 0] } },
-                pendingCount: { $sum: { $cond: [isPending, 1, 0] } },
-                pendingAmount: { $sum: { $cond: [isPending, "$_amount", 0] } },
-                totalCollected: { $sum: { $cond: [isVerified, "$_amount", 0] } },
-                totalVerifiedCount: { $sum: { $cond: [isVerified, 1, 0] } },
+                totalCollected: { $sum: "$_amount" },
+                totalCount: { $sum: 1 },
                 monthCollected: {
-                  $sum: { $cond: [{ $and: [isVerified, { $gte: ["$_day", monthStart] }, { $lte: ["$_day", today] }] }, "$_amount", 0] },
+                  $sum: { $cond: [{ $and: [{ $gte: ["$_day", monthStart] }, { $lte: ["$_day", today] }] }, "$_amount", 0] },
                 },
                 cashCollected: {
-                  $sum: { $cond: [{ $and: [isVerified, { $eq: ["$_method", "over-the-counter"] }] }, "$_amount", 0] },
+                  $sum: { $cond: [{ $eq: ["$_method", "over-the-counter"] }, "$_amount", 0] },
                 },
                 onlineCollected: {
-                  $sum: { $cond: [{ $and: [isVerified, { $eq: ["$_method", "online"] }] }, "$_amount", 0] },
+                  $sum: { $cond: [{ $eq: ["$_method", "online"] }, "$_amount", 0] },
                 },
-                rejectedCount: { $sum: { $cond: [{ $eq: ["$_verification", "rejected"] }, 1, 0] } },
               },
             },
           ],
@@ -456,16 +433,10 @@ export class TransactionService {
             {
               $group: {
                 _id: "$_day",
-                collected: { $sum: { $cond: [isVerified, "$_amount", 0] } },
-                pending: { $sum: { $cond: [isPending, "$_amount", 0] } },
+                collected: { $sum: "$_amount" },
                 transactions: { $sum: 1 },
               },
             },
-          ],
-          oldestPending: [
-            { $match: { _verification: "pending" } },
-            { $sort: { _txAt: 1, _id: 1 } },
-            { $limit: 5 },
           ],
           recent: [{ $sort: { _txAt: -1, _id: -1 } }, { $limit: 5 }],
         },
@@ -480,7 +451,6 @@ export class TransactionService {
       return {
         day,
         collected: round2(row?.collected ?? 0),
-        pending: round2(row?.pending ?? 0),
         transactions: row?.transactions ?? 0,
       };
     });
@@ -490,24 +460,16 @@ export class TransactionService {
       timeZone: REPORT_TIMEZONE,
       today: {
         collected: round2(t.todayCollected),
-        verifiedCount: t.todayVerifiedCount ?? 0,
-        pendingAmount: round2(t.todayPendingAmount),
         transactions: t.todayTransactions ?? 0,
-      },
-      pendingVerification: {
-        count: t.pendingCount ?? 0,
-        amount: round2(t.pendingAmount),
       },
       totals: {
         collected: round2(t.totalCollected),
-        verifiedCount: t.totalVerifiedCount ?? 0,
+        count: t.totalCount ?? 0,
         monthCollected: round2(t.monthCollected),
         cashCollected: round2(t.cashCollected),
         onlineCollected: round2(t.onlineCollected),
-        rejectedCount: t.rejectedCount ?? 0,
       },
       lastSevenDays: series,
-      oldestPending: (result?.oldestPending ?? []).map(toTransactionItem),
       recent: (result?.recent ?? []).map(toTransactionItem),
     };
   }
@@ -570,138 +532,6 @@ export class TransactionService {
         }))
         .sort((a: any, b: any) => String(b.at).localeCompare(String(a.at))),
     };
-  }
-
-  static async verify(id: string, actor: PaymentActor, note?: string): Promise<PaymentActionResult> {
-    const current: any = await DocumentRequestModel.findById(id).lean();
-    if (!current) return { status: 404, message: "Transaction not found" };
-    if (!current.isPaid || current.paymentVerificationStatus !== "pending") {
-      return { status: 409, message: "Only payments awaiting verification can be verified" };
-    }
-    const at = new Date();
-    const doc = await DocumentRequestModel.findOneAndUpdate(
-      { _id: id, isPaid: true, paymentVerificationStatus: "pending" },
-      {
-        $set: { paymentVerificationStatus: "verified", paymentVerifiedBy: actor.id, paymentVerifiedAt: at },
-        $push: {
-          paymentHistory: { action: "verified", at, by: actor.id, byName: actor.name, note: note || undefined, snapshot: paymentSnapshot(current) },
-        },
-      },
-      { new: true },
-    ).populate("resident", "-password");
-    if (!doc) return { status: 409, message: "This payment was already reviewed" };
-    return { status: 200, doc };
-  }
-
-  static async reject(id: string, actor: PaymentActor, reason: string): Promise<PaymentActionResult> {
-    const current: any = await DocumentRequestModel.findById(id).lean();
-    if (!current) return { status: 404, message: "Transaction not found" };
-    if (!current.isPaid || current.paymentVerificationStatus !== "pending") {
-      return { status: 409, message: "Only payments awaiting verification can be rejected" };
-    }
-    const at = new Date();
-    const doc = await DocumentRequestModel.findOneAndUpdate(
-      { _id: id, isPaid: true, paymentVerificationStatus: "pending" },
-      {
-        $set: {
-          isPaid: false,
-          paymentVerificationStatus: "rejected",
-          paymentRejectedBy: actor.id,
-          paymentRejectedAt: at,
-          paymentRejectionReason: reason,
-        },
-        $unset: { checkoutSessionId: 1 },
-        $push: {
-          paymentHistory: { action: "rejected", at, by: actor.id, byName: actor.name, note: reason, snapshot: paymentSnapshot(current) },
-        },
-      },
-      { new: true },
-    ).populate("resident", "-password");
-    if (!doc) return { status: 409, message: "This payment was already reviewed" };
-    return { status: 200, doc };
-  }
-
-  static async correct(
-    id: string,
-    actor: PaymentActor,
-    input: { paymentReference?: unknown; paymentChannel?: unknown; amountTendered?: unknown; reason: string },
-  ): Promise<PaymentActionResult<Record<string, { from: unknown; to: unknown }>>> {
-    const current: any = await DocumentRequestModel.findById(id).lean();
-    if (!current) return { status: 404, message: "Transaction not found" };
-    if (!current.isPaid || current.paymentVerificationStatus !== "pending") {
-      return { status: 409, message: "Only payments awaiting verification can be corrected" };
-    }
-
-    const set: Record<string, any> = {};
-    const unset: Record<string, 1> = {};
-    const changes: Record<string, { from: unknown; to: unknown }> = {};
-
-    if (input.paymentReference !== undefined) {
-      if (input.paymentReference !== null && typeof input.paymentReference !== "string") {
-        return { status: 400, message: "Payment reference must be text" };
-      }
-      const next = String(input.paymentReference ?? "").trim();
-      if (next.length > 100 || (next && !/^[A-Za-z0-9 _\-./#:]+$/.test(next))) {
-        return { status: 400, message: "Payment reference may only contain letters, numbers, spaces, and - _ . / # :" };
-      }
-      if (next !== (current.paymentReference || "")) {
-        if (next) set.paymentReference = next;
-        else unset.paymentReference = 1;
-        changes.paymentReference = { from: current.paymentReference || null, to: next || null };
-      }
-    }
-
-    if (input.paymentChannel !== undefined) {
-      const next = String(input.paymentChannel ?? "").trim().toLowerCase();
-      const allowed = current.paymentMethod === "online" ? ONLINE_PAYMENT_CHANNELS : OVER_THE_COUNTER_CHANNELS;
-      if (!allowed.includes(next)) {
-        return { status: 400, message: `Payment channel must be one of: ${allowed.join(", ")}` };
-      }
-      if (next !== current.paymentChannel) {
-        set.paymentChannel = next;
-        changes.paymentChannel = { from: current.paymentChannel || null, to: next };
-      }
-    }
-
-    if (input.amountTendered !== undefined) {
-      if (current.paymentMethod !== "over-the-counter") {
-        return { status: 400, message: "Amount tendered applies to over-the-counter payments only" };
-      }
-      const tendered = Number(input.amountTendered);
-      const due = Number(current.amountPaid) || 0;
-      if (input.amountTendered === null || input.amountTendered === "" || !Number.isFinite(tendered) || tendered < 0) {
-        return { status: 400, message: "Amount tendered must be a valid amount" };
-      }
-      if (tendered > MAX_TENDERED_AMOUNT) {
-        return { status: 400, message: `Amount tendered cannot exceed ${MAX_TENDERED_AMOUNT}` };
-      }
-      if (tendered < due) return { status: 400, message: "Amount tendered is less than the amount due" };
-      const rounded = round2(tendered);
-      if (rounded !== current.amountTendered) {
-        set.amountTendered = rounded;
-        set.changeGiven = round2(rounded - due);
-        changes.amountTendered = { from: current.amountTendered ?? null, to: rounded };
-        changes.changeGiven = { from: current.changeGiven ?? null, to: set.changeGiven };
-      }
-    }
-
-    if (Object.keys(changes).length === 0) return { status: 400, message: "No changes to apply" };
-
-    const update: Record<string, any> = {
-      $set: set,
-      $push: {
-        paymentHistory: { action: "corrected", at: new Date(), by: actor.id, byName: actor.name, note: input.reason, changes, snapshot: paymentSnapshot(current) },
-      },
-    };
-    if (Object.keys(unset).length) update.$unset = unset;
-
-    const doc = await DocumentRequestModel.findOneAndUpdate(
-      { _id: id, isPaid: true, paymentVerificationStatus: "pending" },
-      update,
-      { new: true },
-    );
-    if (!doc) return { status: 409, message: "This payment was already reviewed" };
-    return { status: 200, doc, data: changes };
   }
 
   static async logReceiptReprint(id: string, actor: PaymentActor): Promise<PaymentActionResult> {

@@ -53,9 +53,18 @@ const registry: Record<string, () => AIInsightProvider> = {
  * Defaults to the rule-based (mock) provider when nothing is configured.
  */
 export function getAIProvider(providerName?: AIProviderName): AIInsightProvider {
-  const name = String(providerName || process.env.AI_PROVIDER || "rule-based")
-    .toLowerCase()
-    .trim();
+  const name = getAIProviderName(providerName);
   const factory = registry[name] || registry["rule-based"];
   return factory();
+}
+
+/**
+ * The raw configured/requested provider name (lowercased), without resolving
+ * it through the registry — used when a provider fails so the fallback can
+ * still describe what was originally requested.
+ */
+export function getAIProviderName(providerName?: AIProviderName): string {
+  return String(providerName || process.env.AI_PROVIDER || "rule-based")
+    .toLowerCase()
+    .trim();
 }

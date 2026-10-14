@@ -21,7 +21,6 @@ export default function Page() {
       </div>
       <TransactionHistory
         scope="staff"
-        showVerification
         baseFilters={{ receipt: "issued" }}
         hiddenFilters={["paymentStatus"]}
         onViewDetails={(t) => setOpenId(t._id)}
