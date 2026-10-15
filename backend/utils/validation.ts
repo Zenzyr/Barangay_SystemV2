@@ -72,6 +72,20 @@ export const normalizePhMobile = (value: unknown): string | null => {
   return null;
 };
 
+/**
+ * Builds a regex that matches any stored PH mobile number equivalent to
+ * `value`, tolerating the +63 / 63 / 0 prefixes and separators (spaces,
+ * dashes, dots, parentheses) that legacy/raw saved contacts may carry.
+ * Returns null when `value` is not a valid PH mobile number.
+ */
+export const phMobileMatchRegex = (value: unknown): RegExp | null => {
+  const normalized = normalizePhMobile(value); // 09XXXXXXXXX
+  if (!normalized) return null;
+  const subscriber = normalized.slice(1); // 9XXXXXXXXX (10 digits)
+  const digitPattern = subscriber.split("").join("[^\\d]*");
+  return new RegExp(`^(?:\\+?63[^\\d]*|0[^\\d]*)?${digitPattern}$`);
+};
+
 /** Masks a PH mobile number keeping only the last two digits (0917... -> *********17). */
 export const maskPhMobile = (value: unknown): string => {
   const digits = String(value ?? "").replace(/[^\d]/g, "");

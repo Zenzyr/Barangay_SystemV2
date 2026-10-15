@@ -11,6 +11,7 @@ import { successAlert, errorAlert } from "@/app/utils/alert";
 import AddSkillModal from "./components/addSkillModal";
 import EditProfileModal from "./components/editProfileModal";
 import ChangePasswordModal from "./components/changePasswordModal";
+import TwoFactorModal from "./components/twoFactorModal";
 import {
   UserRound,
   Mail,
@@ -24,6 +25,7 @@ import {
   Camera,
   Pencil,
   KeyRound,
+  ShieldCheck,
   Phone,
   Loader2,
   CalendarDays,
@@ -59,6 +61,7 @@ interface Account {
   houseHoldNumber: string;
   availability?: "AVAILABLE" | "BUSY" | "NOT_AVAILABLE";
   completedServices?: number;
+  twoFactorEnabled?: boolean;
 }
 
 interface ApiError {
@@ -73,6 +76,7 @@ export default function ProfilePage() {
   const [skillModalOpen, setSkillModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [twoFactorModalOpen, setTwoFactorModalOpen] = useState(false);
   const [uploadingPic, setUploadingPic] = useState(false);
 
   // Fetch profile
@@ -309,6 +313,17 @@ export default function ProfilePage() {
                     >
                       <KeyRound className="size-3.5" />
                       <span className="hidden sm:inline">Password</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setTwoFactorModalOpen(true)}
+                      className="h-8 text-xs border-gray-200 text-gray-600 hover:bg-gray-50"
+                    >
+                      <ShieldCheck className="size-3.5" />
+                      <span className="hidden sm:inline">
+                        {profile.twoFactorEnabled ? "2FA On" : "2FA Off"}
+                      </span>
                     </Button>
                     <Button
                       size="sm"
@@ -564,6 +579,13 @@ export default function ProfilePage() {
         onChangePassword={async (data) => {
           await changePasswordMutation.mutateAsync(data);
         }}
+      />
+
+      <TwoFactorModal
+        open={twoFactorModalOpen}
+        onOpenChange={setTwoFactorModalOpen}
+        enabled={!!profile?.twoFactorEnabled}
+        onChanged={() => queryClient.invalidateQueries({ queryKey: ["profile"] })}
       />
     </div>
   );

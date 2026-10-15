@@ -1,11 +1,35 @@
 import bcrypt from "bcrypt";
 import crypto from "crypto";
+import { normalizePhMobile } from "./validation";
 
 export const RESET_CODE_LENGTH = 6;
 export const RESET_CODE_TTL_MINUTES = 10;
 export const RESET_CODE_MAX_ATTEMPTS = 5;
 export const RESET_CODE_BLOCK_MINUTES = 15;
 export const RESET_CODE_RESEND_COOLDOWN_SECONDS = 60;
+
+// ── Phone-number verification (pre-step for password reset) ──────
+// The registered mobile is the source of truth; the applicant only proves
+// knowledge of its first two ("09") and last two digits. Five wrong tries
+// lock the phone-verification step for 15 minutes.
+export const PHONE_VERIFY_MAX_ATTEMPTS = 5;
+export const PHONE_VERIFY_BLOCK_MINUTES = 15;
+export const PHONE_VERIFY_TOKEN_TTL = "10m";
+// Deliberately generic: identical for unknown accounts, wrong digits and
+// locked accounts so the endpoint cannot be used to enumerate accounts.
+export const PHONE_VERIFY_GENERIC_ERROR =
+  "We couldn't verify those details. Please check and try again.";
+
+/**
+ * Masks a registered PH mobile into the form the reset UI can safely show,
+ * e.g. "09171234567" -> "09*******67". Never returns the full number.
+ * Returns null when the value is not a valid PH mobile number.
+ */
+export function maskRegisteredPhone(contact: unknown): string | null {
+  const digits = normalizePhMobile(contact);
+  if (!digits) return null;
+  return `${digits.slice(0, 2)}${"*".repeat(digits.length - 4)}${digits.slice(-2)}`;
+}
 
 export function generateResetCode(): string {
   let code = "";

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import axiosInstance from "@/app/utils/axios";
 import useUserStore from "@/app/store/useUserStore";
+import { accountInterface } from "@/app/types/account.type";
 import { useBarangayLogo } from "@/app/hooks/useBarangayLogo";
 import { homeForRole } from "@/lib/constants/roles";
 import { errorAlert, successAlert } from "@/app/utils/alert";
@@ -35,7 +36,7 @@ import {
   Clock,
 } from "lucide-react";
 
-type ForgotStep = "email" | "code" | "newPassword" | "done";
+type ForgotStep = "email" | "phone" | "code" | "newPassword" | "done";
 type ResetDelivery = "email" | "sms";
 
 type ApiError = {
@@ -55,6 +56,16 @@ function formatCountdown(totalSeconds: number): string {
   const m = Math.floor(totalSeconds / 60);
   const s = totalSeconds % 60;
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+// Accepts 09XXXXXXXXX, +639XXXXXXXXX / 639XXXXXXXXX and 9XXXXXXXXX.
+function isCompletePhMobile(value: string): boolean {
+  const digits = value.replace(/[^\d]/g, "");
+  return (
+    (digits.length === 11 && digits.startsWith("09")) ||
+    (digits.length === 12 && digits.startsWith("639")) ||
+    (digits.length === 10 && digits.startsWith("9"))
+  );
 }
 
 function SignInContent() {
@@ -82,7 +93,13 @@ function SignInContent() {
   const [forgotStep, setForgotStep] = useState<ForgotStep>("email");
   const [forgotMethod, setForgotMethod] = useState<ResetDelivery>("email");
   const [forgotEmail, setForgotEmail] = useState("");
-  const [forgotContact, setForgotContact] = useState("");
+  // Masked registered mobile (e.g. "09*******67") returned by the phone
+  // challenge. Null when the account has no verifiable registered mobile.
+  const [maskedPhone, setMaskedPhone] = useState<string | null>(null);
+  const [phoneFull, setPhoneFull] = useState("");
+  // Short-lived token proving the phone-verification step passed. Required by
+  // POST /account/forgot-password for accounts that have a registered mobile.
+  const [phoneToken, setPhoneToken] = useState("");
   const [forgotBusy, setForgotBusy] = useState(false);
   const [resetCode, setResetCode] = useState("");
   const [resetToken, setResetToken] = useState("");
@@ -92,6 +109,13 @@ function SignInContent() {
   // Client-side resend guard for the reset code (mirrors the backend's 60s
   // per-account cooldown so the user can't hammer Send/Resend).
   const [resendSeconds, setResendSeconds] = useState(0);
+
+  // Login second factor. Set once the first factor (email + password) passes
+  // for a 2FA-enabled account; cleared after verification or cancellation.
+  const [twoFactorToken, setTwoFactorToken] = useState("");
+  const [twoFactorEmail, setTwoFactorEmail] = useState("");
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [twoFactorResendSeconds, setTwoFactorResendSeconds] = useState(0);
 
   const applyLock = (ms: number | null) => {
     setLockedUntil(ms);
@@ -138,13 +162,23 @@ function SignInContent() {
     return () => clearInterval(interval);
   }, [resendSeconds]);
 
+  useEffect(() => {
+    if (twoFactorResendSeconds <= 0) return;
+    const interval = setInterval(() => {
+      setTwoFactorResendSeconds((s) => (s <= 1 ? 0 : s - 1));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [twoFactorResendSeconds]);
+
   const isLocked = remainingSeconds > 0;
 
   const openForgotPassword = () => {
     setForgotStep("email");
     setForgotMethod("email");
     setForgotEmail(email);
-    setForgotContact("");
+    setMaskedPhone(null);
+    setPhoneFull("");
+    setPhoneToken("");
     setResetCode("");
     setResetToken("");
     setNewPassword("");
@@ -153,27 +187,98 @@ function SignInContent() {
     setForgotOpen(true);
   };
 
-  const handleSendCode = async () => {
-    if (forgotMethod === "sms") {
-      if (forgotContact.replace(/\D/g, "").length < 10) {
-        errorAlert("Enter your registered mobile number");
-        return;
-      }
-    } else if (!forgotEmail.trim()) {
+  // Requests the reset code for the already-verified account. `token` is the
+  // phone-verification token, or "" for accounts with no registered mobile.
+  const sendResetCode = async (token: string) => {
+    await axiosInstance.post("/account/forgot-password", {
+      method: forgotMethod,
+      email: forgotEmail.trim(),
+      ...(token ? { phoneToken: token } : {}),
+    });
+    setResendSeconds(60);
+  };
+
+  // Step 1: start the reset for the selected channel.
+  //  - email: send the code straight to the address registered to the account.
+  //  - sms:   require the registered-number digit check first (no auto-switch).
+  const handleIdentify = async () => {
+    if (!forgotEmail.trim()) {
       errorAlert("Please enter your email address");
       return;
     }
     setForgotBusy(true);
     try {
-      await axiosInstance.post("/account/forgot-password", {
-        method: forgotMethod,
-        ...(forgotMethod === "sms"
-          ? { contact: forgotContact.trim() }
-          : { email: forgotEmail.trim() }),
-      });
+      if (forgotMethod === "email") {
+        await sendResetCode("");
+        successAlert("Reset code sent");
+        setForgotStep("code");
+        return;
+      }
+      const res = await axiosInstance.post(
+        "/account/forgot-password/phone-challenge",
+        { email: forgotEmail.trim() },
+      );
+      const mask: string | null = res.data?.maskedPhone ?? null;
+      setMaskedPhone(mask);
+      if (!mask) {
+        // No registered mobile on file: never silently switch to email.
+        errorAlert(
+          "SMS reset isn't available for that account. Please use Email instead.",
+        );
+        return;
+      }
+      setForgotStep("phone");
+    } catch (err) {
+      const message = (err as ApiError)?.response?.data;
+      errorAlert(
+        typeof message === "string" && message
+          ? message
+          : "Failed to start reset. Please try again.",
+      );
+    } finally {
+      setForgotBusy(false);
+    }
+  };
+
+  // Step 2: verify the complete registered mobile number against the account.
+  const handleVerifyPhone = async () => {
+    if (!isCompletePhMobile(phoneFull)) {
+      errorAlert(
+        "Enter your complete registered mobile number (e.g. 09171234594)",
+      );
+      return;
+    }
+    setForgotBusy(true);
+    try {
+      const res = await axiosInstance.post(
+        "/account/forgot-password/verify-phone",
+        {
+          email: forgotEmail.trim(),
+          phone: phoneFull.trim(),
+        },
+      );
+      const token: string = res.data?.phoneToken ?? "";
+      setPhoneToken(token);
+      await sendResetCode(token);
       successAlert("Reset code sent");
       setForgotStep("code");
-      setResendSeconds(60);
+    } catch (err) {
+      const message = (err as ApiError)?.response?.data;
+      errorAlert(
+        typeof message === "string" && message
+          ? message
+          : "We couldn't verify those details. Please check and try again.",
+      );
+    } finally {
+      setForgotBusy(false);
+    }
+  };
+
+  const handleSendCode = async () => {
+    setForgotBusy(true);
+    try {
+      await sendResetCode(phoneToken);
+      successAlert("Reset code sent");
     } catch (err) {
       const message = (err as ApiError)?.response?.data;
       errorAlert(
@@ -194,10 +299,8 @@ function SignInContent() {
     setForgotBusy(true);
     try {
       const res = await axiosInstance.post("/account/verify-reset-code", {
+        email: forgotEmail.trim(),
         method: forgotMethod,
-        ...(forgotMethod === "sms"
-          ? { contact: forgotContact.trim() }
-          : { email: forgotEmail.trim() }),
         code: resetCode.trim(),
       });
       setResetToken(res.data.resetToken);
@@ -257,6 +360,107 @@ function SignInContent() {
     }
   };
 
+  // Stores the session returned after the first OR second factor succeeds and
+  // navigates by role.
+  const completeSignIn = (account: accountInterface, token: string) => {
+    // Store token in localStorage (used by axios interceptor)
+    localStorage.setItem("token", token);
+    // Store user data in zustand persist store (saved to localStorage)
+    setUser(account);
+    localStorage.removeItem(LAST_LOGIN_EMAIL_KEY);
+    setAttemptsRemaining(null);
+    // Navigate by role returned from the server (never trust the client)
+    router.push(homeForRole(account?.role));
+  };
+
+  const cancelTwoFactor = () => {
+    setTwoFactorToken("");
+    setTwoFactorEmail("");
+    setTwoFactorCode("");
+    setTwoFactorResendSeconds(0);
+    setLoading(false);
+  };
+
+  // Second step of login for 2FA-enabled accounts.
+  const handleVerifyTwoFactor = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!twoFactorCode.trim()) {
+      errorAlert("Please enter your verification code");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await axiosInstance.post("/account/login/verify-2fa", {
+        twoFactorToken,
+        code: twoFactorCode.trim(),
+      });
+      completeSignIn(res.data.account, res.data.token);
+    } catch (err) {
+      const status = (err as ApiError)?.response?.status;
+      const data = (err as ApiError)?.response?.data;
+
+      if (status === 401) {
+        cancelTwoFactor();
+        errorAlert("Your verification session has expired. Please sign in again.");
+        return;
+      }
+
+      if (data && typeof data === "object") {
+        const payload = data as LoginErrorPayload;
+        const suffix =
+          typeof payload.attemptsRemaining === "number"
+            ? ` (${payload.attemptsRemaining} attempt${payload.attemptsRemaining === 1 ? "" : "s"} remaining)`
+            : "";
+        errorAlert(`${payload.message || "Verification failed"}${suffix}`);
+      } else {
+        const message = data || (err as ApiError)?.message || "Verification failed";
+        errorAlert(typeof message === "string" ? message : "Verification failed");
+      }
+      setLoading(false);
+    }
+  };
+
+  const handleResendTwoFactor = async () => {
+    if (twoFactorResendSeconds > 0) return;
+
+    setLoading(true);
+    try {
+      const res = await axiosInstance.post("/account/login/resend-2fa", {
+        twoFactorToken,
+      });
+      if (res.data?.twoFactorToken) setTwoFactorToken(res.data.twoFactorToken);
+      if (res.data?.email) setTwoFactorEmail(res.data.email);
+      setTwoFactorCode("");
+      setTwoFactorResendSeconds(60);
+      successAlert("A new code has been sent");
+    } catch (err) {
+      const status = (err as ApiError)?.response?.status;
+      const data = (err as ApiError)?.response?.data;
+
+      if (status === 401) {
+        cancelTwoFactor();
+        errorAlert("Your verification session has expired. Please sign in again.");
+        return;
+      }
+
+      if (
+        data &&
+        typeof data === "object" &&
+        typeof (data as { retryAfterSeconds?: number }).retryAfterSeconds === "number"
+      ) {
+        setTwoFactorResendSeconds(
+          (data as { retryAfterSeconds: number }).retryAfterSeconds,
+        );
+        errorAlert("Please wait a moment before requesting another code.");
+      } else {
+        const message = data || (err as ApiError)?.message || "Could not send a new code";
+        errorAlert(typeof message === "string" ? message : "Could not send a new code");
+      }
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -282,18 +486,21 @@ function SignInContent() {
         email,
         password,
       });
+
+      // A 2FA-enabled account stops here: a code was emailed and no session
+      // token is issued until it (or a recovery code) is verified.
+      if (res.data?.twoFactorRequired) {
+        setTwoFactorToken(res.data.twoFactorToken || "");
+        setTwoFactorEmail(res.data.email || "");
+        setTwoFactorCode("");
+        setTwoFactorResendSeconds(60);
+        setPassword("");
+        setLoading(false);
+        return;
+      }
+
       const { account, token } = res.data;
-
-      // Store token in localStorage (used by axios interceptor)
-      localStorage.setItem("token", token);
-
-      // Store user data in zustand persist store (saved to localStorage)
-      setUser(account);
-      localStorage.removeItem(LAST_LOGIN_EMAIL_KEY);
-      setAttemptsRemaining(null);
-
-      // Navigate by role returned from the server (never trust the client)
-      router.push(homeForRole(account?.role));
+      completeSignIn(account, token);
     } catch (err) {
       const status = (err as ApiError)?.response?.status;
       const data = (err as ApiError)?.response?.data;
@@ -388,7 +595,81 @@ function SignInContent() {
 
           {/* Form Card */}
           <div className="glass-card p-8">
-            <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6">
+            {twoFactorToken ? (
+              <form
+                onSubmit={handleVerifyTwoFactor}
+                className="p-6 sm:p-8 space-y-6"
+              >
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="twoFactorCode"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    Two-factor verification
+                  </Label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+                    <Input
+                      id="twoFactorCode"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      placeholder="123456"
+                      value={twoFactorCode}
+                      onChange={(e) => setTwoFactorCode(e.target.value)}
+                      disabled={loading}
+                      className="pl-10 h-11 bg-white/60 backdrop-blur-sm border-gray-200/50 focus:border-sky-400 focus:ring-sky-400/20 transition-all rounded-xl"
+                      required
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Enter the 6-digit code sent to{" "}
+                    <span className="font-medium text-gray-700">
+                      {twoFactorEmail}
+                    </span>{" "}
+                    or one of your recovery codes.
+                  </p>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full h-11 bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-medium rounded-xl shadow-lg shadow-sky-200/50 hover:shadow-emerald-200/50 transition-all duration-300 disabled:opacity-60"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Verifying...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="size-4" />
+                      Verify
+                    </>
+                  )}
+                </Button>
+
+                <div className="flex items-center justify-between text-xs">
+                  <button
+                    type="button"
+                    onClick={handleResendTwoFactor}
+                    disabled={twoFactorResendSeconds > 0 || loading}
+                    className="font-medium text-sky-600 hover:text-sky-700 transition-colors disabled:text-gray-400"
+                  >
+                    {twoFactorResendSeconds > 0
+                      ? `Resend code in ${formatCountdown(twoFactorResendSeconds)}`
+                      : "Resend code"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelTwoFactor}
+                    className="font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    Use a different account
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6">
               {/* Email */}
               <div className="space-y-1.5">
                 <Label
@@ -525,7 +806,8 @@ function SignInContent() {
                   Forgot password?
                 </button>
               </p>
-            </form>
+              </form>
+            )}
           </div>
         </div>
       </div>
@@ -541,60 +823,33 @@ function SignInContent() {
                   Reset your password
                 </DialogTitle>
                 <DialogDescription>
-                  {forgotMethod === "sms"
-                    ? "Enter the mobile number registered to your account and we&apos;ll text you a 6-digit code."
-                    : "Enter your account email and we&apos;ll send you a 6-digit code to reset your password."}
+                  Enter your account email and choose how to receive your reset
+                  code. Email codes are sent to the address on file; SMS codes
+                  require confirming the mobile number registered to your
+                  account.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-2">
-                {forgotMethod === "sms" ? (
-                  <div className="space-y-1.5">
-                    <Label
-                      htmlFor="forgotContact"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Mobile Number
-                    </Label>
-                    <div className="relative">
-                      <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-                      <Input
-                        id="forgotContact"
-                        type="tel"
-                        inputMode="numeric"
-                        placeholder="09171234567"
-                        value={forgotContact}
-                        onChange={(e) =>
-                          setForgotContact(
-                            e.target.value.replace(/[^\d]/g, "").slice(0, 11),
-                          )
-                        }
-                        onKeyDown={(e) => e.key === "Enter" && handleSendCode()}
-                        className="pl-10 h-11 border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
-                      />
-                    </div>
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="forgotEmail"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    Email Address
+                  </Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+                    <Input
+                      id="forgotEmail"
+                      type="email"
+                      placeholder="juan@example.com"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleIdentify()}
+                      className="pl-10 h-11 border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
+                    />
                   </div>
-                ) : (
-                  <div className="space-y-1.5">
-                    <Label
-                      htmlFor="forgotEmail"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Email Address
-                    </Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-                      <Input
-                        id="forgotEmail"
-                        type="email"
-                        placeholder="juan@example.com"
-                        value={forgotEmail}
-                        onChange={(e) => setForgotEmail(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleSendCode()}
-                        className="pl-10 h-11 border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
-                      />
-                    </div>
-                  </div>
-                )}
+                </div>
                 <div className="space-y-1.5">
                   <Label className="text-sm font-medium text-gray-700">
                     Send code via
@@ -628,7 +883,7 @@ function SignInContent() {
                 </div>
               </div>
               <Button
-                onClick={handleSendCode}
+                onClick={handleIdentify}
                 disabled={forgotBusy}
                 className="w-full h-11 bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-medium rounded-xl"
               >
@@ -636,10 +891,85 @@ function SignInContent() {
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
                   <>
-                    Send Reset Code <ArrowRight className="size-4" />
+                    Continue <ArrowRight className="size-4" />
                   </>
                 )}
               </Button>
+            </>
+          )}
+
+          {forgotStep === "phone" && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Smartphone className="size-5 text-sky-600" />
+                  Verify your phone
+                </DialogTitle>
+                <DialogDescription>
+                  Confirm the mobile number registered to {forgotEmail}. We
+                  showed it as{" "}
+                  <span className="font-semibold text-gray-700">
+                    {maskedPhone}
+                  </span>
+                  . Enter your complete registered mobile number.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="phoneFull"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    Enter your complete registered mobile number.
+                  </Label>
+                  <div className="relative">
+                    <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+                    <Input
+                      id="phoneFull"
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel"
+                      placeholder="09171234594"
+                      value={phoneFull}
+                      disabled={forgotBusy}
+                      onChange={(e) =>
+                        setPhoneFull(
+                          e.target.value.replace(/[^\d+]/g, "").slice(0, 13),
+                        )
+                      }
+                      onKeyDown={(e) => e.key === "Enter" && handleVerifyPhone()}
+                      className="pl-10 h-12 border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
+                      aria-label="Complete registered mobile number"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Enter the full number registered to your account — it must
+                  match our records exactly.
+                </p>
+              </div>
+              <Button
+                onClick={handleVerifyPhone}
+                disabled={forgotBusy}
+                className="w-full h-11 bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-medium rounded-xl"
+              >
+                {forgotBusy ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <>
+                    Verify &amp; Send Code <ArrowRight className="size-4" />
+                  </>
+                )}
+              </Button>
+              <button
+                type="button"
+                onClick={() => setForgotStep("email")}
+                disabled={forgotBusy}
+                className="flex items-center justify-center gap-1 text-xs text-gray-500 hover:text-gray-700 w-full mt-1 disabled:cursor-not-allowed"
+              >
+                <ArrowLeft className="size-3" />
+                Use a different email
+              </button>
             </>
           )}
 

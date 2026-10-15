@@ -1,6 +1,7 @@
 import AccountModel from "../model/account.model"
 import { accountInterface, accountInterfaceInput } from "../types/accounts.type";
 import { ROLES } from "../utils/roles";
+import { phMobileMatchRegex } from "../utils/validation";
 
 
 export class AccountService {
@@ -116,12 +117,16 @@ export class AccountService {
   }
 
   static async checkContactIfExist(contact : string) {
-    return await AccountModel.findOne({ contact: { $in: [contact, `639${contact.slice(1)}`] } });
+    const regex = phMobileMatchRegex(contact);
+    if (!regex) return null;
+    return await AccountModel.findOne({ contact: { $regex: regex } });
   }
 
-  /** All accounts holding a phone number (both 09xx and 639xx formats). */
+  /** All accounts holding a phone number, matching any stored format (09xx, 639xx, +63…, separators). */
   static async findAccountsByContact(contact : string) {
-    return await AccountModel.find({ contact: { $in: [contact, `639${contact.slice(1)}`] } });
+    const regex = phMobileMatchRegex(contact);
+    if (!regex) return [];
+    return await AccountModel.find({ contact: { $regex: regex } });
   }
 
   static async setResetCode(
@@ -129,9 +134,16 @@ export class AccountService {
     resetCodeHash: string,
     resetCodeExpires: Date,
     resetCodeCooldownUntil: Date,
+    resetCodeMethod: "email" | "sms",
   ) {
     return await AccountModel.findByIdAndUpdate(id, {
-      $set: { resetCodeHash, resetCodeExpires, resetCodeCooldownUntil, resetAttempts: 0 },
+      $set: {
+        resetCodeHash,
+        resetCodeExpires,
+        resetCodeCooldownUntil,
+        resetCodeMethod,
+        resetAttempts: 0,
+      },
     }, { new: true });
   }
 
@@ -149,7 +161,178 @@ export class AccountService {
   }
 
   static async clearResetCode(id: string) {
-    return await AccountModel.findByIdAndUpdate(id, { $unset: { resetCodeHash: "", resetCodeExpires: "", resetCodeCooldownUntil: "" } }, { new: true });
+    return await AccountModel.findByIdAndUpdate(id, { $unset: { resetCodeHash: "", resetCodeExpires: "", resetCodeCooldownUntil: "", resetCodeMethod: "" } }, { new: true });
+  }
+
+  /** Records failed attempts for the phone-verification pre-step. */
+  static async setPhoneVerifyAttempts(id: string, attempts: number) {
+    return await AccountModel.findByIdAndUpdate(
+      id,
+      { $set: { phoneVerifyAttempts: attempts } },
+      { new: true },
+    );
+  }
+
+  /** Locks the phone-verification pre-step for the given window. */
+  static async blockPhoneVerify(id: string, blockedUntil: Date, attempts?: number) {
+    const update: Record<string, any> = {
+      $set: { phoneVerifyBlockedUntil: blockedUntil },
+    };
+    if (typeof attempts === "number") update.$set.phoneVerifyAttempts = attempts;
+    return await AccountModel.findByIdAndUpdate(id, update, { new: true });
+  }
+
+  /** Clears the phone-verification counters after a successful check. */
+  static async clearPhoneVerify(id: string) {
+    return await AccountModel.findByIdAndUpdate(
+      id,
+      { $unset: { phoneVerifyAttempts: "", phoneVerifyBlockedUntil: "" } },
+      { new: true },
+    );
+  }
+
+  /** Stores the single-use password-reset token fingerprint for an account. */
+  static async setResetToken(id: string, resetTokenHash: string, resetTokenExpires: Date) {
+    return await AccountModel.findByIdAndUpdate(
+      id,
+      { $set: { resetTokenHash, resetTokenExpires } },
+      { new: true },
+    );
+  }
+
+  /** Consumes the single-use password-reset token. */
+  static async clearResetToken(id: string) {
+    return await AccountModel.findByIdAndUpdate(
+      id,
+      { $unset: { resetTokenHash: "", resetTokenExpires: "" } },
+      { new: true },
+    );
+  }
+
+  /**
+   * Reads an account including the 2FA secret fields, which the schema hides
+   * from normal queries (`select: false`). Only the 2FA code paths should use
+   * this — never send its result directly to a client.
+   */
+  static async getWithTwoFactorSecrets(id: string) {
+    return await AccountModel.findById(id).select(
+      "+twoFactorOtpHash +twoFactorRecoveryHashes",
+    );
+  }
+
+  /** Stores a freshly-generated 2FA OTP, resetting attempt counters. */
+  static async setTwoFactorOtp(
+    id: string,
+    twoFactorOtpHash: string,
+    twoFactorOtpExpires: Date,
+    twoFactorOtpCooldownUntil: Date,
+  ) {
+    return await AccountModel.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          twoFactorOtpHash,
+          twoFactorOtpExpires,
+          twoFactorOtpCooldownUntil,
+          twoFactorOtpAttempts: 0,
+        },
+        $unset: { twoFactorOtpBlockedUntil: "" },
+      },
+      { new: true },
+    );
+  }
+
+  /** Clears the live 2FA OTP after success (or when enabling). */
+  static async clearTwoFactorOtp(id: string) {
+    return await AccountModel.findByIdAndUpdate(
+      id,
+      {
+        $unset: {
+          twoFactorOtpHash: "",
+          twoFactorOtpExpires: "",
+          twoFactorOtpCooldownUntil: "",
+          twoFactorOtpAttempts: "",
+          twoFactorOtpBlockedUntil: "",
+        },
+      },
+      { new: true },
+    );
+  }
+
+  /** Increments the failed 2FA attempt counter, optionally locking the account. */
+  static async registerTwoFactorFailure(
+    id: string,
+    attempts: number,
+    blockedUntil?: Date,
+  ) {
+    const update: Record<string, any> = { $set: { twoFactorOtpAttempts: attempts } };
+    if (blockedUntil) update.$set.twoFactorOtpBlockedUntil = blockedUntil;
+    return await AccountModel.findByIdAndUpdate(id, update, { new: true });
+  }
+
+  /** Clears the 2FA failed-attempt counters after a success or lock expiry. */
+  static async clearTwoFactorFailures(id: string) {
+    return await AccountModel.findByIdAndUpdate(
+      id,
+      { $unset: { twoFactorOtpAttempts: "", twoFactorOtpBlockedUntil: "" } },
+      { new: true },
+    );
+  }
+
+  /** Turns 2FA on with a new set of recovery-code hashes. */
+  static async enableTwoFactor(id: string, recoveryHashes: string[]) {
+    return await AccountModel.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          twoFactorEnabled: true,
+          twoFactorRecoveryHashes: recoveryHashes,
+          twoFactorRecoveryUpdatedAt: new Date(),
+        },
+        $unset: {
+          twoFactorOtpHash: "",
+          twoFactorOtpExpires: "",
+          twoFactorOtpCooldownUntil: "",
+          twoFactorOtpAttempts: "",
+          twoFactorOtpBlockedUntil: "",
+        },
+      },
+      { new: true },
+    );
+  }
+
+  /** Turns 2FA off and removes all of its stored state. */
+  static async disableTwoFactor(id: string) {
+    return await AccountModel.findByIdAndUpdate(
+      id,
+      {
+        $set: { twoFactorEnabled: false },
+        $unset: {
+          twoFactorOtpHash: "",
+          twoFactorOtpExpires: "",
+          twoFactorOtpCooldownUntil: "",
+          twoFactorOtpAttempts: "",
+          twoFactorOtpBlockedUntil: "",
+          twoFactorRecoveryHashes: "",
+          twoFactorRecoveryUpdatedAt: "",
+        },
+      },
+      { new: true },
+    );
+  }
+
+  /** Replaces the stored recovery-code hashes (regeneration, or code used up). */
+  static async setRecoveryHashes(id: string, recoveryHashes: string[]) {
+    return await AccountModel.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          twoFactorRecoveryHashes: recoveryHashes,
+          twoFactorRecoveryUpdatedAt: new Date(),
+        },
+      },
+      { new: true },
+    );
   }
 
   static async updatePassword(id: string, hashedPassword: string) {

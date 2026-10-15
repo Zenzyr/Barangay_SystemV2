@@ -810,7 +810,7 @@ export default function DocumentRequestPage() {
                     </h3>
 
                     <div className="absolute top-3 right-3 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                      ₱{doc.price}
+                      ₱{docPrice(doc.document)}
                     </div>
   
                     <p className="text-xs text-slate-500 leading-relaxed">

@@ -40,7 +40,29 @@ import {
   RESET_CODE_MAX_ATTEMPTS,
   RESET_CODE_BLOCK_MINUTES,
   RESET_CODE_RESEND_COOLDOWN_SECONDS,
+  maskRegisteredPhone,
+  PHONE_VERIFY_MAX_ATTEMPTS,
+  PHONE_VERIFY_BLOCK_MINUTES,
+  PHONE_VERIFY_TOKEN_TTL,
+  PHONE_VERIFY_GENERIC_ERROR,
 } from "../utils/passwordReset";
+import {
+  generateTwoFactorCode,
+  hashTwoFactorCode,
+  compareTwoFactorCode,
+  generateRecoveryCodes,
+  hashRecoveryCode,
+  compareRecoveryCode,
+  maskEmail,
+  twoFactorLoginEmailHtml,
+  twoFactorSetupEmailHtml,
+  TWO_FA_CODE_TTL_MINUTES,
+  TWO_FA_MAX_ATTEMPTS,
+  TWO_FA_BLOCK_MINUTES,
+  TWO_FA_RESEND_COOLDOWN_SECONDS,
+  TWO_FA_TOKEN_TTL,
+  TWO_FA_GENERIC_ERROR,
+} from "../utils/twoFactor";
 import { verifyIdWithOcr } from "../utils/idVerification";
 import {
   verifyIdDocumentWithGemini,
@@ -80,7 +102,6 @@ import {
   isNonEmptyString,
   isObjectId,
   isPhilippineMobile,
-  maskPhMobile,
   normalizePhMobile,
   withinLength,
   skillNameError,
@@ -105,6 +126,8 @@ dotenv.config();
 const secret = process.env.JWT_SECRET || "";
 const GENERIC_LOGIN_MSG = "Invalid email or password";
 const EMAIL_VERIFY_PURPOSE = "email-verification";
+const PHONE_VERIFY_PURPOSE = "phone_verification";
+const TWO_FA_PURPOSE = "two_factor_pending";
 const CHAT_INPUT_MAX_LENGTH = 1000;
 const CHAT_HISTORY_MAX_ITEMS = 20;
 const CHAT_HISTORY_ITEM_MAX_LENGTH = 2000;
@@ -139,6 +162,78 @@ function verifyEmailVerificationToken(
   } catch {
     return false;
   }
+}
+
+// Issues a signed, short-lived token proving the applicant passed the phone
+// verification step for THIS account. forgotPassword requires it (for accounts
+// that have a registered mobile) so the extra check cannot be skipped.
+function signPhoneVerificationToken(accountId: string): string {
+  return jwt.sign(
+    { id: accountId, purpose: PHONE_VERIFY_PURPOSE },
+    secret,
+    { expiresIn: PHONE_VERIFY_TOKEN_TTL }
+  );
+}
+
+// Returns the account id from a valid phone-verification token, else null.
+function verifyPhoneVerificationToken(token: string): string | null {
+  if (!token) return null;
+  try {
+    const decoded = jwt.verify(token, secret) as {
+      id?: string;
+      purpose?: string;
+    };
+    if (decoded.purpose !== PHONE_VERIFY_PURPOSE || !decoded.id) return null;
+    return String(decoded.id);
+  } catch {
+    return null;
+  }
+}
+
+// Issues a signed, short-lived token proving the first factor (email +
+// password) passed for THIS account. The login 2FA verification step requires
+// it, so the second factor cannot be skipped.
+function signTwoFactorPendingToken(accountId: string): string {
+  return jwt.sign(
+    { id: accountId, purpose: TWO_FA_PURPOSE },
+    secret,
+    { expiresIn: TWO_FA_TOKEN_TTL }
+  );
+}
+
+// Returns the account id from a valid 2FA-pending token, else null.
+function verifyTwoFactorPendingToken(token: string): string | null {
+  if (!token) return null;
+  try {
+    const decoded = jwt.verify(token, secret) as {
+      id?: string;
+      purpose?: string;
+    };
+    if (decoded.purpose !== TWO_FA_PURPOSE || !decoded.id) return null;
+    return String(decoded.id);
+  } catch {
+    return null;
+  }
+}
+
+// Removes credential/auth secrets from an account document before it is sent
+// to a client. The 2FA secret fields are already excluded by the schema, but
+// the reset and phone-verify hashes are not — strip them here too.
+function stripAccountSecrets(doc: Record<string, any>): Record<string, any> {
+  const {
+    password: _password,
+    resetCodeHash: _resetCodeHash,
+    resetTokenHash: _resetTokenHash,
+    twoFactorOtpHash: _twoFactorOtpHash,
+    twoFactorRecoveryHashes: _twoFactorRecoveryHashes,
+    ...safe
+  } = doc;
+  void _password;
+  void _resetCodeHash;
+  void _resetTokenHash;
+  void _twoFactorOtpHash;
+  void _twoFactorRecoveryHashes;
+  return safe;
 }
 
 /**
@@ -2892,83 +2987,589 @@ export class AccountController {
         return;
       }
 
-      const token = jwt.sign({ id: account._id }, secret, { expiresIn: "3d" });
-
-      const loginIp = String(request.ip || request.socket?.remoteAddress || "unknown");
-      const loginUserAgent = String(request.headers["user-agent"] || "unknown");
-
-      // New-device detection: only warn once there is a prior sign-in to
-      // compare against (a first-ever login is the baseline, not an anomaly)
-      // and only when the device fingerprint actually changed.
-      const isNewDevice = isNewDeviceLogin(account, {
-        ip: loginIp,
-        userAgent: loginUserAgent,
-      });
-
-      if (isNewDevice) {
-        const when = formattedDate();
-
-        NotificationService.create({
-          accountId: account._id.toString(),
-          title: "New sign-in to your account",
-          message: `Your account was signed in from a new device or location at ${when}. If this wasn't you, change your password immediately.`,
-          type: "security",
-        }).catch(() => null);
-
-        sendEmail(
-          account.email,
-          "New sign-in to your Barangay Rabon account",
-          newDeviceLoginEmailHtml({
-            name: account.name,
-            when,
-            ip: loginIp,
-            userAgent: loginUserAgent,
-          })
-        ).catch(() => null);
-
-        AuditLogService.create({
-          actor: account.name,
-          actorId: account._id.toString(),
-          action: "login_new_device",
-          entity: "account",
-          entityId: account._id.toString(),
-          entityLabel: account.name,
-          newValue: { ip: loginIp, userAgent: loginUserAgent },
-        }).catch(() => null);
+      // Second factor: when 2FA is enabled, a correct password is NOT enough —
+      // email a one-time code and stop short of issuing a session token.
+      if (account.twoFactorEnabled) {
+        await AccountController.issueLoginTwoFactor(account, response);
+        return;
       }
 
-      // Remember this sign-in so the next one can be compared against it.
-      AccountService.recordLogin(account._id.toString(), {
-        at: new Date(),
-        ip: loginIp,
-        userAgent: loginUserAgent,
+      await AccountController.completeLogin(account, request, response);
+    } catch (error) {
+      console.error("[LOGIN ERROR]", error);
+      response.status(500).send("Login failed");
+    }
+  };
+
+  /**
+   * Issues the session token, runs new-device detection/audit logging, and
+   * sends the login response. Shared by the direct login path and the 2FA
+   * verification path so both behave identically.
+   */
+  private static completeLogin = async (
+    account: any,
+    request: AuthRequest,
+    response: Response,
+  ): Promise<void> => {
+    const token = jwt.sign({ id: account._id }, secret, { expiresIn: "3d" });
+
+    const loginIp = String(request.ip || request.socket?.remoteAddress || "unknown");
+    const loginUserAgent = String(request.headers["user-agent"] || "unknown");
+
+    // New-device detection: only warn once there is a prior sign-in to
+    // compare against (a first-ever login is the baseline, not an anomaly)
+    // and only when the device fingerprint actually changed.
+    const isNewDevice = isNewDeviceLogin(account, {
+      ip: loginIp,
+      userAgent: loginUserAgent,
+    });
+
+    if (isNewDevice) {
+      const when = formattedDate();
+
+      NotificationService.create({
+        accountId: account._id.toString(),
+        title: "New sign-in to your account",
+        message: `Your account was signed in from a new device or location at ${when}. If this wasn't you, change your password immediately.`,
+        type: "security",
       }).catch(() => null);
+
+      sendEmail(
+        account.email,
+        "New sign-in to your Barangay Rabon account",
+        newDeviceLoginEmailHtml({
+          name: account.name,
+          when,
+          ip: loginIp,
+          userAgent: loginUserAgent,
+        })
+      ).catch(() => null);
 
       AuditLogService.create({
         actor: account.name,
         actorId: account._id.toString(),
-        action: "login",
+        action: "login_new_device",
         entity: "account",
         entityId: account._id.toString(),
         entityLabel: account.name,
-        newValue: {
-          ip: loginIp,
-          userAgent: loginUserAgent,
-        },
+        newValue: { ip: loginIp, userAgent: loginUserAgent },
       }).catch(() => null);
+    }
 
-      const { password: _accountPassword, ...accountSafe } = account.toObject();
+    // Remember this sign-in so the next one can be compared against it.
+    AccountService.recordLogin(account._id.toString(), {
+      at: new Date(),
+      ip: loginIp,
+      userAgent: loginUserAgent,
+    }).catch(() => null);
 
-      response.send({
-        token,
-        account: {
-          ...accountSafe,
-          role: account.role || "resident",
-        },
+    AuditLogService.create({
+      actor: account.name,
+      actorId: account._id.toString(),
+      action: "login",
+      entity: "account",
+      entityId: account._id.toString(),
+      entityLabel: account.name,
+      newValue: {
+        ip: loginIp,
+        userAgent: loginUserAgent,
+      },
+    }).catch(() => null);
+
+    const accountSafe = stripAccountSecrets(account.toObject());
+
+    response.send({
+      token,
+      account: {
+        ...accountSafe,
+        role: account.role || "resident",
+      },
+    });
+  };
+
+  /**
+   * Generates a fresh login OTP, emails it, and responds telling the client a
+   * second factor is required. Returns false (after sending an error) when the
+   * code could not be delivered. Never echoes the code.
+   */
+  private static issueLoginTwoFactor = async (
+    account: any,
+    response: Response,
+  ): Promise<boolean> => {
+    const now = new Date();
+
+    if (
+      account.twoFactorOtpBlockedUntil &&
+      now < new Date(account.twoFactorOtpBlockedUntil)
+    ) {
+      response.status(429).send({
+        message: `Too many attempts. Please try again in ${TWO_FA_BLOCK_MINUTES} minutes.`,
+        locked: true,
+        lockedUntil: account.twoFactorOtpBlockedUntil,
+      });
+      return false;
+    }
+
+    const code = generateTwoFactorCode();
+    const hash = await hashTwoFactorCode(code);
+    const expires = new Date(now.getTime() + TWO_FA_CODE_TTL_MINUTES * 60 * 1000);
+    const cooldown = new Date(now.getTime() + TWO_FA_RESEND_COOLDOWN_SECONDS * 1000);
+
+    await AccountService.setTwoFactorOtp(account._id.toString(), hash, expires, cooldown);
+
+    const sent = await sendEmail(
+      account.email,
+      "Your Barangay Rabon login verification code",
+      twoFactorLoginEmailHtml(account.name, code)
+    );
+
+    if (!sent) {
+      await AccountService.clearTwoFactorOtp(account._id.toString());
+      response
+        .status(500)
+        .send("We couldn't send your verification code. Please try again.");
+      return false;
+    }
+
+    response.send({
+      twoFactorRequired: true,
+      twoFactorToken: signTwoFactorPendingToken(account._id.toString()),
+      email: maskEmail(account.email),
+    });
+    return true;
+  };
+
+  // Second step of login for 2FA accounts: verify the emailed code OR a
+  // one-time recovery code, then complete the login.
+  static verifyLoginTwoFactor = async (
+    request: AuthRequest,
+    response: Response,
+  ) => {
+    try {
+      const { twoFactorToken, code } = request.body || {};
+      const accountId = verifyTwoFactorPendingToken(String(twoFactorToken || ""));
+
+      if (!accountId) {
+        response
+          .status(401)
+          .send("Your verification session has expired. Please sign in again.");
+        return;
+      }
+
+      const account = await AccountService.getWithTwoFactorSecrets(accountId);
+      if (!account || !account.twoFactorEnabled) {
+        response
+          .status(401)
+          .send("Your verification session has expired. Please sign in again.");
+        return;
+      }
+
+      const now = new Date();
+      if (
+        account.twoFactorOtpBlockedUntil &&
+        now < new Date(account.twoFactorOtpBlockedUntil)
+      ) {
+        response.status(429).send({
+          message: `Too many attempts. Please try again in ${TWO_FA_BLOCK_MINUTES} minutes.`,
+          locked: true,
+          lockedUntil: account.twoFactorOtpBlockedUntil,
+        });
+        return;
+      }
+
+      // A previous lockout has expired: give the user a fresh set of attempts.
+      let attempts = account.twoFactorOtpAttempts || 0;
+      if (
+        account.twoFactorOtpBlockedUntil &&
+        now >= new Date(account.twoFactorOtpBlockedUntil)
+      ) {
+        await AccountService.clearTwoFactorFailures(accountId);
+        attempts = 0;
+      }
+
+      const submitted = String(code ?? "").trim();
+      if (!submitted) {
+        response.status(400).send(TWO_FA_GENERIC_ERROR);
+        return;
+      }
+
+      // 1) Emailed 6-digit OTP — must exist and not be expired.
+      const otpValid =
+        Boolean(account.twoFactorOtpHash) &&
+        Boolean(account.twoFactorOtpExpires) &&
+        now <= new Date(account.twoFactorOtpExpires as any) &&
+        (await compareTwoFactorCode(submitted, account.twoFactorOtpHash as string));
+
+      if (otpValid) {
+        await AccountService.clearTwoFactorOtp(accountId);
+        await AccountService.clearTwoFactorFailures(accountId);
+        await AccountController.completeLogin(account, request, response);
+        return;
+      }
+
+      // 2) One-time recovery code — consumed on use.
+      const hashes = (account.twoFactorRecoveryHashes as string[]) || [];
+      let matchedHash: string | null = null;
+      for (const storedHash of hashes) {
+        if (await compareRecoveryCode(submitted, storedHash)) {
+          matchedHash = storedHash;
+          break;
+        }
+      }
+
+      if (matchedHash) {
+        await AccountService.setRecoveryHashes(
+          accountId,
+          hashes.filter((h) => h !== matchedHash),
+        );
+        await AccountService.clearTwoFactorOtp(accountId);
+        await AccountService.clearTwoFactorFailures(accountId);
+
+        NotificationService.create({
+          accountId,
+          title: "Recovery code used to sign in",
+          message:
+            "A recovery code was used to sign in to your account. If this wasn't you, disable two-factor authentication and change your password immediately.",
+          type: "security",
+        }).catch(() => null);
+
+        AuditLogService.create({
+          actor: account.name,
+          actorId: accountId,
+          action: "login_2fa_recovery",
+          entity: "account",
+          entityId: accountId,
+          entityLabel: account.name,
+        }).catch(() => null);
+
+        await AccountController.completeLogin(account, request, response);
+        return;
+      }
+
+      // Failure: count it and lock after too many.
+      attempts += 1;
+      if (attempts >= TWO_FA_MAX_ATTEMPTS) {
+        const blockedUntil = new Date(now.getTime() + TWO_FA_BLOCK_MINUTES * 60 * 1000);
+        await AccountService.registerTwoFactorFailure(accountId, attempts, blockedUntil);
+
+        AuditLogService.create({
+          actor: account.name,
+          actorId: accountId,
+          action: "login_2fa_locked",
+          entity: "account",
+          entityId: accountId,
+          entityLabel: account.name,
+        }).catch(() => null);
+
+        response.status(429).send({
+          message: `Too many attempts. Please try again in ${TWO_FA_BLOCK_MINUTES} minutes.`,
+          locked: true,
+          lockedUntil: blockedUntil,
+        });
+        return;
+      }
+
+      await AccountService.registerTwoFactorFailure(accountId, attempts);
+      response.status(400).send({
+        message: TWO_FA_GENERIC_ERROR,
+        attemptsRemaining: TWO_FA_MAX_ATTEMPTS - attempts,
       });
     } catch (error) {
-      console.error("[LOGIN ERROR]", error);
-      response.status(500).send("Login failed");
+      console.error("[VERIFY-2FA ERROR]", error);
+      response.status(500).send("Could not verify the code. Please try again.");
+    }
+  };
+
+  // Resends a login 2FA code for a valid pending (first-factor-passed) token.
+  static resendLoginTwoFactor = async (
+    request: AuthRequest,
+    response: Response,
+  ) => {
+    try {
+      const { twoFactorToken } = request.body || {};
+      const accountId = verifyTwoFactorPendingToken(String(twoFactorToken || ""));
+
+      if (!accountId) {
+        response
+          .status(401)
+          .send("Your verification session has expired. Please sign in again.");
+        return;
+      }
+
+      const account = await AccountService.get(accountId);
+      if (!account || !account.twoFactorEnabled) {
+        response
+          .status(401)
+          .send("Your verification session has expired. Please sign in again.");
+        return;
+      }
+
+      const now = new Date();
+      if (
+        account.twoFactorOtpBlockedUntil &&
+        now < new Date(account.twoFactorOtpBlockedUntil)
+      ) {
+        response.status(429).send({
+          message: `Too many attempts. Please try again in ${TWO_FA_BLOCK_MINUTES} minutes.`,
+          locked: true,
+          lockedUntil: account.twoFactorOtpBlockedUntil,
+        });
+        return;
+      }
+
+      if (
+        account.twoFactorOtpCooldownUntil &&
+        now < new Date(account.twoFactorOtpCooldownUntil)
+      ) {
+        const retryAfterSeconds = Math.ceil(
+          (new Date(account.twoFactorOtpCooldownUntil).getTime() - now.getTime()) / 1000,
+        );
+        response.status(429).send({
+          message: "Please wait a moment before requesting another code.",
+          retryAfterSeconds,
+        });
+        return;
+      }
+
+      await AccountController.issueLoginTwoFactor(account, response);
+    } catch (error) {
+      console.error("[RESEND-2FA ERROR]", error);
+      response.status(500).send("Could not send a new code. Please try again.");
+    }
+  };
+
+  // Begins opt-in: emails a setup code to confirm the user controls the inbox.
+  static setupTwoFactor = async (request: AuthRequest, response: Response) => {
+    try {
+      const accountId = request.account?._id?.toString();
+      if (!accountId) {
+        response.status(401).send("Unauthorized");
+        return;
+      }
+
+      const account = await AccountService.get(accountId);
+      if (!account) {
+        response.status(404).send("Account not found");
+        return;
+      }
+      if (account.twoFactorEnabled) {
+        response.status(400).send("Two-factor authentication is already enabled.");
+        return;
+      }
+
+      const now = new Date();
+      if (
+        account.twoFactorOtpCooldownUntil &&
+        now < new Date(account.twoFactorOtpCooldownUntil)
+      ) {
+        response
+          .status(429)
+          .send("Please wait a moment before requesting another code.");
+        return;
+      }
+
+      const code = generateTwoFactorCode();
+      const hash = await hashTwoFactorCode(code);
+      const expires = new Date(now.getTime() + TWO_FA_CODE_TTL_MINUTES * 60 * 1000);
+      const cooldown = new Date(now.getTime() + TWO_FA_RESEND_COOLDOWN_SECONDS * 1000);
+
+      await AccountService.setTwoFactorOtp(accountId, hash, expires, cooldown);
+
+      const sent = await sendEmail(
+        account.email,
+        "Confirm enabling two-factor authentication",
+        twoFactorSetupEmailHtml(account.name, code)
+      );
+
+      if (!sent) {
+        await AccountService.clearTwoFactorOtp(accountId);
+        response
+          .status(500)
+          .send("We couldn't send your verification code. Please try again.");
+        return;
+      }
+
+      response.send({
+        message: "A verification code has been sent to your email.",
+      });
+    } catch (error) {
+      console.error("[SETUP-2FA ERROR]", error);
+      response.status(500).send("Could not start two-factor setup.");
+    }
+  };
+
+  // Finishes opt-in: verifies the setup code, enables 2FA, and returns the
+  // recovery codes ONCE (they are only stored as bcrypt hashes).
+  static enableTwoFactor = async (request: AuthRequest, response: Response) => {
+    try {
+      const accountId = request.account?._id?.toString();
+      if (!accountId) {
+        response.status(401).send("Unauthorized");
+        return;
+      }
+
+      const account = await AccountService.getWithTwoFactorSecrets(accountId);
+      if (!account) {
+        response.status(404).send("Account not found");
+        return;
+      }
+      if (account.twoFactorEnabled) {
+        response.status(400).send("Two-factor authentication is already enabled.");
+        return;
+      }
+
+      const now = new Date();
+      if (
+        account.twoFactorOtpBlockedUntil &&
+        now < new Date(account.twoFactorOtpBlockedUntil)
+      ) {
+        response.status(429).send({
+          message: `Too many attempts. Please try again in ${TWO_FA_BLOCK_MINUTES} minutes.`,
+          locked: true,
+          lockedUntil: account.twoFactorOtpBlockedUntil,
+        });
+        return;
+      }
+
+      const submitted = String(request.body?.code ?? "").trim();
+      const otpValid =
+        Boolean(account.twoFactorOtpHash) &&
+        Boolean(account.twoFactorOtpExpires) &&
+        now <= new Date(account.twoFactorOtpExpires as any) &&
+        (await compareTwoFactorCode(submitted, account.twoFactorOtpHash as string));
+
+      if (!otpValid) {
+        const attempts = (account.twoFactorOtpAttempts || 0) + 1;
+        if (attempts >= TWO_FA_MAX_ATTEMPTS) {
+          const blockedUntil = new Date(now.getTime() + TWO_FA_BLOCK_MINUTES * 60 * 1000);
+          await AccountService.registerTwoFactorFailure(accountId, attempts, blockedUntil);
+          response.status(429).send({
+            message: `Too many attempts. Please try again in ${TWO_FA_BLOCK_MINUTES} minutes.`,
+            locked: true,
+            lockedUntil: blockedUntil,
+          });
+          return;
+        }
+        await AccountService.registerTwoFactorFailure(accountId, attempts);
+        response.status(400).send({
+          message: TWO_FA_GENERIC_ERROR,
+          attemptsRemaining: TWO_FA_MAX_ATTEMPTS - attempts,
+        });
+        return;
+      }
+
+      const recoveryCodes = generateRecoveryCodes();
+      const recoveryHashes = await Promise.all(recoveryCodes.map(hashRecoveryCode));
+      await AccountService.enableTwoFactor(accountId, recoveryHashes);
+
+      AuditLogService.create({
+        actor: account.name,
+        actorId: accountId,
+        action: "2fa_enabled",
+        entity: "account",
+        entityId: accountId,
+        entityLabel: account.name,
+      }).catch(() => null);
+
+      response.send({
+        message: "Two-factor authentication is now enabled.",
+        twoFactorEnabled: true,
+        recoveryCodes,
+      });
+    } catch (error) {
+      console.error("[ENABLE-2FA ERROR]", error);
+      response.status(500).send("Could not enable two-factor authentication.");
+    }
+  };
+
+  // Turns 2FA off. Requires the current password so a hijacked session can't
+  // silently remove the second factor.
+  static disableTwoFactor = async (request: AuthRequest, response: Response) => {
+    try {
+      const accountId = request.account?._id?.toString();
+      if (!accountId) {
+        response.status(401).send("Unauthorized");
+        return;
+      }
+
+      const account = await AccountService.get(accountId);
+      if (!account) {
+        response.status(404).send("Account not found");
+        return;
+      }
+
+      const { password } = request.body || {};
+      if (!isNonEmptyString(password) || !(await bcrypt.compare(password, account.password))) {
+        response.status(401).send("Incorrect password");
+        return;
+      }
+
+      await AccountService.disableTwoFactor(accountId);
+
+      AuditLogService.create({
+        actor: account.name,
+        actorId: accountId,
+        action: "2fa_disabled",
+        entity: "account",
+        entityId: accountId,
+        entityLabel: account.name,
+      }).catch(() => null);
+
+      response.send({
+        message: "Two-factor authentication has been disabled.",
+        twoFactorEnabled: false,
+      });
+    } catch (error) {
+      console.error("[DISABLE-2FA ERROR]", error);
+      response.status(500).send("Could not disable two-factor authentication.");
+    }
+  };
+
+  // Replaces all recovery codes with a new set (returns them once).
+  static regenerateRecoveryCodes = async (
+    request: AuthRequest,
+    response: Response,
+  ) => {
+    try {
+      const accountId = request.account?._id?.toString();
+      if (!accountId) {
+        response.status(401).send("Unauthorized");
+        return;
+      }
+
+      const account = await AccountService.get(accountId);
+      if (!account) {
+        response.status(404).send("Account not found");
+        return;
+      }
+      if (!account.twoFactorEnabled) {
+        response.status(400).send("Two-factor authentication is not enabled.");
+        return;
+      }
+
+      const { password } = request.body || {};
+      if (!isNonEmptyString(password) || !(await bcrypt.compare(password, account.password))) {
+        response.status(401).send("Incorrect password");
+        return;
+      }
+
+      const recoveryCodes = generateRecoveryCodes();
+      const recoveryHashes = await Promise.all(recoveryCodes.map(hashRecoveryCode));
+      await AccountService.setRecoveryHashes(accountId, recoveryHashes);
+
+      AuditLogService.create({
+        actor: account.name,
+        actorId: accountId,
+        action: "2fa_recovery_regenerated",
+        entity: "account",
+        entityId: accountId,
+        entityLabel: account.name,
+      }).catch(() => null);
+
+      response.send({ recoveryCodes });
+    } catch (error) {
+      console.error("[REGEN-RECOVERY ERROR]", error);
+      response.status(500).send("Could not regenerate recovery codes.");
     }
   };
 
@@ -2987,36 +3588,173 @@ export class AccountController {
     }
   };
 
+  /**
+   * Step 1 of the password-reset flow: given an account email, return the
+   * registered mobile in masked form ("09*******67") for the UI to display as a
+   * reference while the applicant types their complete number. Only accounts
+   * that have a verifiable registered mobile get the phone step; unknown emails
+   * and accounts without a mobile return `maskedPhone: null`. The full number
+   * is never returned.
+   */
+  static forgotPasswordPhoneChallenge = async (
+    request: AuthRequest,
+    response: Response,
+  ) => {
+    try {
+      const { email } = request.body || {};
+      if (!isEmail(email)) {
+        response.status(400).send("A valid email address is required");
+        return;
+      }
+      const account = await AccountService.checkEmailIfExist(
+        String(email).trim().toLowerCase(),
+      );
+      const maskedPhone = account ? maskRegisteredPhone(account.contact) : null;
+      response.send({ maskedPhone });
+    } catch (error) {
+      console.error("[FORGOT-PASSWORD PHONE CHALLENGE ERROR]", error);
+      response.status(500).send("Password reset request failed");
+    }
+  };
+
+  /**
+   * Step 2: verify the applicant's COMPLETE registered mobile number. The
+   * submitted value is normalized (09…, 639…, +639…, separators) and compared
+   * against the account's stored number — never trusted as the source of truth.
+   * Five failures lock the step for 15 minutes. All failure paths return the
+   * same generic message so accounts cannot be enumerated. On success the
+   * counters are cleared and a short-lived phone-verification token is issued;
+   * it is NOT a password-reset token (the one-time code is still required).
+   */
+  static verifyForgotPhone = async (
+    request: AuthRequest,
+    response: Response,
+  ) => {
+    try {
+      const { email, phone } = request.body || {};
+      if (!isEmail(email)) {
+        response.status(400).send("A valid email address is required");
+        return;
+      }
+
+      // The applicant must submit their complete registered mobile number. We
+      // normalize it to 09XXXXXXXXX so 09…, 639…, +639… and separator-laden
+      // forms all compare consistently. Malformed input never counts as a
+      // failed attempt (it is not a real guess at the number).
+      const submitted = normalizePhMobile(phone);
+      if (!submitted) {
+        response.status(400).send(PHONE_VERIFY_GENERIC_ERROR);
+        return;
+      }
+
+      const account = await AccountService.checkEmailIfExist(
+        String(email).trim().toLowerCase(),
+      );
+      const registered = account ? normalizePhMobile(account.contact) : null;
+      // Unknown account or one without a verifiable mobile: generic failure so
+      // the response never reveals account state.
+      if (!account || !registered) {
+        response.status(400).send(PHONE_VERIFY_GENERIC_ERROR);
+        return;
+      }
+
+      const now = new Date();
+
+      // Temporary lock after repeated failures. Enforced (further attempts are
+      // rejected) but reported with the same generic message. Repeated requests
+      // can never clear the lock or reset the counter.
+      if (
+        account.phoneVerifyBlockedUntil &&
+        now < new Date(account.phoneVerifyBlockedUntil)
+      ) {
+        response.status(400).send(PHONE_VERIFY_GENERIC_ERROR);
+        return;
+      }
+
+      // A previous lock has expired (or the ceiling was reached and the lock
+      // window has since passed): reset the counters so the applicant gets a
+      // fresh set of attempts instead of being re-locked immediately.
+      if (
+        account.phoneVerifyBlockedUntil ||
+        (account.phoneVerifyAttempts || 0) >= PHONE_VERIFY_MAX_ATTEMPTS
+      ) {
+        await AccountService.clearPhoneVerify(account._id.toString());
+        account.phoneVerifyAttempts = 0;
+        account.phoneVerifyBlockedUntil = null;
+      }
+
+      const attempts = account.phoneVerifyAttempts || 0;
+
+      const matches = submitted === registered;
+
+      if (!matches) {
+        const next = attempts + 1;
+        if (next >= PHONE_VERIFY_MAX_ATTEMPTS) {
+          await AccountService.blockPhoneVerify(
+            account._id.toString(),
+            new Date(Date.now() + PHONE_VERIFY_BLOCK_MINUTES * 60 * 1000),
+            next,
+          );
+        } else {
+          await AccountService.setPhoneVerifyAttempts(
+            account._id.toString(),
+            next,
+          );
+        }
+        response.status(400).send(PHONE_VERIFY_GENERIC_ERROR);
+        return;
+      }
+
+      // Success: reset the counters and issue the phone-verification token.
+      await AccountService.clearPhoneVerify(account._id.toString());
+      const phoneToken = signPhoneVerificationToken(account._id.toString());
+      response.send({ phoneToken });
+    } catch (error) {
+      console.error("[FORGOT-PASSWORD PHONE VERIFY ERROR]", error);
+      response.status(500).send("Password reset request failed");
+    }
+  };
+
   static forgotPassword = async (request: AuthRequest, response: Response) => {
     try {
-      const { email, contact, method } = request.body || {};
-      const delivery = method === "sms" ? "sms" : "email";
+      const { email, method, phoneToken } = request.body || {};
+
+      // The client must explicitly choose a channel. Reject anything else
+      // instead of silently coercing it to email.
+      if (method !== "email" && method !== "sms") {
+        response
+          .status(400)
+          .send("A valid reset method ('email' or 'sms') is required");
+        return;
+      }
 
       let account: any = null;
-      if (delivery === "sms") {
-        const mobile = normalizePhMobile(contact);
-        if (!mobile) {
+
+      if (method === "sms") {
+        // SMS: the applicant must first pass the registered-number digit check,
+        // which is what issues this signed token. The account — and therefore
+        // the destination number — comes only from the token, never from the
+        // request body.
+        const tokenAccountId = verifyPhoneVerificationToken(
+          String(phoneToken || ""),
+        );
+        if (!tokenAccountId) {
           response
-            .status(400)
-            .send(
-              "A valid 11-digit Philippine mobile number is required (e.g. 09171234567)",
-            );
+            .status(401)
+            .send("Your verification session has expired. Please start again.");
           return;
         }
-        // A phone number is not unique, so it can only identify an account
-        // when exactly one account holds it. Otherwise we would silently bind
-        // the reset code to whichever account Mongo happens to return first.
-        const matches = await AccountService.findAccountsByContact(mobile);
-        if (matches.length > 1) {
+        account = await AccountService.get(tokenAccountId);
+        if (!account || !normalizePhMobile(account.contact)) {
           response
-            .status(409)
-            .send(
-              `The number ${maskPhMobile(mobile)} is registered to more than one account. Please use your registered email instead.`,
-            );
+            .status(401)
+            .send("Your verification session has expired. Please start again.");
           return;
         }
-        account = matches[0] ?? null;
       } else {
+        // Email: identify strictly by the registered email address. The code is
+        // delivered to that stored address — never to an arbitrary address the
+        // applicant typed that is not registered.
         if (!isEmail(email)) {
           response.status(400).send("A valid email address is required");
           return;
@@ -3029,6 +3767,19 @@ export class AccountController {
       // Always respond the same way whether or not the account exists, so this
       // endpoint can't be used to check which emails/numbers are registered.
       if (!account) {
+        response.send({
+          message: "If that is registered, a reset code has been sent.",
+        });
+        return;
+      }
+
+      // Email delivery requires a verified address. Staff office roles are
+      // exempt, mirroring the login rule, so staff can still reset.
+      if (
+        method === "email" &&
+        account.emailVerified === false &&
+        !isOfficeRole(account.role || "resident")
+      ) {
         response.send({
           message: "If that is registered, a reset code has been sent.",
         });
@@ -3074,29 +3825,32 @@ export class AccountController {
         codeHash,
         expires,
         cooldownUntil,
+        method,
       );
 
-      if (delivery === "sms") {
-        const smsSent = await sendSms(
-          account.contact,
-          resetCodeSmsMessage(code),
-        );
-        if (!smsSent) {
-          console.warn(
-            "[FORGOT-PASSWORD] SMS delivery failed, falling back to email",
+      // Deliver ONLY through the chosen channel. There is deliberately no
+      // email<->SMS fallback: if the chosen channel fails we clear the
+      // just-issued code and return a safe error so the applicant can
+      // explicitly pick another method instead of being silently switched.
+      const delivered =
+        method === "sms"
+          ? await sendSms(account.contact, resetCodeSmsMessage(code))
+          : await sendEmail(
+              account.email,
+              "Your Password Reset Code",
+              resetCodeEmailHtml(account.name, code),
+            );
+
+      if (!delivered) {
+        await AccountService.clearResetCode(account._id.toString());
+        response
+          .status(502)
+          .send(
+            method === "sms"
+              ? "We couldn't send the reset code by SMS right now. Please try again or choose Email instead."
+              : "We couldn't send the reset code by email right now. Please try again or choose SMS instead.",
           );
-          await sendEmail(
-            account.email,
-            "Your Password Reset Code",
-            resetCodeEmailHtml(account.name, code),
-          );
-        }
-      } else {
-        await sendEmail(
-          account.email,
-          "Your Password Reset Code",
-          resetCodeEmailHtml(account.name, code),
-        );
+        return;
       }
 
       response.send({
@@ -3110,45 +3864,31 @@ export class AccountController {
 
   static verifyResetCode = async (request: AuthRequest, response: Response) => {
     try {
-      const { email, contact, method, code } = request.body || {};
-      const delivery = method === "sms" ? "sms" : "email";
+      const { email, code, method } = request.body || {};
 
-      let account: any = null;
-      if (delivery === "sms") {
-        const mobile = normalizePhMobile(contact);
-        if (!mobile) {
-          response
-            .status(400)
-            .send(
-              "A valid 11-digit Philippine mobile number is required (e.g. 09171234567)",
-            );
-          return;
-        }
-        const matches = await AccountService.findAccountsByContact(mobile);
-        if (matches.length > 1) {
-          response
-            .status(409)
-            .send(
-              `The number ${maskPhMobile(mobile)} is registered to more than one account. Please use your registered email instead.`,
-            );
-          return;
-        }
-        account = matches[0] ?? null;
-      } else {
-        if (!isEmail(email)) {
-          response.status(400).send("Email and code are required");
-          return;
-        }
-        account = await AccountService.checkEmailIfExist(
-          String(email).trim().toLowerCase(),
-        );
+      if (method !== "email" && method !== "sms") {
+        response
+          .status(400)
+          .send("A valid reset method ('email' or 'sms') is required");
+        return;
       }
+      if (!isEmail(email)) {
+        response.status(400).send("Email and code are required");
+        return;
+      }
+      const account = await AccountService.checkEmailIfExist(
+        String(email).trim().toLowerCase(),
+      );
 
+      // `resetCodeMethod` binds the code to the channel it was issued for, so a
+      // code delivered by SMS cannot be redeemed through the email flow (or
+      // vice versa). A mismatch is reported as a generic invalid code.
       if (
         !isNonEmptyString(code) ||
         !account ||
         !account.resetCodeHash ||
-        !account.resetCodeExpires
+        !account.resetCodeExpires ||
+        account.resetCodeMethod !== method
       ) {
         response.status(400).send("Invalid or expired code");
         return;
@@ -3215,8 +3955,22 @@ export class AccountController {
       // a captured/leaked code cannot be replayed.
       await AccountService.clearResetCode(account._id.toString());
 
+      // The reset token itself is single-use too: it carries a random jti whose
+      // hash is stored on the account and consumed by resetPassword. A leaked
+      // or replayed token therefore fails even within its 10-minute lifetime.
+      const jti = randomBytes(16).toString("hex");
+      const jtiHash = await hashResetCode(jti);
+      const resetTokenExpires = new Date(
+        Date.now() + RESET_CODE_TTL_MINUTES * 60 * 1000,
+      );
+      await AccountService.setResetToken(
+        account._id.toString(),
+        jtiHash,
+        resetTokenExpires,
+      );
+
       const resetToken = jwt.sign(
-        { id: account._id, purpose: "password_reset" },
+        { id: account._id, purpose: "password_reset", jti },
         secret,
         { expiresIn: "10m" },
       );
@@ -3246,18 +4000,43 @@ export class AccountController {
       const decoded = jwt.verify(resetToken, secret) as {
         id: string;
         purpose: string;
+        jti?: string;
       };
 
-      if (decoded.purpose !== "password_reset") {
+      if (decoded.purpose !== "password_reset" || !decoded.jti) {
         response.status(401).send("Invalid reset token");
         return;
       }
+
+      // The token must match the single-use fingerprint stored when it was
+      // issued, and must not be expired. This is what makes replay impossible.
+      const tokenAccount = await AccountService.get(decoded.id);
+      if (
+        !tokenAccount ||
+        !tokenAccount.resetTokenHash ||
+        !tokenAccount.resetTokenExpires ||
+        new Date() > new Date(tokenAccount.resetTokenExpires)
+      ) {
+        response.status(401).send("Reset token is invalid or has expired");
+        return;
+      }
+      const tokenMatches = await compareResetCode(
+        decoded.jti,
+        tokenAccount.resetTokenHash,
+      );
+      if (!tokenMatches) {
+        response.status(401).send("Reset token is invalid or has expired");
+        return;
+      }
+
+      // Consume the token before changing the password so it cannot be replayed.
+      await AccountService.clearResetToken(decoded.id);
 
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       await AccountService.updatePassword(decoded.id, hashedPassword);
       await AccountService.clearResetCode(decoded.id);
 
-      const resetAccount = await AccountService.get(decoded.id);
+      const resetAccount = tokenAccount;
       AuditLogService.create({
         actor: resetAccount?.name || "Resident",
         actorId: decoded.id,

@@ -75,6 +75,47 @@ const AccountSchema = new Schema(
     // Resend throttle: no new code is issued within this window, so a spammer
     // cannot burn SMS credits by hammering forgot-password.
     resetCodeCooldownUntil: { type: Date, required: false },
+    // Delivery channel the current code was issued for ("email" | "sms").
+    // verifyResetCode requires a match so a code issued for one channel cannot
+    // be redeemed through the other.
+    resetCodeMethod: { type: String, required: false },
+
+    // Phone-number verification that gates the password-reset flow: failed
+    // "09 + last two digits" attempts per account and a temporary lock once
+    // the ceiling is reached. Independent from resetAttempts so the two steps
+    // cannot reset each other's counters.
+    phoneVerifyAttempts: { type: Number, required: false, default: 0 },
+    phoneVerifyBlockedUntil: { type: Date, required: false },
+
+    // Single-use password-reset token issued after the code is verified. The
+    // token carries a random id (jti) whose hash is stored here; resetPassword
+    // matches it and clears it, so an observed/leaked token cannot be replayed.
+    resetTokenHash: { type: String, required: false },
+    resetTokenExpires: { type: Date, required: false },
+
+    // ── Optional two-factor authentication (email OTP) ──────────────
+    // Opt-in from account settings. When enabled, correct email+password no
+    // longer completes sign-in: a 6-digit code is emailed and must be verified
+    // before a session token is issued. Attempt counters are independent from
+    // the password/reset counters.
+    twoFactorEnabled: { type: Boolean, required: false, default: false },
+    // The live OTP hash and the recovery-code hashes are secrets: `select:
+    // false` keeps them out of every normal query/response (login, profile,
+    // admin lists). They are only read back via an explicit +select.
+    twoFactorOtpHash: { type: String, required: false, select: false },
+    twoFactorOtpExpires: { type: Date, required: false },
+    twoFactorOtpAttempts: { type: Number, required: false, default: 0 },
+    twoFactorOtpBlockedUntil: { type: Date, required: false },
+    twoFactorOtpCooldownUntil: { type: Date, required: false },
+    // One-time recovery codes (bcrypt hashes). Consumed on use so a leaked code
+    // cannot be replayed; shown in plaintext only once, at generation time.
+    twoFactorRecoveryHashes: {
+      type: [String],
+      required: false,
+      default: [],
+      select: false,
+    },
+    twoFactorRecoveryUpdatedAt: { type: Date, required: false },
 
     // ── ONE PERSON = ONE ACCOUNT ────────────────────────────────
     // identityHash is a deterministic fingerprint over (DOB, first, last)

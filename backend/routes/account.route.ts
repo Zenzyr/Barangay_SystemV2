@@ -8,10 +8,13 @@ import {
 import { authenticateJWT, requireRoles } from "../middleware/auth";
 import {
   forgotPasswordLimiter,
+  forgotPhoneLimiter,
   otpSendLimiter,
   otpVerifyLimiter,
   resetCodeVerifyLimiter,
   resetPasswordLimiter,
+  twoFactorSendLimiter,
+  twoFactorVerifyLimiter,
 } from "../middleware/rateLimit";
 import { ROLES } from "../utils/roles";
 import { handler } from "../utils/handler";
@@ -66,6 +69,52 @@ route.post(
 );
 route.post("/login", handler(AccountController.login));
 route.get("/login-status", handler(AccountController.loginStatus));
+// Second step of login for accounts with two-factor authentication enabled.
+route.post(
+  "/login/verify-2fa",
+  twoFactorVerifyLimiter,
+  handler(AccountController.verifyLoginTwoFactor),
+);
+route.post(
+  "/login/resend-2fa",
+  twoFactorSendLimiter,
+  handler(AccountController.resendLoginTwoFactor),
+);
+// Two-factor management for the signed-in account (opt-in from settings).
+route.post(
+  "/2fa/setup",
+  authenticateJWT,
+  twoFactorSendLimiter,
+  handler(AccountController.setupTwoFactor),
+);
+route.post(
+  "/2fa/enable",
+  authenticateJWT,
+  twoFactorVerifyLimiter,
+  handler(AccountController.enableTwoFactor),
+);
+route.post(
+  "/2fa/disable",
+  authenticateJWT,
+  handler(AccountController.disableTwoFactor),
+);
+route.post(
+  "/2fa/recovery-codes",
+  authenticateJWT,
+  handler(AccountController.regenerateRecoveryCodes),
+);
+// Password reset is gated by a phone-number verification step: the account's
+// REGISTERED mobile (masked) must be confirmed before a reset code is issued.
+route.post(
+  "/forgot-password/phone-challenge",
+  forgotPhoneLimiter,
+  handler(AccountController.forgotPasswordPhoneChallenge),
+);
+route.post(
+  "/forgot-password/verify-phone",
+  forgotPhoneLimiter,
+  handler(AccountController.verifyForgotPhone),
+);
 route.post("/forgot-password", forgotPasswordLimiter, handler(AccountController.forgotPassword));
 route.post("/verify-reset-code", resetCodeVerifyLimiter, handler(AccountController.verifyResetCode));
 route.post("/reset-password", resetPasswordLimiter, handler(AccountController.resetPassword));

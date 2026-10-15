@@ -32,6 +32,17 @@ export const forgotPasswordLimiter = rateLimit({
   message: tooManyRequests(),
 });
 
+// Phone-number challenge + verification for password reset. The per-account
+// lockout (5 tries / 15 min) is the primary control; this only bounds how
+// often a single IP can hit the two lookup/verify endpoints.
+export const forgotPhoneLimiter = rateLimit({
+  windowMs: WINDOW_MS,
+  limit: 20,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: tooManyRequests(),
+});
+
 // OTP verification: the email-OTP flow already caps at 5 wrong attempts per
 // email, so this only bounds distributed per-IP guessing.
 export const otpVerifyLimiter = rateLimit({
@@ -58,6 +69,26 @@ export const resetCodeVerifyLimiter = rateLimit({
 export const resetPasswordLimiter = rateLimit({
   windowMs: WINDOW_MS,
   limit: 10,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: tooManyRequests(),
+});
+
+// Two-factor code send/resend (login second step + setup). Each send costs an
+// email, so bound how often a single IP can trigger one.
+export const twoFactorSendLimiter = rateLimit({
+  windowMs: WINDOW_MS,
+  limit: 10,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: tooManyRequests(),
+});
+
+// Two-factor code verification. The per-account lockout (5 tries / 15 min) is
+// the primary control; this only bounds distributed per-IP guessing.
+export const twoFactorVerifyLimiter = rateLimit({
+  windowMs: WINDOW_MS,
+  limit: 30,
   standardHeaders: "draft-7",
   legacyHeaders: false,
   message: tooManyRequests(),
