@@ -936,11 +936,19 @@ function SignInContent() {
                       placeholder="09171234594"
                       value={phoneFull}
                       disabled={forgotBusy}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        const hasPlus = raw.trimStart().startsWith("+");
+                        const digits = raw.replace(/\D/g, "");
+                        // 09… / 9… forms allow at most 11 digits; +63… / 63…
+                        // allow at most 12. Blocking the extra digits here keeps
+                        // the field from accepting an over-long number.
+                        const maxDigits =
+                          hasPlus || digits.startsWith("63") ? 12 : 11;
                         setPhoneFull(
-                          e.target.value.replace(/[^\d+]/g, "").slice(0, 13),
-                        )
-                      }
+                          (hasPlus ? "+" : "") + digits.slice(0, maxDigits),
+                        );
+                      }}
                       onKeyDown={(e) => e.key === "Enter" && handleVerifyPhone()}
                       className="pl-10 h-12 border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
                       aria-label="Complete registered mobile number"
