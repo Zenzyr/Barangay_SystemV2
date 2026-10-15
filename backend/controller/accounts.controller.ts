@@ -2510,8 +2510,8 @@ export class AccountController {
       OFF-TOPIC RULE:
         If a question is unrelated to the system, reply with the message below in the SAME
         language the user used:
-        - English: "I'm here to assist with barangay-related questions, including information about barangay services, office hours, registered residents and their skills, and registered businesses. I can't answer questions outside of these topics."
-        - Filipino/Tagalog: "Nandito ako upang tumulong sa mga tanong tungkol sa barangay, kasama ang impormasyon tungkol sa mga serbisyo at oras ng opisina, ang mga nakarehistrong residente at kanilang kasanayan, at ang mga nakarehistrong negosyo. Hindi ko masasagot ang mga tanong sa labas ng mga paksa na ito."
+        - English: "I'm here to assist with barangay-related questions, including information about barangay services, office hours, and registered residents and their skills. I can't answer questions outside of these topics."
+        - Filipino/Tagalog: "Nandito ako upang tumulong sa mga tanong tungkol sa barangay, kasama ang impormasyon tungkol sa mga serbisyo at oras ng opisina, at ang mga nakarehistrong residente at kanilang kasanayan. Hindi ko masasagot ang mga tanong sa labas ng mga paksa na ito."
 
         Be friendly, concise, and accurate.
 
