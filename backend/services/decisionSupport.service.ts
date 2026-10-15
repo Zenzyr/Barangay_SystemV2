@@ -2,6 +2,7 @@ import { AnalyticsService } from "./analyticsService";
 import { AIInsightService } from "./ai/aiInsightService";
 import { AnalyticsSnapshotService } from "./analyticsSnapshot.service";
 import { InsightItem, RecommendationItem } from "../types/ai.type";
+import { AnalyticsSummaryQuery } from "../types/analytics.type";
 import DecisionSupportAnalysisModel from "../model/decisionSupportAnalysis.model";
 
 /**
@@ -26,13 +27,20 @@ export class DecisionSupportService {
    * succeeds, so a failed generation can never overwrite or remove a previous
    * successful analysis. A snapshot may remain from a failed generation — that
    * is intentional: it records the numbers that a generation attempt saw.
+   *
+   * `query` is the optional YYYY-MM-DD date range to analyze (omitted =
+   * all time). The same range is applied to the snapshot stored on the record.
    */
-  static async generate(generatedBy: string, generatedById?: string) {
+  static async generate(
+    generatedBy: string,
+    generatedById?: string,
+    query: AnalyticsSummaryQuery = {},
+  ) {
     const actor = { name: generatedBy || "System", id: generatedById || "" };
 
     // The exact analytics payload used for this generation, captured first as
     // a durable, aggregate-only snapshot.
-    const data = await AnalyticsService.getSummary();
+    const data = await AnalyticsService.getSummary(query);
     const snapshot = await AnalyticsSnapshotService.create(data, actor.name, actor.id);
     const snapshotId = snapshot._id?.toString?.() || null;
 

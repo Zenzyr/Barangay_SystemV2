@@ -14,6 +14,10 @@ const staffOnly = [authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_AD
 route.get("/latest", ...staffOnly, handler(DecisionSupportController.latest));
 route.post("/generate", ...staffOnly, handler(DecisionSupportController.generate));
 route.get("/history", ...staffOnly, handler(DecisionSupportController.history));
+route.get("/feedback/summary", ...staffOnly, handler(DecisionSupportController.feedbackSummary));
+route.get("/:id/calibration", ...staffOnly, handler(DecisionSupportController.calibration));
+route.get("/:id/feedback", ...staffOnly, handler(DecisionSupportController.feedback));
+route.put("/:id/feedback", ...staffOnly, handler(DecisionSupportController.saveFeedback));
 route.get("/:id", ...staffOnly, handler(DecisionSupportController.get));
 
 export default route;

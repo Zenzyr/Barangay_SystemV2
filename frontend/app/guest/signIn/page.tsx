@@ -141,9 +141,13 @@ function SignInContent() {
 
   useEffect(() => {
     const lastEmail = localStorage.getItem(LAST_LOGIN_EMAIL_KEY);
-    if (lastEmail) {
-      checkLoginStatus(lastEmail);
-    }
+    if (!lastEmail) return;
+    // checkLoginStatus only updates lock state AFTER its awaited request
+    // resolves, so this runs asynchronously rather than as a synchronous
+    // setState during the effect body.
+    void (async () => {
+      await checkLoginStatus(lastEmail);
+    })();
   }, [checkLoginStatus]);
 
   useEffect(() => {

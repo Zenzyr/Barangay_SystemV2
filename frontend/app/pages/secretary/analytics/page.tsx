@@ -3,21 +3,18 @@
 import { useMemo, useState } from "react";
 import { BarChart3, Sparkles, CalendarRange } from "lucide-react";
 import { BackButton } from "@/components/ui/BackButton";
+import {
+  ANALYTICS_RANGE_OPTIONS,
+  AnalyticsRangeKey,
+  rangeLabelFor,
+  rangeStartDate,
+  toLocalDateString,
+} from "@/app/utils/analyticsRange";
 
 import { AnalyticsOverview } from "./components/analytics-overview";
 import { AnalyticsCommunity } from "./components/analytics-community";
 
 type TabKey = "overview" | "community";
-type RangeKey = "all" | "7d" | "14d" | "30d";
-
-const RANGE_OPTIONS: { key: RangeKey; label: string }[] = [
-  { key: "all", label: "All time" },
-  { key: "30d", label: "Last 30 days" },
-  { key: "14d", label: "Last 14 days" },
-  { key: "7d", label: "Last 7 days" },
-];
-
-const RANGE_DAYS: Record<Exclude<RangeKey, "all">, number> = { "7d": 7, "14d": 14, "30d": 30 };
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: "overview", label: "Overview", icon: BarChart3 },
@@ -26,17 +23,15 @@ const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
 
 export default function SecretaryAnalyticsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
-  const [range, setRange] = useState<RangeKey>("all");
+  const [range, setRange] = useState<AnalyticsRangeKey>("all");
 
-  const from = useMemo<Date | null>(() => {
-    if (range === "all") return null;
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() - RANGE_DAYS[range]);
-    return d;
-  }, [range]);
+  const from = useMemo<Date | null>(() => rangeStartDate(range), [range]);
+  const fromStr = useMemo<string | null>(
+    () => (from ? toLocalDateString(from) : null),
+    [from]
+  );
 
-  const rangeLabel = RANGE_OPTIONS.find((r) => r.key === range)?.label || "All time";
+  const rangeLabel = rangeLabelFor(range);
 
   return (
     <div className="w-full min-h-dvh p-4 sm:p-6 space-y-6">
@@ -62,7 +57,7 @@ export default function SecretaryAnalyticsPage() {
           <CalendarRange className="size-4 text-slate-400 shrink-0" />
           <span className="text-xs font-medium text-slate-500 hidden sm:inline">Date range</span>
           <div className="flex flex-wrap items-center gap-1">
-            {RANGE_OPTIONS.map((opt) => (
+            {ANALYTICS_RANGE_OPTIONS.map((opt) => (
               <button
                 key={opt.key}
                 type="button"
@@ -103,7 +98,7 @@ export default function SecretaryAnalyticsPage() {
       </div>
 
       {activeTab === "overview" ? (
-        <AnalyticsOverview from={from} rangeLabel={rangeLabel} />
+        <AnalyticsOverview from={from} fromStr={fromStr} rangeLabel={rangeLabel} />
       ) : (
         <AnalyticsCommunity rangeLabel={rangeLabel} />
       )}

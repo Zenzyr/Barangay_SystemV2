@@ -10,7 +10,12 @@ export type Severity = "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
 
 // Bumping this string marks the exact weights that produced a given analysis,
 // so a future weight change cannot silently invalidate historical scores.
-export const SCORING_VERSION = "v2";
+//
+// v3: removed the `recurring` and `worsening` bonuses. Both were awarded by the
+// rule-based provider even though the system has no prior-period snapshot to
+// measure them against (see the recurringTrend limitation). Scoring now only
+// uses factors that are actually observable in the current analytics window.
+export const SCORING_VERSION = "v3";
 
 // Severity bands (0-100 percentage-style indicators).
 //
@@ -69,18 +74,15 @@ const WEIGHTS = {
   releaseBonus: 8,
   // Payment / verification delay is the underlying cause (cap 6).
   paymentBonus: 6,
-  // The same issue was present in the previous period — recurring (cap 5).
-  recurringBonus: 5,
-  // The metric is actively worsening vs the previous period (cap 5).
-  worseningBonus: 5,
 };
 
+// Every factor here must be derivable from the current analytics window. Do not
+// add a factor that needs history the system does not persist (e.g. recurrence
+// or a "worsening" trend) until a prior-period comparison actually exists.
 export interface PriorityFactors {
   ageDays?: number; // backlog / delay age in days
   blocksRelease?: boolean; // blocks document release or an essential service
   paymentDelay?: boolean; // payment or verification delay is the cause
-  recurring?: boolean; // also present in the previous period
-  worsening?: boolean; // worse than the previous period
 }
 
 /**
@@ -124,9 +126,7 @@ export function getPriorityScore(
       countBonus +
       ageBonus +
       (factors.blocksRelease ? WEIGHTS.releaseBonus : 0) +
-      (factors.paymentDelay ? WEIGHTS.paymentBonus : 0) +
-      (factors.recurring ? WEIGHTS.recurringBonus : 0) +
-      (factors.worsening ? WEIGHTS.worseningBonus : 0),
+      (factors.paymentDelay ? WEIGHTS.paymentBonus : 0),
   );
 }
 

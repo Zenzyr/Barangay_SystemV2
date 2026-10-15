@@ -3,6 +3,7 @@ export type AuditEntity =
   | "barangaySettings"
   | "account"
   | "decisionSupport"
+  | "recommendationFeedback"
   | "residentCensus"
   | "analyticsSnapshot"
   | "documentTemplate"

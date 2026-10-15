@@ -92,7 +92,7 @@ export class RuleBasedAIProvider implements AIInsightProvider {
         responsibleRole: "Barangay Secretary",
         expectedOutcome: "Restore request volume to the previous week's level or better.",
         timeframe: "This week",
-      }, o.totalRequests, { worsening: true });
+      }, o.totalRequests);
       push(recommendations, {
         category: "Requests",
         title: "Launch a re-engagement campaign",
@@ -103,7 +103,7 @@ export class RuleBasedAIProvider implements AIInsightProvider {
         responsibleRole: "Barangay Secretary",
         expectedOutcome: "Reverse the volume decline and shorten any post-campaign processing queue.",
         timeframe: "This week",
-      }, o.totalRequests, { worsening: true });
+      }, o.totalRequests);
     } else if (o.weekOverWeekChange > 10) {
       push(insights, {
         category: "Requests",
@@ -115,7 +115,7 @@ export class RuleBasedAIProvider implements AIInsightProvider {
         responsibleRole: "Barangay Secretary",
         expectedOutcome: "Peak volume absorbed without creating new backlogs.",
         timeframe: "Before the next peak day",
-      }, o.totalRequests, { worsening: false });
+      }, o.totalRequests);
     }
 
     // ── 2. Backlog / overdue requests ────────────────────────────────
@@ -131,7 +131,7 @@ export class RuleBasedAIProvider implements AIInsightProvider {
         responsibleRole: "Barangay Secretary",
         expectedOutcome: "All backlogged requests move to ready/released within one week.",
         timeframe: "Within 3 days",
-      }, o.backlogCount, { ageDays: o.oldestPendingAgeDays ?? DELAY_THRESHOLD_DAYS, blocksRelease: true, worsening: true });
+      }, o.backlogCount, { ageDays: o.oldestPendingAgeDays ?? DELAY_THRESHOLD_DAYS, blocksRelease: true });
       push(recommendations, {
         category: "Requests",
         title: "Clear the request backlog",
@@ -172,7 +172,7 @@ export class RuleBasedAIProvider implements AIInsightProvider {
         responsibleRole: "Barangay Secretary",
         expectedOutcome: "Completion rate rises above 50%.",
         timeframe: "Next 2 weeks",
-      }, o.totalRequests, { blocksRelease: true, recurring: true });
+      }, o.totalRequests, { blocksRelease: true });
     } else if (o.totalRequests >= 5 && o.completionRate >= 80) {
       push(insights, {
         category: "Requests",
@@ -198,7 +198,7 @@ export class RuleBasedAIProvider implements AIInsightProvider {
         responsibleRole: "Barangay Secretary",
         expectedOutcome: "Fewer than a quarter of requests end rejected or cancelled.",
         timeframe: "Next month",
-      }, rejectedCanceled, { recurring: true });
+      }, rejectedCanceled);
     }
 
     // ── 6. Unpaid fees ───────────────────────────────────────────────
@@ -228,7 +228,7 @@ export class RuleBasedAIProvider implements AIInsightProvider {
         responsibleRole: "Barangay Treasurer",
         expectedOutcome: "Payments verified and documents released without holding revenue.",
         timeframe: "Within 1-2 days",
-      }, o.pendingVerificationCount, { paymentDelay: true, blocksRelease: true, worsening: true });
+      }, o.pendingVerificationCount, { paymentDelay: true, blocksRelease: true });
     }
 
     // ── 8. Counter-payment requests awaiting treasurer attention ────
@@ -273,7 +273,7 @@ export class RuleBasedAIProvider implements AIInsightProvider {
         responsibleRole: "Barangay Secretary",
         expectedOutcome: "Verification queue cleared; verified residents can request documents.",
         timeframe: "Within 3 days",
-      }, o.pendingUsers, { worsening: true });
+      }, o.pendingUsers);
       push(recommendations, {
         category: "Residents",
         title: "Clear the ID verification queue",
@@ -369,18 +369,16 @@ export class RuleBasedAIProvider implements AIInsightProvider {
       c.sectorRates.unemploymentRateHeuristic,
       c.sectorCounts.unemployedHeuristic,
       "Unemployment (heuristic)",
-      "Livelihood & employment programs",
-      { worsening: true }
+      "Livelihood & employment programs"
     );
     sectorSignal(
       c.sectorRates.outOfSchoolRateHeuristic,
       c.sectorCounts.outOfSchoolHeuristic,
       "Out-of-school youth (heuristic)",
-      "Education / ALS re-engagement program",
-      { worsening: true }
+      "Education / ALS re-engagement program"
     );
-    sectorSignal(c.sectorRates.seniorCitizenRate, c.sectorCounts.seniorCitizens, "Senior citizen dependency", "Senior citizen welfare programs", { recurring: true });
-    sectorSignal(c.sectorRates.pwdRate, c.sectorCounts.pwd, "PWD population", "PWD inclusion & accessibility programs", { recurring: true });
+    sectorSignal(c.sectorRates.seniorCitizenRate, c.sectorCounts.seniorCitizens, "Senior citizen dependency", "Senior citizen welfare programs");
+    sectorSignal(c.sectorRates.pwdRate, c.sectorCounts.pwd, "PWD population", "PWD inclusion & accessibility programs");
 
     // ── 13. Recommendation-rules engine output (echo) ───────────────
     for (const issue of c.topIssues) {

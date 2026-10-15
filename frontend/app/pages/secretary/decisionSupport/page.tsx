@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AxiosError } from "axios";
 import axiosInstance from "@/app/utils/axios";
@@ -15,7 +15,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DecisionSupportAnalysis, InsightItem } from "@/app/types/ai.type";
+import {
+  DecisionSupportAnalysis,
+  InsightItem,
+  RecommendationFeedback,
+  RecommendationFeedbackStatus,
+  CalibrationResult,
+  MetricOutcome,
+} from "@/app/types/ai.type";
+import {
+  ANALYTICS_RANGE_OPTIONS,
+  AnalyticsRangeKey,
+  rangeQuery,
+} from "@/app/utils/analyticsRange";
 import {
   residentCountStatus,
   RESIDENT_COUNT_MATCH_MESSAGE,
@@ -35,11 +47,15 @@ import {
   RefreshCw,
   History,
   CalendarDays,
+  CalendarRange,
   UserRound,
   Play,
   Eye,
   Gauge,
   BarChart3,
+  Minus,
+  MessageSquareText,
+  TrendingUp,
 } from "lucide-react";
 
 const SEVERITY_STYLES: Record<string, { bg: string; border: string; text: string; iconBg: string; iconColor: string; label: string }> = {
@@ -54,7 +70,7 @@ const PRIORITY_LABEL: Record<string, string> = {
   positive: "Low",
 };
 
-function InsightCard({ item }: { item: InsightItem }) {
+function InsightCard({ item, footer }: { item: InsightItem; footer?: React.ReactNode }) {
   const style = SEVERITY_STYLES[item.severity] || SEVERITY_STYLES.info;
   const SeverityIcon = item.severity === "warning" ? AlertTriangle : item.severity === "positive" ? CheckCircle2 : Info;
   return (
@@ -120,6 +136,185 @@ function InsightCard({ item }: { item: InsightItem }) {
           </div>
         )}
       </div>
+      {footer}
+    </div>
+  );
+}
+
+// ── Recommendation feedback controls ────────────────────────────
+
+const FEEDBACK_OPTIONS: { status: RecommendationFeedbackStatus; label: string }[] = [
+  { status: "acknowledged", label: "Acknowledged" },
+  { status: "applied", label: "Applied" },
+  { status: "resolved", label: "Resolved" },
+  { status: "dismissed", label: "Dismissed" },
+];
+
+const FEEDBACK_ACTIVE_STYLES: Record<RecommendationFeedbackStatus, string> = {
+  acknowledged: "bg-sky-100 text-sky-700 ring-1 ring-sky-300",
+  applied: "bg-violet-100 text-violet-700 ring-1 ring-violet-300",
+  resolved: "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300",
+  dismissed: "bg-slate-200 text-slate-600 ring-1 ring-slate-300",
+};
+
+function RecommendationFeedbackControls({
+  item,
+  current,
+  onSave,
+  isSaving,
+}: {
+  item: InsightItem;
+  current?: RecommendationFeedback;
+  onSave: (item: InsightItem, status: RecommendationFeedbackStatus, note: string) => void;
+  isSaving: boolean;
+}) {
+  // Seed from the saved feedback. The caller keys this component by the
+  // feedback's updatedAt so a refetch remounts with the persisted note.
+  const [note, setNote] = useState(current?.note ?? "");
+
+  return (
+    <div className="mt-4 border-t border-slate-200/70 pt-3 space-y-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <MessageSquareText className="size-3.5 text-slate-400" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 mr-1">
+          Follow-up
+        </span>
+        {FEEDBACK_OPTIONS.map((opt) => {
+          const active = current?.status === opt.status;
+          return (
+            <button
+              key={opt.status}
+              type="button"
+              disabled={isSaving}
+              onClick={() => onSave(item, opt.status, note)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors disabled:opacity-60 ${
+                active
+                  ? FEEDBACK_ACTIVE_STYLES[opt.status]
+                  : "text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-700"
+              }`}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Optional note (e.g. why dismissed or how it was resolved)"
+          className="flex-1 min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-sky-300"
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 shrink-0 text-xs"
+          disabled={isSaving}
+          onClick={() => onSave(item, current?.status ?? "acknowledged", note)}
+        >
+          Save note
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ── Outcome calibration panel ───────────────────────────────────
+
+const OUTCOME_STYLES: Record<MetricOutcome, { label: string; className: string; icon: React.ElementType }> = {
+  resolved: { label: "Resolved", className: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
+  improved: { label: "Improved", className: "bg-sky-50 text-sky-700 border-sky-200", icon: TrendingUp },
+  unchanged: { label: "Unchanged", className: "bg-slate-50 text-slate-600 border-slate-200", icon: Minus },
+  worsened: { label: "Worsened", className: "bg-rose-50 text-rose-700 border-rose-200", icon: AlertTriangle },
+  unknown: { label: "No data", className: "bg-slate-50 text-slate-500 border-slate-200", icon: Info },
+};
+
+function formatMetricValue(value: number | null): string {
+  if (value === null) return "—";
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+function OutcomeCalibrationPanel({
+  data,
+  isLoading,
+  isError,
+}: {
+  data?: CalibrationResult;
+  isLoading: boolean;
+  isError: boolean;
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+      <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+        <div className="size-9 rounded-xl bg-gradient-to-br from-sky-100 to-emerald-100 text-sky-600 flex items-center justify-center">
+          <Gauge className="size-4" />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Outcome Tracking</h2>
+          <p className="text-sm text-gray-500">
+            The saved analysis compared with today&apos;s live numbers — did the recommended
+            indicators actually move?
+          </p>
+        </div>
+      </div>
+      <div className="p-4">
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-10 w-full rounded-lg" />
+            ))}
+          </div>
+        ) : isError ? (
+          <div className="flex items-center gap-2 text-sm text-gray-400 py-6">
+            <AlertTriangle className="size-4 text-amber-500" />
+            Could not compute outcomes right now.
+          </div>
+        ) : !data || data.rows.length === 0 ? (
+          <div className="text-sm text-gray-400 py-6 text-center">
+            No trackable indicators were captured in this analysis.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {(["resolved", "improved", "unchanged", "worsened"] as MetricOutcome[]).map((key) => {
+                const s = OUTCOME_STYLES[key];
+                return (
+                  <span key={key} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${s.className}`}>
+                    <s.icon className="size-3.5" />
+                    {s.label}: {data.summary[key] ?? 0}
+                  </span>
+                );
+              })}
+            </div>
+            <div className="divide-y divide-slate-100 rounded-xl border border-slate-200/80 overflow-hidden">
+              {data.rows.map((row) => {
+                const s = OUTCOME_STYLES[row.outcome];
+                const deltaText =
+                  row.delta === null || row.delta === 0
+                    ? "—"
+                    : `${row.delta > 0 ? "+" : ""}${formatMetricValue(row.delta)}`;
+                return (
+                  <div key={row.key} className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                    <span className="text-sm text-gray-700">{row.label}</span>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-sm text-gray-500 tabular-nums">
+                        {formatMetricValue(row.baseline)}
+                        <span className="mx-1 text-gray-300">→</span>
+                        <span className="font-semibold text-gray-900">{formatMetricValue(row.current)}</span>
+                      </span>
+                      <span className="text-xs tabular-nums text-gray-400 w-12 text-right">{deltaText}</span>
+                      <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold w-24 justify-center ${s.className}`}>
+                        <s.icon className="size-3" />
+                        {s.label}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -156,7 +351,17 @@ function StatChip({ label, value }: { label: string; value: React.ReactNode }) {
 
 /** Shared body rendered for any saved analysis (latest page + history view).
  *  This only DISPLAYS a saved record — it never calls the generation API. */
-function AnalysisBody({ record }: { record: DecisionSupportAnalysis }) {
+function AnalysisBody({
+  record,
+  feedbackByRec,
+  onFeedback,
+  savingFeedback,
+}: {
+  record: DecisionSupportAnalysis;
+  feedbackByRec?: Record<string, RecommendationFeedback>;
+  onFeedback?: (item: InsightItem, status: RecommendationFeedbackStatus, note: string) => void;
+  savingFeedback?: boolean;
+}) {
   const snapshot = record.dataSnapshot || ({} as DecisionSupportAnalysis["dataSnapshot"]);
   const overview = snapshot.overview;
   const community = snapshot.community;
@@ -255,7 +460,21 @@ function AnalysisBody({ record }: { record: DecisionSupportAnalysis }) {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {record.recommendations.map((item) => (
-                <InsightCard key={item.id} item={item} />
+                <InsightCard
+                  key={item.id}
+                  item={item}
+                  footer={
+                    onFeedback ? (
+                      <RecommendationFeedbackControls
+                        key={feedbackByRec?.[item.id]?.updatedAt ?? "unset"}
+                        item={item}
+                        current={feedbackByRec?.[item.id]}
+                        onSave={onFeedback}
+                        isSaving={!!savingFeedback}
+                      />
+                    ) : undefined
+                  }
+                />
               ))}
             </div>
           )}
@@ -392,6 +611,7 @@ export default function DecisionSupportPage() {
   const queryClient = useQueryClient();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [viewingId, setViewingId] = useState<string | null>(null);
+  const [range, setRange] = useState<AnalyticsRangeKey>("all");
 
   // Loads the latest SAVED analysis. Never generates anything.
   const latestQuery = useQuery<DecisionSupportAnalysis>({
@@ -420,9 +640,13 @@ export default function DecisionSupportPage() {
     retry: false,
   });
 
+  // The date range applied to the next generation. Sent as `{ from }`
+  // (YYYY-MM-DD); empty object = all time.
+  const currentRange = rangeQuery(range);
+
   const generateMutation = useMutation({
-    mutationFn: async () => {
-      const res = await axiosInstance.post("/decision-support/generate");
+    mutationFn: async (payload: { from?: string }) => {
+      const res = await axiosInstance.post("/decision-support/generate", payload);
       return res.data as DecisionSupportAnalysis;
     },
     onSuccess: (analysis) => {
@@ -462,6 +686,60 @@ export default function DecisionSupportPage() {
 
   const snapshotResidentTotal = record?.dataSnapshot?.community?.totalResidents;
   const liveResidentTotal = residentsQuery.data?.length;
+
+  // Staff follow-up on the latest analysis' recommendations.
+  const feedbackQuery = useQuery<RecommendationFeedback[]>({
+    queryKey: ["decision-support", "feedback", record?._id],
+    queryFn: async () => {
+      const res = await axiosInstance.get(`/decision-support/${record!._id}/feedback`);
+      return res.data as RecommendationFeedback[];
+    },
+    enabled: !!record?._id,
+  });
+
+  const feedbackByRec = useMemo(() => {
+    const map: Record<string, RecommendationFeedback> = {};
+    for (const row of feedbackQuery.data ?? []) map[row.recommendationId] = row;
+    return map;
+  }, [feedbackQuery.data]);
+
+  const feedbackMutation = useMutation({
+    mutationFn: async (payload: {
+      recommendationId: string;
+      status: RecommendationFeedbackStatus;
+      note: string;
+      category?: string;
+      title?: string;
+    }) => {
+      const res = await axiosInstance.put(`/decision-support/${record!._id}/feedback`, payload);
+      return res.data as RecommendationFeedback;
+    },
+    onSuccess: () => {
+      successAlert("Feedback saved.");
+      queryClient.invalidateQueries({ queryKey: ["decision-support", "feedback", record?._id] });
+    },
+    onError: () => errorAlert("Failed to save feedback."),
+  });
+
+  const handleFeedback = (item: InsightItem, status: RecommendationFeedbackStatus, note: string) => {
+    feedbackMutation.mutate({
+      recommendationId: item.id,
+      status,
+      note,
+      category: item.category,
+      title: item.title,
+    });
+  };
+
+  // Outcome calibration — how the saved snapshot's indicators compare to now.
+  const calibrationQuery = useQuery<CalibrationResult>({
+    queryKey: ["decision-support", "calibration", record?._id],
+    queryFn: async () => {
+      const res = await axiosInstance.get(`/decision-support/${record!._id}/calibration`);
+      return res.data as CalibrationResult;
+    },
+    enabled: !!record?._id,
+  });
 
   return (
     <div className="w-full min-h-dvh p-4 sm:p-6 space-y-6">
@@ -507,24 +785,48 @@ export default function DecisionSupportPage() {
         </div>
       </div>
 
-      {/* ── Action buttons ── */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          onClick={() => generateMutation.mutate()}
-          disabled={generateMutation.isPending}
-          className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white shadow-lg shadow-sky-200/50 gap-1.5"
-        >
-          {generateMutation.isPending ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Play className="size-4" />
-          )}
-          {generateMutation.isPending ? "Generating..." : "Generate New Analysis"}
-        </Button>
-        <Button variant="outline" className="gap-1.5" onClick={() => setHistoryOpen(true)}>
-          <History className="size-4" />
-          View History
-        </Button>
+      {/* ── Action buttons + analysis window ── */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            onClick={() => generateMutation.mutate(currentRange)}
+            disabled={generateMutation.isPending}
+            className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white shadow-lg shadow-sky-200/50 gap-1.5"
+          >
+            {generateMutation.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Play className="size-4" />
+            )}
+            {generateMutation.isPending ? "Generating..." : "Generate New Analysis"}
+          </Button>
+          <Button variant="outline" className="gap-1.5" onClick={() => setHistoryOpen(true)}>
+            <History className="size-4" />
+            View History
+          </Button>
+        </div>
+
+        {/* ── Date range applied to the next generation ── */}
+        <div className="flex items-center gap-2 bg-white rounded-xl border border-slate-200/80 shadow-sm px-3 py-2">
+          <CalendarRange className="size-4 text-slate-400 shrink-0" />
+          <span className="text-xs font-medium text-slate-500 hidden sm:inline">Analysis window</span>
+          <div className="flex flex-wrap items-center gap-1">
+            {ANALYTICS_RANGE_OPTIONS.map((opt) => (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setRange(opt.key)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                  range === opt.key
+                    ? "bg-sky-50 text-sky-700 ring-1 ring-sky-200"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* ── Generation in progress — previous saved analysis stays visible ── */}
@@ -559,7 +861,7 @@ export default function DecisionSupportPage() {
             </p>
           </div>
           <Button
-            onClick={() => generateMutation.mutate()}
+            onClick={() => generateMutation.mutate(currentRange)}
             disabled={generateMutation.isPending}
             className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white shadow-lg shadow-sky-200/50 gap-1.5"
           >
@@ -585,11 +887,22 @@ export default function DecisionSupportPage() {
             isLoading={residentsQuery.isLoading}
             isError={residentsQuery.isError}
             generatedAt={record.generatedAt}
-            onRegenerate={() => generateMutation.mutate()}
+            onRegenerate={() => generateMutation.mutate(currentRange)}
             isRegenerating={generateMutation.isPending}
           />
 
-          <AnalysisBody record={record} />
+          <AnalysisBody
+            record={record}
+            feedbackByRec={feedbackByRec}
+            onFeedback={handleFeedback}
+            savingFeedback={feedbackMutation.isPending}
+          />
+
+          <OutcomeCalibrationPanel
+            data={calibrationQuery.data}
+            isLoading={calibrationQuery.isLoading}
+            isError={calibrationQuery.isError}
+          />
         </>
       ) : null}
 

@@ -54,6 +54,54 @@ export interface AnalyticsInsightsResponse {
   period?: AnalyticsPeriod;
 }
 
+// ── Recommendation feedback ──────────────────────────────────────
+
+export type RecommendationFeedbackStatus =
+  | "acknowledged"
+  | "applied"
+  | "dismissed"
+  | "resolved";
+
+export interface RecommendationFeedback {
+  _id: string;
+  analysisId: string;
+  recommendationId: string;
+  category?: string;
+  title?: string;
+  status: RecommendationFeedbackStatus;
+  note?: string;
+  createdBy: string;
+  createdById: string;
+  updatedBy: string;
+  updatedById: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Outcome calibration ──────────────────────────────────────────
+
+export type MetricOutcome =
+  | "resolved"
+  | "improved"
+  | "unchanged"
+  | "worsened"
+  | "unknown";
+
+export interface CalibrationRow {
+  key: string;
+  label: string;
+  baseline: number | null;
+  current: number | null;
+  delta: number | null;
+  outcome: MetricOutcome;
+}
+
+export interface CalibrationResult {
+  period: AnalyticsPeriod;
+  rows: CalibrationRow[];
+  summary: Record<MetricOutcome, number>;
+}
+
 /**
  * A persisted Decision Support analysis. Every successful generation creates
  * one record; the page loads the latest record and only generates a new one

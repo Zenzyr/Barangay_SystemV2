@@ -60,6 +60,21 @@ function startOfDay(date: Date): Date {
   return d;
 }
 
+function endOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+}
+
+// Formats a Date using its LOCAL Y/M/D components. Using toISOString() here
+// would shift the day for timezones east of UTC (e.g. Asia/Manila, UTC+8).
+function formatLocalDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 /**
  * Single source of truth for analytics. Aggregates the general system
  * analytics (document requests + accounts) and the community analytics
@@ -71,6 +86,10 @@ export class AnalyticsService {
     const now = new Date();
     const from = query.from ? startOfDay(new Date(query.from)) : null;
     const to = query.to ? startOfDay(new Date(query.to)) : null;
+    // Relative indicators (week-over-week, growth window, backlog age, trends)
+    // are measured AS OF the end of the selected range — not "now" — so a
+    // historical range is interpreted consistently instead of against today.
+    const asOf = to ? endOfDay(to) : now;
 
     const [rawDocs, rawAccounts, community, employment, education, seniors, pwd, youth, social, health, topIssues] =
       await Promise.all([
@@ -96,7 +115,7 @@ export class AnalyticsService {
     const docs = (rawDocs || []).filter((d: any) => inRange(dateFromObjectId(d._id)));
     const accounts = (rawAccounts || []).filter((a: any) => inRange(dateFromObjectId(a._id)));
 
-    const overview = AnalyticsService.computeOverview(docs, accounts, rawAccounts, now, from);
+    const overview = AnalyticsService.computeOverview(docs, accounts, rawAccounts, asOf, from);
     const communitySummary = AnalyticsService.computeCommunity(
       community,
       employment,
@@ -110,15 +129,20 @@ export class AnalyticsService {
       docs,
       accounts
     );
-    const trends = AnalyticsService.computeTrends(docs, accounts, now);
+    const trends = AnalyticsService.computeTrends(docs, accounts, asOf);
 
-    const periodLabel =
-      !from ? "All time" : `Last ${Math.max(1, Math.round((now.getTime() - from.getTime()) / 86_400_000))} day(s)`;
+    const periodLabel = from
+      ? to
+        ? `${formatLocalDate(from)} to ${formatLocalDate(to)}`
+        : `Last ${Math.max(1, Math.round((now.getTime() - from.getTime()) / 86_400_000))} day(s)`
+      : to
+        ? `Up to ${formatLocalDate(to)}`
+        : "All time";
 
     return {
       period: {
-        from: from ? from.toISOString().slice(0, 10) : null,
-        to: to ? to.toISOString().slice(0, 10) : null,
+        from: from ? formatLocalDate(from) : null,
+        to: to ? formatLocalDate(to) : null,
         label: periodLabel,
       },
       overview,

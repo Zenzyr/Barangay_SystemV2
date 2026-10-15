@@ -117,6 +117,42 @@ export const isDateString = (value: unknown): value is string => {
   return !isNaN(d.getTime());
 };
 
+const ISO_DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Normalizes a single optional YYYY-MM-DD bound.
+ * Returns:
+ *  - undefined when the value is absent/empty (meaning "no bound")
+ *  - null when the value is present but malformed
+ *  - the trimmed value when valid
+ */
+const asIsoDateBound = (value: unknown): string | undefined | null => {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!ISO_DATE_ONLY.test(trimmed)) return null;
+  const parsed = new Date(`${trimmed}T00:00:00`);
+  if (isNaN(parsed.getTime())) return null;
+  return trimmed;
+};
+
+/**
+ * Validates an optional { from, to } date range (YYYY-MM-DD). Absent bounds are
+ * allowed ("all time"). Returns a normalized range or a human-readable error;
+ * consumers should 400 on error rather than silently ignoring bad input.
+ */
+export const parseDateRange = (source: {
+  from?: unknown;
+  to?: unknown;
+}): { from?: string; to?: string; error?: string } => {
+  const from = asIsoDateBound(source?.from);
+  const to = asIsoDateBound(source?.to);
+  if (from === null) return { error: "Invalid 'from' date. Use YYYY-MM-DD." };
+  if (to === null) return { error: "Invalid 'to' date. Use YYYY-MM-DD." };
+  if (from && to && from > to) return { error: "'from' must be on or before 'to'." };
+  return { from, to };
+};
+
 export const isIn = <T extends readonly string[]>(allowed: T) => {
   return (value: unknown): value is T[number] =>
     typeof value === "string" && (allowed as readonly string[]).includes(value);

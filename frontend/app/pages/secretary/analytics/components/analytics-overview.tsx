@@ -2,11 +2,11 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import Link from "next/link";
 import axiosInstance from "@/app/utils/axios";
 import { documentRequestInterface } from "@/app/types/documentRequest";
 import { accountInterface } from "@/app/types/account.type";
 import { getDocumentPrice } from "@/app/utils/documents";
+import { AnalyticsInsightsResponse, InsightItem, RecommendationItem } from "@/app/types/ai.type";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   BarChart,
@@ -29,14 +29,12 @@ import {
   TrendingDown,
   Lightbulb,
   AlertTriangle,
-  Clock,
   Wallet,
   CheckCircle2,
   UserPlus2,
   CalendarDays,
   FileText,
   PieChart as PieChartIcon,
-  ArrowUpRight,
   Users,
 } from "lucide-react";
 
@@ -125,9 +123,11 @@ function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
 
 export function AnalyticsOverview({
   from = null,
+  fromStr = null,
   rangeLabel = "All time",
 }: {
   from?: Date | null;
+  fromStr?: string | null;
   rangeLabel?: string;
 }) {
   // ── Fetch all document requests & accounts ─────────────────────
@@ -143,6 +143,22 @@ export function AnalyticsOverview({
     queryKey: ["accounts", "analytics", "all"],
     queryFn: async () => {
       const res = await axiosInstance.get("/account");
+      return res.data;
+    },
+  });
+
+  // Insights & recommendations come from the SAME backend pipeline the
+  // Decision Support page uses, so both interfaces apply identical rules.
+  const {
+    data: insightsData,
+    isLoading: insightsLoading,
+    isError: insightsError,
+  } = useQuery<AnalyticsInsightsResponse>({
+    queryKey: ["analytics", "insights", fromStr],
+    queryFn: async () => {
+      const res = await axiosInstance.get("/analytics/insights", {
+        params: fromStr ? { from: fromStr } : undefined,
+      });
       return res.data;
     },
   });
@@ -236,11 +252,6 @@ export function AnalyticsOverview({
     return WEEKDAYS.map((label, i) => ({ name: label, count: counts[i] }));
   }, [docs]);
 
-  const peakDay = useMemo(() => {
-    if (weekdayDistribution.every((d) => d.count === 0)) return null;
-    return weekdayDistribution.reduce((max, d) => (d.count > max.count ? d : max), weekdayDistribution[0]);
-  }, [weekdayDistribution]);
-
   // Week-over-week trend
   const weekTrend = useMemo(() => {
     const thisWeekStart = new Date(now);
@@ -258,15 +269,6 @@ export function AnalyticsOverview({
 
     const change = lastWeek > 0 ? Math.round(((thisWeek - lastWeek) / lastWeek) * 100) : thisWeek > 0 ? 100 : 0;
     return { thisWeek, lastWeek, change };
-  }, [docs, now]);
-
-  // Backlog: pending/processing requests older than 3 days
-  const backlog = useMemo(() => {
-    const threshold = new Date(now);
-    threshold.setDate(threshold.getDate() - 3);
-    return docs.filter(
-      (d) => (d.status === "pending" || d.status === "processing") && dateFromObjectId(d._id) < threshold
-    );
   }, [docs, now]);
 
   // Resident registrations - last 8 weeks
@@ -298,90 +300,28 @@ export function AnalyticsOverview({
     }));
   }, [accounts]);
 
-  const pendingResidents = residentStatusBreakdown.find((r) => r.status === "pending")?.value || 0;
-
-  // ── Decision-support insights ───────────────────────────────────
+  // ── Decision-support insights & recommendations (backend-generated) ──
+  // Rendered exactly as produced by the backend rule/AI pipeline so the
+  // Analytics page and the Decision Support page can never disagree.
   const insights = useMemo(() => {
-    const items: { tone: "warning" | "info" | "positive"; icon: React.ElementType; text: string; href?: string }[] = [];
-
-    if (backlog.length > 0) {
-      items.push({
-        tone: "warning",
-        icon: AlertTriangle,
-        text: `${backlog.length} request${backlog.length !== 1 ? "s have" : " has"} been pending 3+ days without action — review the queue to avoid delays.`,
-        href: "/pages/secretary/documentRequest",
-      });
-    }
-
-    if (summary.unpaidCount > 0) {
-      items.push({
-        tone: "warning",
-        icon: Wallet,
-        text: `${formatPeso(summary.pendingRevenue)} in unpaid fees across ${summary.unpaidCount} active request${summary.unpaidCount !== 1 ? "s" : ""} — follow up with residents before releasing documents.`,
-        href: "/pages/secretary/documentRequest",
-      });
-    }
-
-    if (pendingResidents > 0) {
-      items.push({
-        tone: "warning",
-        icon: UserPlus2,
-        text: `${pendingResidents} resident${pendingResidents !== 1 ? "s are" : " is"} awaiting ID verification — clearing this backlog lets them request documents.`,
-        href: "/pages/secretary/verifyResident",
-      });
-    }
-
-    if (popularDocuments.length > 0) {
-      const top = popularDocuments[0];
-      const pct = summary.total > 0 ? Math.round((top.count / summary.total) * 100) : 0;
-      items.push({
-        tone: "info",
-        icon: Lightbulb,
-        text: `"${top.name}" is your most requested document (${top.count} requests, ${pct}% of all requests) — keep templates and requirements ready to speed up processing.`,
-      });
-    }
-
-    if (peakDay && peakDay.count > 0) {
-      items.push({
-        tone: "info",
-        icon: CalendarDays,
-        text: `Requests peak on ${peakDay.name}s (${peakDay.count} historically) — plan front-desk coverage accordingly.`,
-      });
-    }
-
-    if (summary.total >= 4) {
-      if (weekTrend.change > 10) {
-        items.push({
-          tone: "info",
-          icon: TrendingUp,
-          text: `Requests are up ${weekTrend.change}% this week (${weekTrend.thisWeek}) vs last week (${weekTrend.lastWeek}) — consider preparing extra processing capacity.`,
-        });
-      } else if (weekTrend.change < -10) {
-        items.push({
-          tone: "info",
-          icon: TrendingDown,
-          text: `Requests are down ${Math.abs(weekTrend.change)}% this week (${weekTrend.thisWeek}) vs last week (${weekTrend.lastWeek}).`,
-        });
-      }
-    }
-
-    if (summary.total >= 5 && summary.completionRate < 50) {
-      items.push({
-        tone: "warning",
-        icon: Clock,
-        text: `Only ${summary.completionRate}% of requests reach completion — review where requests are stalling in the pipeline.`,
-        href: "/pages/secretary/documentRequest",
-      });
-    } else if (summary.total >= 5 && summary.completionRate >= 80) {
-      items.push({
-        tone: "positive",
-        icon: CheckCircle2,
-        text: `${summary.completionRate}% of requests reach completion — the request pipeline is running smoothly.`,
-      });
-    }
-
-    return items;
-  }, [backlog, summary, pendingResidents, popularDocuments, peakDay, weekTrend]);
+    const items: (InsightItem | RecommendationItem)[] = [
+      ...(insightsData?.recommendations ?? []),
+      ...(insightsData?.insights ?? []),
+    ];
+    return items.map((item) => ({
+      id: item.id,
+      tone: item.severity,
+      icon:
+        item.severity === "warning"
+          ? AlertTriangle
+          : item.severity === "positive"
+            ? CheckCircle2
+            : Lightbulb,
+      title: item.title,
+      why: item.why,
+      action: item.action,
+    }));
+  }, [insightsData]);
 
   const TONE_STYLES = {
     warning: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-800", iconBg: "bg-amber-100", iconColor: "text-amber-600" },
@@ -444,8 +384,16 @@ export function AnalyticsOverview({
           )}
         </div>
         <div className="p-4 space-y-2.5">
-          {isLoading ? (
-            Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-lg" />)
+          {insightsLoading ? (
+            Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
+          ) : insightsError ? (
+            <div className="flex flex-col items-center gap-2 text-center text-gray-400 py-8">
+              <div className="size-12 rounded-full bg-slate-100 text-slate-300 flex items-center justify-center">
+                <AlertTriangle className="size-6" />
+              </div>
+              <p className="text-sm font-medium">Could not load insights</p>
+              <p className="text-xs">Check that the backend analytics service is running.</p>
+            </div>
           ) : insights.length === 0 ? (
             <div className="flex flex-col items-center gap-2 text-center text-gray-400 py-8">
               <div className="size-12 rounded-full bg-slate-100 text-slate-300 flex items-center justify-center">
@@ -457,21 +405,25 @@ export function AnalyticsOverview({
           ) : (
             insights.map((item, i) => {
               const style = TONE_STYLES[item.tone];
-              const content = (
-                <div className={`flex items-start gap-3 rounded-xl border p-3.5 ${style.bg} ${style.border}`}>
+              return (
+                <div
+                  key={item.id || i}
+                  className={`flex items-start gap-3 rounded-xl border p-3.5 ${style.bg} ${style.border}`}
+                >
                   <div className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${style.iconBg}`}>
                     <item.icon className={`size-4 ${style.iconColor}`} />
                   </div>
-                  <p className={`text-sm leading-snug ${style.text}`}>{item.text}</p>
-                  {item.href && <ArrowUpRight className={`size-4 shrink-0 mt-0.5 ${style.iconColor}`} />}
+                  <div className="min-w-0 space-y-1">
+                    <p className={`text-sm font-semibold ${style.text}`}>{item.title}</p>
+                    <p className="text-sm leading-snug text-gray-600">{item.why}</p>
+                    {item.action && (
+                      <p className="text-sm leading-snug text-gray-600">
+                        <span className="font-semibold text-gray-700">Action: </span>
+                        {item.action}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              );
-              return item.href ? (
-                <Link key={i} href={item.href} className="block hover:opacity-80 transition-opacity">
-                  {content}
-                </Link>
-              ) : (
-                <div key={i}>{content}</div>
               );
             })
           )}
