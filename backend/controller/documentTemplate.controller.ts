@@ -72,6 +72,17 @@ export class DocumentTemplateController {
     }
   };
 
+  static getPublicFees = async (_request: AuthRequest, response: Response) => {
+    try {
+      const fees = await DocumentTemplateService.getApprovedFees();
+      response.set("Cache-Control", "no-store");
+      response.send(fees);
+    } catch (error) {
+      console.error("[DOC-TEMPLATES PUBLIC FEES ERROR]", error);
+      response.status(500).send("Failed to fetch document prices");
+    }
+  };
+
   static get = async (request: AuthRequest, response: Response) => {
     try {
       const { id } = request.params;

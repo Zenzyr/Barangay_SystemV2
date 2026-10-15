@@ -1829,6 +1829,29 @@ export class AccountController {
         }
       }
 
+      let resolvedPurok = "";
+      if (purok !== undefined && purok !== null && purok !== "") {
+        if (typeof purok !== "string" || !purok.trim()) {
+          response.status(400).send("Invalid purok selected");
+          return;
+        }
+        const requestedPurok = purok.trim().toLowerCase();
+        const currentPurok = String(existingAccount.purok ?? "").trim();
+        if (currentPurok && currentPurok.toLowerCase() === requestedPurok) {
+          resolvedPurok = currentPurok;
+        } else {
+          const activePuroks = await PurokService.getAll({ status: "active" });
+          const match = activePuroks.find(
+            (p: any) => String(p.name).trim().toLowerCase() === requestedPurok,
+          );
+          if (!match) {
+            response.status(400).send("Invalid purok selected");
+            return;
+          }
+          resolvedPurok = match.name;
+        }
+      }
+
       const updateData: Record<string, string> = {};
       if (structuredName?.ok) {
         updateData.name = structuredName.name;
@@ -1845,9 +1868,9 @@ export class AccountController {
       if (dateOfBirth) updateData.dateOfBirth = dateOfBirth;
       if (civilStatus) updateData.civilStatus = civilStatus;
       // The resident's location is their purok, so the stored address mirrors it.
-      if (purok) {
-        updateData.purok = purok;
-        updateData.address = purok;
+      if (resolvedPurok && resolvedPurok !== existingAccount.purok) {
+        updateData.purok = resolvedPurok;
+        updateData.address = resolvedPurok;
       }
       if (voterStatus) updateData.voterStatus = voterStatus;
       if (houseHoldNumber) updateData.houseHoldNumber = houseHoldNumber;

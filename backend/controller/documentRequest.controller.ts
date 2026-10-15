@@ -176,21 +176,23 @@ export class DocumentRequestController {
         return;
       }
 
-      // ── Resolve the fee from the document's template ─────────────
-      // The template's fee is authoritative. When a matching template is
-      // found, the client-sent price is ignored and the current fee is
-      // stamped onto the request (templateId + version + feeAtRequest) so it
-      // never changes even if the admin edits the price later.
+      // ── Resolve the fee from the approved document price ─────────
+      // The approved fee is authoritative and the client-sent price is always
+      // ignored. It is stamped onto the request (feeAtRequest, plus templateId
+      // + version when an active template exists) so it never changes even if
+      // the admin edits the price later.
       const { DocumentTemplateService } = await import("../services/documentTemplate.service");
+      const approvedFee = await DocumentTemplateService.getApprovedFee(documentData.document);
+      if (approvedFee === null) {
+        response.status(400).send("The price for this document is currently unavailable");
+        return;
+      }
+      documentData.price = approvedFee;
+      documentData.feeAtRequest = approvedFee;
       const template = await DocumentTemplateService.getByDocumentType(documentData.document);
       if (template) {
-        documentData.price = Number(template.fee) || 0;
         documentData.templateId = template._id;
         documentData.templateVersion = template.version || 1;
-        documentData.feeAtRequest = Number(template.fee) || 0;
-      } else if (typeof documentData.price !== "number" || documentData.price < 0) {
-        response.status(400).send("Invalid price");
-        return;
       }
 
       // ── Permissions: a resident may only ever request for themselves ──

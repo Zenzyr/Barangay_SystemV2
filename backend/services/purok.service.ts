@@ -15,6 +15,12 @@ export class PurokService {
     return await PurokModel.findById(id);
   }
 
+  static async findByName(name: string, excludeId?: string) {
+    const filter: Record<string, any> = { name: name.trim() };
+    if (excludeId) filter._id = { $ne: excludeId };
+    return await PurokModel.findOne(filter).collation({ locale: "en", strength: 2 });
+  }
+
   static async update(id: string, data: Partial<purokInterfaceInput>) {
     return await PurokModel.findByIdAndUpdate(id, data, { new: true });
   }

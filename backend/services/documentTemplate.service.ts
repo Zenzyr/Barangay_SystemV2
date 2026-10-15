@@ -11,6 +11,7 @@ import {
 } from "../data/documentTemplateSeed";
 import { resolveVariableValues } from "../utils/templateVariables";
 import { withBarangayLocality } from "../utils/residentAddress";
+import { DEFAULT_DOCUMENT_PRICES, isValidFee } from "../utils/documentPrices";
 import { validateTiptapDoc } from "../utils/tiptapDoc";
 import { legacyTemplateToTiptap } from "../utils/legacyTemplateToTiptap";
 
@@ -186,6 +187,24 @@ export class DocumentTemplateService {
 
   static async getByDocumentType(documentType: string) {
     return await DocumentTemplate.findOne({ documentType, status: "active" });
+  }
+
+  static async getApprovedFees(): Promise<Record<string, number>> {
+    const templates = await DocumentTemplate.find({}).select("documentType fee").lean();
+    const fees: Record<string, number> = { ...DEFAULT_DOCUMENT_PRICES };
+    for (const template of templates) {
+      const fee = Number(template.fee);
+      if (template.documentType && isValidFee(fee)) fees[template.documentType] = fee;
+    }
+    return fees;
+  }
+
+  static async getApprovedFee(documentType: string): Promise<number | null> {
+    const template = await DocumentTemplate.findOne({ documentType }).select("fee").lean();
+    const fee = Number(template?.fee);
+    if (template && isValidFee(fee)) return fee;
+    const fallback = DEFAULT_DOCUMENT_PRICES[documentType];
+    return isValidFee(fallback) ? fallback : null;
   }
 
   static async getByIdOrType(idOrType: string) {

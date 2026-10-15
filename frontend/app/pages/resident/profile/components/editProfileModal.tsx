@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { purokApi } from "@/app/utils/barangayApi";
 import {
   Loader2,
   UserRound,
@@ -99,6 +101,28 @@ export default function EditProfileModal({
     setHouseHoldNumber(currentHouseHoldNumber);
   }
 
+  const {
+    data: activePuroks = [],
+    isLoading: puroksLoading,
+    isError: puroksError,
+  } = useQuery({
+    queryKey: ["puroks", "active"],
+    queryFn: purokApi.getActive,
+    enabled: open,
+  });
+
+  const normalizePurok = (value: string) => value.trim().toLowerCase();
+  const findActivePurok = (value: string) =>
+    activePuroks.find((p) => normalizePurok(p.name) === normalizePurok(value));
+  const selectedPurok = findActivePurok(purok)?.name ?? purok;
+  const savedPurokUnavailable =
+    !!currentPurok.trim() && !puroksLoading && !findActivePurok(currentPurok);
+  const purokChanged = normalizePurok(purok) !== normalizePurok(currentPurok);
+  const purokError =
+    purokChanged && !puroksLoading && !findActivePurok(purok)
+      ? "Please select a valid purok."
+      : "";
+
   const householdNumberChanged = houseHoldNumber.trim() !== currentHouseHoldNumber.trim();
   const householdNumberError =
     householdNumberChanged &&
@@ -108,7 +132,7 @@ export default function EditProfileModal({
       : "";
 
   const handleSubmit = async () => {
-    if (householdNumberError) return;
+    if (householdNumberError || purokError) return;
 
     setLoading(true);
     try {
@@ -118,7 +142,7 @@ export default function EditProfileModal({
         gender,
         dateOfBirth,
         civilStatus,
-        purok,
+        purok: selectedPurok,
         voterStatus,
         houseHoldNumber,
       });
@@ -136,7 +160,7 @@ export default function EditProfileModal({
     gender !== currentGender ||
     dateOfBirth !== currentDateOfBirth ||
     civilStatus !== currentCivilStatus ||
-    purok !== currentPurok ||
+    purokChanged ||
     voterStatus !== currentVoterStatus ||
     houseHoldNumber !== currentHouseHoldNumber;
 
@@ -253,17 +277,39 @@ export default function EditProfileModal({
                   <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400 pointer-events-none z-10" />
                   <select
                     id="edit-purok"
-                    value={purok}
+                    value={selectedPurok}
                     onChange={(e) => setPurok(e.target.value)}
-                    className="w-full h-10 pl-10 pr-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 transition-all appearance-none cursor-pointer"
+                    disabled={puroksLoading}
+                    aria-invalid={!!purokError}
+                    className="w-full h-10 pl-10 pr-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20 transition-all appearance-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <option value="" disabled>Select purok</option>
-                    <option value="Purok 1">Purok 1</option>
-                    <option value="Purok 2">Purok 2</option>
-                    <option value="Purok 3">Purok 3</option>
-                    <option value="Purok 4">Purok 4</option>
+                    <option value="" disabled>
+                      {puroksLoading ? "Loading puroks..." : "Select purok"}
+                    </option>
+                    {savedPurokUnavailable && (
+                      <option value={currentPurok}>
+                        {currentPurok} (no longer available)
+                      </option>
+                    )}
+                    {activePuroks.map((p) => (
+                      <option key={p._id} value={p.name}>
+                        {p.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
+                {puroksError ? (
+                  <p className="text-xs text-red-500">
+                    Unable to load puroks. Please try again later.
+                  </p>
+                ) : !puroksLoading && activePuroks.length === 0 ? (
+                  <p className="text-xs text-gray-400">
+                    No puroks are available at the moment.
+                  </p>
+                ) : null}
+                {purokError && (
+                  <p className="text-xs text-red-500">{purokError}</p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -370,7 +416,7 @@ export default function EditProfileModal({
           <Button
             type="button"
             onClick={handleSubmit}
-            disabled={loading || !hasChanges || !!householdNumberError}
+            disabled={loading || !hasChanges || !!householdNumberError || !!purokError}
             className="h-9 bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white font-medium shadow-lg shadow-sky-200/50 transition-all disabled:opacity-50"
           >
             {loading ? (

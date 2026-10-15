@@ -3,7 +3,20 @@ import { AuthRequest } from "../types/request.type";
 import { PurokService } from "../services/purok.service";
 import { AuditLogService } from "../services/auditLog.service";
 import { purokInterfaceInput } from "../types/purok.type";
-import { isObjectId, isNonEmptyString } from "../utils/validation";
+import {
+  isObjectId,
+  isNonEmptyString,
+  isName,
+  isPhilippineMobile,
+  normalizePhMobile,
+  withinLength,
+  mongooseValidationMessage,
+} from "../utils/validation";
+
+const PUROK_NAME_MAX_LENGTH = 100;
+const PUROK_LEADER_MAX_LENGTH = 150;
+const PUROK_DESCRIPTION_MAX_LENGTH = 500;
+const PUROK_NAME_PATTERN = /^[a-zA-ZñÑ0-9\s.'()#&-]+$/;
 
 export class PurokController {
   static getAll = async (_request: AuthRequest, response: Response) => {
@@ -21,11 +34,67 @@ export class PurokController {
 
   static create = async (request: AuthRequest, response: Response) => {
     try {
-      const data = request.body as purokInterfaceInput;
-      if (!isNonEmptyString(data.name)) {
-        response.status(400).send("Purok name is required");
+      const body = (request.body ?? {}) as Record<string, unknown>;
+      const optionalText = (value: unknown) =>
+        typeof value === "string" ? value.trim().replace(/\s+/g, " ") : value;
+
+      const rawName = body.name;
+      const leader = optionalText(body.leader ?? "");
+      const contact = optionalText(body.contact ?? "");
+      const description = typeof body.description === "string" ? body.description.trim() : body.description ?? "";
+      const status = body.status ?? "active";
+
+      const fail = (field: string, message: string) => {
+        response.status(400).json({ message, field });
+      };
+
+      if (!isNonEmptyString(rawName)) {
+        fail("name", "Purok name is required");
         return;
       }
+      const name = rawName.trim().replace(/\s+/g, " ");
+      if (!withinLength(name, PUROK_NAME_MAX_LENGTH)) {
+        fail("name", `Purok name must be at most ${PUROK_NAME_MAX_LENGTH} characters`);
+        return;
+      }
+      if (!PUROK_NAME_PATTERN.test(name)) {
+        fail("name", "Purok name can only contain letters, numbers, spaces, and - . ' ( ) # &");
+        return;
+      }
+      if (typeof leader !== "string" || (leader && !isName(leader))) {
+        fail("leader", "Leader name can only contain letters, spaces, periods, hyphens and apostrophes");
+        return;
+      }
+      if (!withinLength(leader, PUROK_LEADER_MAX_LENGTH)) {
+        fail("leader", `Leader name must be at most ${PUROK_LEADER_MAX_LENGTH} characters`);
+        return;
+      }
+      if (typeof contact !== "string" || (contact && !isPhilippineMobile(contact))) {
+        fail("contact", "Contact must be a valid Philippine mobile number (e.g. 09171234567)");
+        return;
+      }
+      if (typeof description !== "string" || !withinLength(description, PUROK_DESCRIPTION_MAX_LENGTH)) {
+        fail("description", `Description must be at most ${PUROK_DESCRIPTION_MAX_LENGTH} characters`);
+        return;
+      }
+      if (status !== "active" && status !== "inactive") {
+        fail("status", "Status must be active or inactive");
+        return;
+      }
+
+      const duplicate = await PurokService.findByName(name);
+      if (duplicate) {
+        response.status(409).json({ message: `A purok named "${duplicate.name}" already exists`, field: "name" });
+        return;
+      }
+
+      const data: purokInterfaceInput = {
+        name,
+        status,
+        leader,
+        contact: contact ? normalizePhMobile(contact) ?? contact : "",
+        description,
+      };
       const purok = await PurokService.create(data);
 
       AuditLogService.create({
@@ -42,10 +111,15 @@ export class PurokController {
     } catch (error: any) {
       console.error("[PUROK CREATE ERROR]", error);
       if (error?.code === 11000 || /duplicate key/i.test(error?.message || "")) {
-        response.status(409).send("A purok with that name already exists");
+        response.status(409).json({ message: "A purok with that name already exists", field: "name" });
         return;
       }
-      response.status(400).send(error?.message || "Failed to create purok");
+      if (error?.name === "ValidationError") {
+        const field = Object.keys(error.errors || {})[0];
+        response.status(400).json({ message: mongooseValidationMessage(error), field });
+        return;
+      }
+      response.status(500).json({ message: "Failed to create purok" });
     }
   };
 

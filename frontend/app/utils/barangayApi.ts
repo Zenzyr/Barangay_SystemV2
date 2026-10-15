@@ -45,6 +45,10 @@ export const purokApi = {
     const res = await axiosInstance.get("/barangay/puroks");
     return res.data;
   },
+  getActive: async (): Promise<purokInterface[]> => {
+    const res = await axiosInstance.get("/barangay/puroks", { params: { status: "active" } });
+    return res.data;
+  },
   create: async (data: purokInput): Promise<purokInterface> => {
     const res = await axiosInstance.post("/barangay/puroks", data);
     return res.data;

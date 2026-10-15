@@ -75,6 +75,11 @@ export const getPublicTemplates = async (): Promise<DocumentTemplate[]> => {
   return data;
 };
 
+export const getDocumentFees = async (): Promise<Record<string, number>> => {
+  const { data } = await axiosInstance.get("/document-templates/public/fees");
+  return data;
+};
+
 export const getTemplate = async (id: string): Promise<DocumentTemplate> => {
   const { data } = await axiosInstance.get(`/document-templates/${id}`);
   return data;
