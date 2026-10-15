@@ -11,7 +11,7 @@ import { successAlert, errorAlert } from "@/app/utils/alert";
 import AddSkillModal from "./components/addSkillModal";
 import EditProfileModal from "./components/editProfileModal";
 import ChangePasswordModal from "./components/changePasswordModal";
-import TwoFactorModal from "./components/twoFactorModal";
+import TwoFactorModal from "@/components/ui/twoFactorModal";
 import {
   UserRound,
   Mail,

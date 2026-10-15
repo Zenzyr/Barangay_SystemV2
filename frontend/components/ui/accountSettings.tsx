@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { UserCog, ArrowLeft, Loader2, Save, Lock, RefreshCw } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { UserCog, ArrowLeft, Loader2, Save, Lock, RefreshCw, ShieldCheck, ShieldOff } from "lucide-react";
 import useUserStore from "@/app/store/useUserStore";
 import axiosInstance from "@/app/utils/axios";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import TwoFactorModal from "@/components/ui/twoFactorModal";
 import { successAlert, errorAlert } from "@/app/utils/alert";
 
 interface ApiError {
@@ -40,6 +42,17 @@ export function AccountSettings({
   const [pass, setPass] = useState({ oldPassword: "", newPassword: "", otp: "" });
   const [savingPass, setSavingPass] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
+  const [twoFactorModalOpen, setTwoFactorModalOpen] = useState(false);
+
+  const { data: account, refetch: refetchAccount } = useQuery<{ twoFactorEnabled?: boolean }>({
+    queryKey: ["account-settings", accountId],
+    queryFn: async () => {
+      const res = await axiosInstance.get(`/account/${accountId}`);
+      return res.data;
+    },
+    enabled: !!accountId,
+  });
+  const twoFactorEnabled = !!account?.twoFactorEnabled;
 
   const setInfoField = (key: keyof typeof info, value: string) =>
     setInfo((s) => ({ ...s, [key]: value }));
@@ -118,7 +131,7 @@ export function AccountSettings({
           <UserCog className="mr-2 inline size-6 text-sky-600" />
           Account Settings
         </h1>
-        <p className="text-sm text-slate-500">Update your display name and password.</p>
+        <p className="text-sm text-slate-500">Update your display name, password, and two-factor authentication.</p>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -184,6 +197,44 @@ export function AccountSettings({
           </Button>
         </div>
       </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-slate-800">
+          <ShieldCheck className="size-4 text-sky-600" /> Two-Factor Authentication
+        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm">
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+                twoFactorEnabled
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-slate-200 bg-slate-50 text-slate-500"
+              }`}
+            >
+              {twoFactorEnabled ? <ShieldCheck className="size-3" /> : <ShieldOff className="size-3" />}
+              {twoFactorEnabled ? "Enabled" : "Disabled"}
+            </span>
+            <span className="text-slate-500">
+              {twoFactorEnabled
+                ? "A one-time code is required each time you sign in."
+                : "Add a second step when signing in."}
+            </span>
+          </div>
+          <Button variant="outline" onClick={() => setTwoFactorModalOpen(true)}>
+            <ShieldCheck className="size-4" />
+            Manage
+          </Button>
+        </div>
+      </div>
+
+      <TwoFactorModal
+        open={twoFactorModalOpen}
+        onOpenChange={setTwoFactorModalOpen}
+        enabled={twoFactorEnabled}
+        onChanged={() => {
+          refetchAccount();
+        }}
+      />
     </div>
   );
 }
