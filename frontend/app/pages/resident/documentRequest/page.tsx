@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import axiosInstance from "@/app/utils/axios";
 import useUserStore from "@/app/store/useUserStore";
 import { documentTypes } from "@/app/utils/documents";
-import { getPublicTemplates, fetchActiveTemplatePreviewPdf } from "@/app/utils/documentTemplateService";
+import { getPublicTemplates, getDocumentFees, fetchActiveTemplatePreviewPdf } from "@/app/utils/documentTemplateService";
+import { formatCurrency } from "@/app/utils/transactionFormat";
 import useDailyRequestStatus from "@/app/hooks/useDailyRequestStatus";
 import { documentRequestInterfaceInput, documentRequestInterface } from "@/app/types/documentRequest";
 import { accountInterface } from "@/app/types/account.type";
@@ -42,7 +43,6 @@ import {
   Send,
   Eye,
 } from "lucide-react";
-import { getDocumentPrice } from "@/app/utils/documents";
 import { TitleNoInput, FieldError } from "@/app/utils/documentRequestFields";
 import {
   FIELD_MAX_LENGTHS,
@@ -427,14 +427,28 @@ export default function DocumentRequestPage() {
     queryFn: getPublicTemplates,
   });
 
-  const docPrice = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const t of activeTemplates) {
-      if (t.status === "active") map[t.documentType] = Number(t.fee) || 0;
-    }
-    return (document: string) =>
-      map[document] ?? getDocumentPrice(document);
-  }, [activeTemplates]);
+  const {
+    data: documentFees,
+    isLoading: feesLoading,
+    isError: feesError,
+    refetch: refetchFees,
+  } = useQuery({
+    queryKey: ["document-templates", "fees"],
+    queryFn: getDocumentFees,
+  });
+
+  const docPrice = (document: string | null): number | null => {
+    if (!document || !documentFees) return null;
+    const fee = Number(documentFees[document]);
+    return Number.isFinite(fee) && fee >= 0 ? fee : null;
+  };
+
+  const priceLabel = (document: string | null) => {
+    const price = docPrice(document);
+    if (price !== null) return formatCurrency(price);
+    if (feesLoading) return "Loading price...";
+    return "Price unavailable";
+  };
 
   const hasActiveTemplate = useMemo(
     () => activeTemplates.some((t) => t.status === "active" && t.documentType === selectedDocument),
@@ -502,6 +516,7 @@ export default function DocumentRequestPage() {
     setPrefilledKeys(new Set(Object.keys(prefill)));
     setShowErrors(false);
     setStep("form");
+    refetchFees();
   };
 
   // ── Handle field changes ──────────────────────────────────────
@@ -526,7 +541,7 @@ export default function DocumentRequestPage() {
     const payload: Record<string, unknown> = {
       resident: user._id,
       document: selectedDocument,
-      price : docPrice(selectedDocument),
+      price: docPrice(selectedDocument) ?? 0,
       status: "pending",
       isPaid: false,
       fullName: null,
@@ -574,6 +589,9 @@ export default function DocumentRequestPage() {
       const payload = buildPayload();
       if (!payload) {
         throw new Error("Unable to submit document request. Please try again.");
+      }
+      if (docPrice(selectedDocument) === null) {
+        throw new Error("The price for this document is currently unavailable. Please try again later.");
       }
       const res = await axiosInstance.post("/document-request", payload);
       return res.data;
@@ -787,6 +805,20 @@ export default function DocumentRequestPage() {
 
       {/* ── Content area ── */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 -mt-3 relative z-10 pb-10">
+        {feesError && (
+          <div className="mb-4 flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 sm:flex-row sm:items-center sm:justify-between">
+            <span>Document prices could not be loaded. Please try again.</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => refetchFees()}
+              className="h-8 border-amber-200 bg-white text-xs"
+            >
+              Retry
+            </Button>
+          </div>
+        )}
         {step === "select" ? (
           /* ── Step 1: Document Type Selection ── */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -810,7 +842,7 @@ export default function DocumentRequestPage() {
                     </h3>
 
                     <div className="absolute top-3 right-3 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                      ₱{docPrice(doc.document)}
+                      {priceLabel(doc.document)}
                     </div>
   
                     <p className="text-xs text-slate-500 leading-relaxed">
@@ -845,6 +877,9 @@ export default function DocumentRequestPage() {
                       </h2>
                       <p className="text-xs text-slate-500">
                         Fill in the required fields below
+                      </p>
+                      <p className="text-xs font-semibold text-emerald-700">
+                        Fee: {priceLabel(selectedDocument)}
                       </p>
                     </div>
                     {hasActiveTemplate && (

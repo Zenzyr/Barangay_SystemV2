@@ -288,7 +288,7 @@ export default function MyDocumentsPage() {
                       <TableCell className="text-green-600 hidden sm:table-cell">
                         <div className="flex items-center gap-1.5">
                           <PhilippinePeso className="size-3.5 text-green-400 shrink-0" />
-                          {getDocumentPrice(doc.document)}
+                          {amountDueOf(doc)}
                         </div>
                       </TableCell>
                       <TableCell className="text-gray-600 hidden sm:table-cell">
@@ -388,9 +388,7 @@ export default function MyDocumentsPage() {
                                           "text-amber-600 hover:bg-amber-50",
                                         onClick: () =>
                                           handlePayment(
-                                            getDocumentPrice(
-                                              doc.document,
-                                            ).toString(),
+                                            amountDueOf(doc).toString(),
                                             typeof doc.resident === "object" &&
                                               doc.resident
                                               ? doc.resident._id

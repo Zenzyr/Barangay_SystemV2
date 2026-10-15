@@ -16,6 +16,12 @@ route.get(
 );
 
 route.get(
+  "/public/fees",
+  authenticateJWT,
+  handler(DocumentTemplateController.getPublicFees),
+);
+
+route.get(
   "/public/:documentType/preview",
   authenticateJWT,
   handler(DocumentTemplateController.previewByType),

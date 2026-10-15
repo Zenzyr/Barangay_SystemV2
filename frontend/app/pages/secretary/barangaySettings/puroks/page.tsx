@@ -32,6 +32,7 @@ import {
 import { purokApi } from "@/app/utils/barangayApi";
 import useUserStore from "@/app/store/useUserStore";
 import { successAlert, errorAlert } from "@/app/utils/alert";
+import { apiErrorMessage } from "@/app/utils/transactionFormat";
 import { purokInterface, purokInput } from "@/app/types/purok.type";
 import { BackButton } from "@/components/ui/BackButton";
 import RequestActionsMenu, {
@@ -47,9 +48,43 @@ import {
   TableCell,
 } from "@/components/ui/table";
 
-interface ApiError {
-  response?: { data?: { message?: string } };
-}
+type PurokFormField = "name" | "leader" | "contact" | "description";
+
+type PurokFormValues = {
+  name: string;
+  leader?: string;
+  contact?: string;
+  description?: string;
+};
+
+const PUROK_NAME_MAX_LENGTH = 100;
+const PUROK_LEADER_MAX_LENGTH = 150;
+const PUROK_DESCRIPTION_MAX_LENGTH = 500;
+const PUROK_NAME_PATTERN = /^[a-zA-ZñÑ0-9\s.'()#&-]+$/;
+const LEADER_NAME_PATTERN = /^[a-zA-ZñÑ.'\-\s]+$/;
+
+const collapseSpaces = (value: string) => value.trim().replace(/\s+/g, " ");
+const purokNameKey = (value: string) => collapseSpaces(value).toLowerCase();
+
+const isPhilippineMobile = (value: string) => {
+  const digits = value.replace(/[^\d]/g, "");
+  return (
+    (digits.length === 11 && /^09/.test(digits)) ||
+    (digits.length === 12 && /^639/.test(digits)) ||
+    (digits.length === 10 && /^9/.test(digits))
+  );
+};
+
+const PUROK_FORM_FIELDS: PurokFormField[] = ["name", "leader", "contact", "description"];
+
+const purokFieldError = (err: unknown): { field: PurokFormField; message: string } | null => {
+  const data = (err as { response?: { data?: unknown } } | null)?.response?.data;
+  if (!data || typeof data !== "object") return null;
+  const { field, message } = data as { field?: unknown; message?: unknown };
+  if (typeof message !== "string" || typeof field !== "string") return null;
+  if (!PUROK_FORM_FIELDS.includes(field as PurokFormField)) return null;
+  return { field: field as PurokFormField, message };
+};
 
 interface PurokResident {
   _id: string;
@@ -85,8 +120,6 @@ export default function Page() {
       setModalOpen(false);
       successAlert("Purok added.");
     },
-    onError: (e: ApiError) =>
-      errorAlert(e?.response?.data?.message || "Failed to add purok."),
   });
 
   const updateMut = useMutation({
@@ -97,8 +130,6 @@ export default function Page() {
       setModalOpen(false);
       successAlert("Purok updated.");
     },
-    onError: (e: ApiError) =>
-      errorAlert(e?.response?.data?.message || "Failed to update purok."),
   });
 
   const statusMut = useMutation({
@@ -110,8 +141,8 @@ export default function Page() {
       status: "active" | "inactive";
     }) => purokApi.setStatus(id, status),
     onSuccess: afterMutate,
-    onError: (e: ApiError) =>
-      errorAlert(e?.response?.data?.message || "Failed to update status."),
+    onError: (e: unknown) =>
+      errorAlert(apiErrorMessage(e, "Failed to update status.")),
   });
 
   const deleteMut = useMutation({
@@ -120,8 +151,8 @@ export default function Page() {
       afterMutate();
       successAlert("Purok deleted.");
     },
-    onError: (e: ApiError) =>
-      errorAlert(e?.response?.data?.message || "Failed to delete purok."),
+    onError: (e: unknown) =>
+      errorAlert(apiErrorMessage(e, "Failed to delete purok.")),
   });
 
   const removePurok = (p: purokInterface) => {
@@ -280,11 +311,14 @@ export default function Page() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         initial={editing}
-        onSubmit={(values) => {
+        existingNames={puroks
+          .filter((p) => p._id !== editing?._id)
+          .map((p) => p.name)}
+        onSubmit={async (values) => {
           if (editing) {
-            updateMut.mutate({ id: editing._id, data: values });
+            await updateMut.mutateAsync({ id: editing._id, data: values });
           } else {
-            createMut.mutate({ ...values, status: "active" });
+            await createMut.mutateAsync({ ...values, status: "active" });
           }
         }}
       />
@@ -301,17 +335,14 @@ function PurokFormDialog({
   open,
   onOpenChange,
   initial,
+  existingNames,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initial: purokInterface | null;
-  onSubmit: (values: {
-    name: string;
-    leader?: string;
-    contact?: string;
-    description?: string;
-  }) => void;
+  existingNames: string[];
+  onSubmit: (values: PurokFormValues) => Promise<void>;
 }) {
   const [form, setForm] = useState({
     name: initial?.name ?? "",
@@ -319,10 +350,10 @@ function PurokFormDialog({
     contact: initial?.contact ?? "",
     description: initial?.description ?? "",
   });
-  const [error, setError] = useState("");
+  const [errors, setErrors] = useState<Partial<Record<PurokFormField, string>>>({});
+  const [submitting, setSubmitting] = useState(false);
 
-  // Re-sync when the dialog targets a different record.
-  const openedKey = initial?._id ?? "new";
+  const openedKey = `${open}:${initial?._id ?? "new"}`;
   const [lastKey, setLastKey] = useState(openedKey);
   if (lastKey !== openedKey) {
     setLastKey(openedKey);
@@ -332,27 +363,79 @@ function PurokFormDialog({
       contact: initial?.contact ?? "",
       description: initial?.description ?? "",
     });
+    setErrors({});
   }
 
-  const set = (key: keyof typeof form, value: string) =>
+  const set = (key: PurokFormField, value: string) => {
     setForm((f) => ({ ...f, [key]: value }));
+    setErrors((e) => (e[key] ? { ...e, [key]: undefined } : e));
+  };
 
-  const submit = () => {
-    setError("");
-    if (!form.name.trim()) {
-      setError("Purok name is required.");
-      return;
+  const validate = () => {
+    const next: Partial<Record<PurokFormField, string>> = {};
+    const name = collapseSpaces(form.name);
+    const leader = collapseSpaces(form.leader);
+    const contact = collapseSpaces(form.contact);
+    const description = form.description.trim();
+
+    if (!name) {
+      next.name = "Purok name is required.";
+    } else if (name.length > PUROK_NAME_MAX_LENGTH) {
+      next.name = `Purok name must be at most ${PUROK_NAME_MAX_LENGTH} characters.`;
+    } else if (!PUROK_NAME_PATTERN.test(name)) {
+      next.name = "Purok name can only contain letters, numbers, spaces, and - . ' ( ) # &";
+    } else if (existingNames.some((n) => purokNameKey(n) === purokNameKey(name))) {
+      next.name = "A purok with this name already exists.";
     }
-    onSubmit({
-      name: form.name.trim(),
-      leader: form.leader.trim() || undefined,
-      contact: form.contact.trim() || undefined,
-      description: form.description.trim() || undefined,
-    });
+
+    if (leader && leader !== collapseSpaces(initial?.leader ?? "")) {
+      if (leader.length > PUROK_LEADER_MAX_LENGTH) {
+        next.leader = `Leader name must be at most ${PUROK_LEADER_MAX_LENGTH} characters.`;
+      } else if (!LEADER_NAME_PATTERN.test(leader)) {
+        next.leader = "Leader name can only contain letters, spaces, periods, hyphens and apostrophes.";
+      }
+    }
+
+    if (contact && contact !== collapseSpaces(initial?.contact ?? "") && !isPhilippineMobile(contact)) {
+      next.contact = "Enter a valid Philippine mobile number (e.g. 09171234567).";
+    }
+
+    if (description.length > PUROK_DESCRIPTION_MAX_LENGTH) {
+      next.description = `Description must be at most ${PUROK_DESCRIPTION_MAX_LENGTH} characters.`;
+    }
+
+    setErrors(next);
+    return { valid: Object.keys(next).length === 0, name, leader, contact, description };
+  };
+
+  const submit = async () => {
+    if (submitting) return;
+    const { valid, name, leader, contact, description } = validate();
+    if (!valid) return;
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        name,
+        leader: leader || undefined,
+        contact: contact || undefined,
+        description: description || undefined,
+      });
+    } catch (err) {
+      const fieldError = purokFieldError(err);
+      if (fieldError) {
+        setErrors((e) => ({ ...e, [fieldError.field]: fieldError.message }));
+      } else {
+        errorAlert(
+          apiErrorMessage(err, initial ? "Failed to update purok." : "Failed to add purok."),
+        );
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(o) => !submitting && onOpenChange(o)}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>{initial ? "Edit Purok" : "Add Purok"}</DialogTitle>
@@ -360,49 +443,91 @@ function PurokFormDialog({
             Enter the purok name and optional leader / description.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4">
+        <form
+          className="grid gap-4"
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
           <div className="grid gap-2">
-            <Label>Purok Name *</Label>
+            <Label htmlFor="purok-name">Purok Name *</Label>
             <Input
+              id="purok-name"
               value={form.name}
               onChange={(e) => set("name", e.target.value)}
               placeholder="e.g. Purok 1"
+              maxLength={PUROK_NAME_MAX_LENGTH}
+              aria-invalid={!!errors.name}
+              disabled={submitting}
             />
+            {errors.name && <p className="text-sm text-rose-600">{errors.name}</p>}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label>Leader</Label>
+              <Label htmlFor="purok-leader">Leader</Label>
               <Input
+                id="purok-leader"
                 value={form.leader}
                 onChange={(e) => set("leader", e.target.value)}
+                maxLength={PUROK_LEADER_MAX_LENGTH}
+                aria-invalid={!!errors.leader}
+                disabled={submitting}
               />
+              {errors.leader && <p className="text-sm text-rose-600">{errors.leader}</p>}
             </div>
             <div className="grid gap-2">
-              <Label>Contact</Label>
+              <Label htmlFor="purok-contact">Contact</Label>
               <Input
+                id="purok-contact"
                 value={form.contact}
                 onChange={(e) => set("contact", e.target.value)}
+                placeholder="09XXXXXXXXX"
+                inputMode="tel"
+                maxLength={30}
+                aria-invalid={!!errors.contact}
+                disabled={submitting}
               />
+              {errors.contact && <p className="text-sm text-rose-600">{errors.contact}</p>}
             </div>
           </div>
           <div className="grid gap-2">
-            <Label>Description</Label>
+            <Label htmlFor="purok-description">Description</Label>
             <Textarea
+              id="purok-description"
               value={form.description}
               onChange={(e) => set("description", e.target.value)}
               rows={2}
+              maxLength={PUROK_DESCRIPTION_MAX_LENGTH}
+              aria-invalid={!!errors.description}
+              disabled={submitting}
             />
+            {errors.description && (
+              <p className="text-sm text-rose-600">{errors.description}</p>
+            )}
           </div>
-          {error && <p className="text-sm text-rose-600">{error}</p>}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={submit}>
-            {initial ? "Save Changes" : "Add Purok"}
-          </Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting && <Loader2 className="size-4 animate-spin" />}
+              {submitting
+                ? initial
+                  ? "Saving..."
+                  : "Adding..."
+                : initial
+                  ? "Save Changes"
+                  : "Add Purok"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
