@@ -28,6 +28,46 @@ function normalizePhoneNumber(raw: string | undefined | null): string | null {
   return null;
 }
 
+interface IprogResult {
+  ok: boolean;
+  message?: string;
+  messageId?: string;
+}
+
+/**
+ * Parses an iProg API response body. iProg replies with JSON such as
+ * `{ "status": 200, "message": "Message queued...", "message_id": "iSms-XXXX" }`
+ * on success, but it can also report a failure inside the body while still
+ * returning HTTP 200. Reading the body (instead of trusting the status code)
+ * means a rejected send is never mistaken for success. Falls back to the HTTP
+ * status when the body isn't JSON.
+ */
+function parseIprogResponse(rawText: string, httpOk: boolean): IprogResult {
+  const text = (rawText || "").trim();
+  if (text) {
+    try {
+      const data = JSON.parse(text) as Record<string, unknown>;
+      if (data && typeof data === "object") {
+        const status = data.status;
+        const message =
+          typeof data.message === "string" ? data.message : undefined;
+        const messageId =
+          typeof data.message_id === "string" ? data.message_id : undefined;
+        const ok =
+          Boolean(messageId) ||
+          status === 200 ||
+          status === "200" ||
+          status === "success" ||
+          status === "Success";
+        return { ok, message, messageId };
+      }
+    } catch {
+      // Not JSON - fall through to the HTTP status below.
+    }
+  }
+  return { ok: httpOk, message: text || undefined };
+}
+
 /**
  * Sends an SMS via the iProg SMS API. Never throws - failures are logged and
  * swallowed so that SMS delivery issues never break the underlying request flow.
@@ -58,18 +98,33 @@ export const sendSms = async (
       params.append("sender_name", process.env.IPROG_SENDER_NAME);
     }
 
+    // iProg bills per SMS segment; flag multi-segment sends so the extra credit
+    // cost (and any non-GSM characters that force UCS-2) is visible in logs.
+    if (message.length > 160 || /[^\x00-\x7F]/.test(message)) {
+      console.warn(
+        `[SMS] Message may use more than 1 credit (length ${message.length}, non-ASCII: ${/[^\x00-\x7F]/.test(message)})`
+      );
+    }
+
     const response = await fetch(IPROG_SMS_API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params,
     });
 
-    if (!response.ok) {
-      const text = await response.text();
-      console.error(`[SMS] iProg SMS API error (${response.status}): ${text}`);
+    const text = await response.text();
+    const result = parseIprogResponse(text, response.ok);
+
+    if (!response.ok || !result.ok) {
+      console.error(
+        `[SMS] iProg rejected send (HTTP ${response.status}): ${result.message ?? text}`
+      );
       return false;
     }
 
+    console.log(
+      `[SMS] iProg accepted message${result.messageId ? ` (${result.messageId})` : ""}: ${result.message ?? "queued"}`
+    );
     return true;
   } catch (error) {
     console.error("[SMS] Failed to send SMS:", error);
