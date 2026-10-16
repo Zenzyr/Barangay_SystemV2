@@ -125,6 +125,10 @@ dotenv.config();
 
 const secret = process.env.JWT_SECRET || "";
 const GENERIC_LOGIN_MSG = "Invalid email or password";
+// A valid bcrypt hash compared against when the account does not exist, so the
+// login path always performs the same work regardless of account existence and
+// cannot be used as a timing oracle for account enumeration.
+const DUMMY_PASSWORD_HASH = "$2b$10$MwEci9wtGoj9.poaqDUvQ.ie9Y1KDG0KOGkI/YksS5RMKbXuFN.H6";
 const EMAIL_VERIFY_PURPOSE = "email-verification";
 const PHONE_VERIFY_PURPOSE = "phone_verification";
 const TWO_FA_PURPOSE = "two_factor_pending";
@@ -2926,7 +2930,9 @@ export class AccountController {
       }
 
       const account = await AccountService.checkEmailIfExist(normalizedEmail);
-      const isMatch = account ? await bcrypt.compare(password, account.password) : false;
+      // Compare against a dummy hash when the account is missing so a wrong
+      // password and a non-existent account take the same time to answer.
+      const isMatch = await bcrypt.compare(password, account?.password || DUMMY_PASSWORD_HASH);
 
       if (!account || !isMatch) {
         const result = await LoginAttemptService.registerFailure(normalizedEmail);

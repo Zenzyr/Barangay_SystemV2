@@ -48,7 +48,6 @@ app.use(
       }
       callback(null, false);
     },
-    credentials: true,
   })
 );
 
