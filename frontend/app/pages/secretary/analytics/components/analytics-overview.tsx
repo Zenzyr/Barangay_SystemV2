@@ -371,7 +371,7 @@ export function AnalyticsOverview({
       </div>
 
       {/* ── Insights ── */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+      {/* <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
           <div className="flex items-center gap-3">
             <div className="size-9 rounded-xl bg-gradient-to-br from-sky-100 to-emerald-100 text-sky-600 flex items-center justify-center">
@@ -428,7 +428,7 @@ export function AnalyticsOverview({
             })
           )}
         </div>
-      </div>
+      </div> */}
 
       {/* ── Charts Grid ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
