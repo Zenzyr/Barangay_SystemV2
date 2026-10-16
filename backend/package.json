@@ -45,7 +45,7 @@
     "mongoose": "^8.15.0",
     "multer": "^2.0.2",
     "node-fetch": "^3.3.2",
-    "nodemailer": "^6.9.16",
+    "nodemailer": "^10.1.2",
     "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
