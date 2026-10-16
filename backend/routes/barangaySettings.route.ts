@@ -6,7 +6,7 @@ import { PurokController } from "../controller/purok.controller";
 import { authenticateJWT, requireRoles } from "../middleware/auth";
 import { ROLES } from "../utils/roles";
 import { handler } from "../utils/handler";
-import { uploadSettingLogo, uploadSettingSeal, uploadOfficialPhoto, uploadOfficialSignature } from "../utils/upload";
+import { uploadSettingLogo, uploadSettingSeal, uploadOfficialPhoto, uploadOfficialSignature, validateUploadedFileContents } from "../utils/upload";
 
 const route = Router();
 
@@ -18,8 +18,8 @@ const superAdminOnly = [authenticateJWT, requireRoles(ROLES.SUPER_ADMIN)];
 // Barangay settings (read is public; writes are super admin only)
 route.get("/settings", handler(BarangaySettingsController.get));
 route.put("/settings", ...superAdminOnly, handler(BarangaySettingsController.update));
-route.post("/settings/upload/logo", ...superAdminOnly, uploadSettingLogo, handler(BarangaySettingsController.uploadAsset));
-route.post("/settings/upload/seal", ...superAdminOnly, uploadSettingSeal, handler(BarangaySettingsController.uploadAsset));
+route.post("/settings/upload/logo", ...superAdminOnly, uploadSettingLogo, validateUploadedFileContents, handler(BarangaySettingsController.uploadAsset));
+route.post("/settings/upload/seal", ...superAdminOnly, uploadSettingSeal, validateUploadedFileContents, handler(BarangaySettingsController.uploadAsset));
 
 // Officials directory (read is public; creation is operational for staff;
 // editing/removal stay super admin only)
@@ -27,8 +27,8 @@ route.get("/officials", handler(OfficialsController.getAll));
 route.post("/officials", ...staffOnly, handler(OfficialsController.create));
 route.put("/officials/:id", ...superAdminOnly, handler(OfficialsController.update));
 route.patch("/officials/:id/status", ...superAdminOnly, handler(OfficialsController.setStatus));
-route.post("/officials/:id/upload/photo", ...superAdminOnly, uploadOfficialPhoto, handler(OfficialsController.uploadAsset));
-route.post("/officials/:id/upload/signature", ...superAdminOnly, uploadOfficialSignature, handler(OfficialsController.uploadAsset));
+route.post("/officials/:id/upload/photo", ...superAdminOnly, uploadOfficialPhoto, validateUploadedFileContents, handler(OfficialsController.uploadAsset));
+route.post("/officials/:id/upload/signature", ...superAdminOnly, uploadOfficialSignature, validateUploadedFileContents, handler(OfficialsController.uploadAsset));
 route.delete("/officials/:id", ...superAdminOnly, handler(OfficialsController.delete));
 
 // Purok settings (read is public; creation is operational for staff;

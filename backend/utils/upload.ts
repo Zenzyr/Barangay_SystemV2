@@ -1,6 +1,7 @@
 import path from "path";
 import multer from "multer";
 import fs from "fs";
+import { Request, Response, NextFunction } from "express";
 
 const uploadDir = path.join(process.cwd(), "uploads");
 
@@ -230,3 +231,88 @@ export async function isJpegPngWebpFile(filePath: string): Promise<boolean> {
     return false;
   }
 }
+
+// ── Content verification for disk-stored uploads ──────────────────────
+// multer's fileFilter only sees the client-declared MIME type, which can be
+// spoofed by renaming a file. These helpers sniff the real file signature so a
+// disguised file cannot be persisted and forwarded to Cloudinary.
+type FileSignature = "jpeg" | "png" | "webp" | "gif" | "bmp" | "heic" | "pdf";
+
+export function detectFileSignature(buf: Buffer): FileSignature | null {
+  if (buf.length < 4) return null;
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "jpeg";
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47)
+    return "png";
+  if (
+    buf.length >= 12 &&
+    buf.toString("ascii", 0, 4) === "RIFF" &&
+    buf.toString("ascii", 8, 12) === "WEBP"
+  )
+    return "webp";
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return "gif";
+  if (buf[0] === 0x42 && buf[1] === 0x4d) return "bmp";
+  if (buf.toString("ascii", 0, 5) === "%PDF-") return "pdf";
+  if (buf.length >= 12 && buf.toString("ascii", 4, 8) === "ftyp") return "heic";
+  return null;
+}
+
+const MIME_SIGNATURES: Record<string, FileSignature> = {
+  "image/jpeg": "jpeg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/bmp": "bmp",
+  "image/heic": "heic",
+  "image/heif": "heic",
+  "application/pdf": "pdf",
+};
+
+function collectUploadedFiles(request: Request): Express.Multer.File[] {
+  const out: Express.Multer.File[] = [];
+  const files = request.files as
+    | Express.Multer.File[]
+    | Record<string, Express.Multer.File[]>
+    | undefined;
+  if (Array.isArray(files)) {
+    out.push(...files);
+  } else if (files && typeof files === "object") {
+    for (const value of Object.values(files)) {
+      if (Array.isArray(value)) out.push(...value);
+    }
+  }
+  if (request.file) out.push(request.file);
+  return out;
+}
+
+// Express middleware: verifies the real bytes of every disk-stored upload match
+// the type the client claimed. Rejects (and removes) anything that does not.
+export const validateUploadedFileContents = async (
+  request: Request,
+  response: Response,
+  next: NextFunction,
+): Promise<void> => {
+  for (const file of collectUploadedFiles(request)) {
+    const expected = MIME_SIGNATURES[file.mimetype];
+    let actual: FileSignature | null = null;
+    if (file.path) {
+      try {
+        const fd = await fs.promises.open(file.path, "r");
+        const buf = Buffer.alloc(16);
+        const { bytesRead } = await fd.read(buf, 0, 16, 0);
+        await fd.close();
+        actual = detectFileSignature(buf.subarray(0, bytesRead));
+      } catch {
+        actual = null;
+      }
+    }
+    if (!expected || actual !== expected) {
+      if (file.path) await fs.promises.unlink(file.path).catch(() => {});
+      response.status(400).json({
+        message:
+          "File content does not match its type. Please upload a valid file.",
+      });
+      return;
+    }
+  }
+  next();
+};
