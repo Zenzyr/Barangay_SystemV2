@@ -24,6 +24,7 @@ export interface accountInterfaceInput {
     purok: string,
     voterStatus: string,
     houseHoldNumber: string,
+    monthlySalary?: number,
 
     idImg : {
         idFront  :  string,

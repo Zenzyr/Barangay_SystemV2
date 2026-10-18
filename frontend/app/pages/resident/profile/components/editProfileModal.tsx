@@ -38,6 +38,7 @@ interface EditProfileModalProps {
   currentPurok: string;
   currentVoterStatus: string;
   currentHouseHoldNumber: string;
+  currentMonthlySalary: number;
   onSave: (data: {
     nickname: string;
     contact: string;
@@ -47,6 +48,7 @@ interface EditProfileModalProps {
     purok: string;
     voterStatus: string;
     houseHoldNumber: string;
+    monthlySalary: number;
   }) => Promise<void>;
 }
 
@@ -64,6 +66,7 @@ export default function EditProfileModal({
   currentPurok,
   currentVoterStatus,
   currentHouseHoldNumber,
+  currentMonthlySalary,
   onSave,
 }: EditProfileModalProps) {
   const [nickname, setNickname] = useState(currentNickname);
@@ -74,6 +77,7 @@ export default function EditProfileModal({
   const [purok, setPurok] = useState(currentPurok);
   const [voterStatus, setVoterStatus] = useState(currentVoterStatus);
   const [houseHoldNumber, setHouseHoldNumber] = useState(currentHouseHoldNumber);
+  const [monthlySalary, setMonthlySalary] = useState(String(currentMonthlySalary ?? 0));
   const [loading, setLoading] = useState(false);
 
   const snapshotKey = [
@@ -87,6 +91,7 @@ export default function EditProfileModal({
     currentPurok,
     currentVoterStatus,
     currentHouseHoldNumber,
+    currentMonthlySalary,
   ].join("|");
   const [resolvedKey, setResolvedKey] = useState(snapshotKey);
   if (snapshotKey !== resolvedKey) {
@@ -99,6 +104,7 @@ export default function EditProfileModal({
     setPurok(currentPurok);
     setVoterStatus(currentVoterStatus);
     setHouseHoldNumber(currentHouseHoldNumber);
+    setMonthlySalary(String(currentMonthlySalary ?? 0));
   }
 
   const {
@@ -142,9 +148,10 @@ export default function EditProfileModal({
         gender,
         dateOfBirth,
         civilStatus,
-        purok: selectedPurok,
+        purok:         selectedPurok,
         voterStatus,
         houseHoldNumber,
+        monthlySalary: Number(monthlySalary) || 0,
       });
       onOpenChange(false);
     } catch {
@@ -162,7 +169,8 @@ export default function EditProfileModal({
     civilStatus !== currentCivilStatus ||
     purokChanged ||
     voterStatus !== currentVoterStatus ||
-    houseHoldNumber !== currentHouseHoldNumber;
+    houseHoldNumber !== currentHouseHoldNumber ||
+    (Number(monthlySalary) || 0) !== (currentMonthlySalary ?? 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -333,6 +341,26 @@ export default function EditProfileModal({
                 {householdNumberError && (
                   <p className="text-xs text-red-500">{householdNumberError}</p>
                 )}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-monthlySalary" className="text-sm font-medium text-gray-700">
+                  Monthly Salary (₱)
+                </Label>
+                <div className="relative">
+                  <Hash className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+                  <Input
+                    id="edit-monthlySalary"
+                    value={monthlySalary}
+                    onChange={(e) => setMonthlySalary(e.target.value.replace(/[^0-9.]/g, ""))}
+                    inputMode="decimal"
+                    className="pl-10 h-10 border-gray-200 focus:border-sky-400"
+                    placeholder="Enter 0 if none"
+                  />
+                </div>
+                <p className="text-xs text-gray-400">
+                  Used with your household total for 4Ps / TUPAD eligibility.
+                </p>
               </div>
             </div>
           </div>

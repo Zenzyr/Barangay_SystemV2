@@ -8,6 +8,15 @@ import { successAlert, errorAlert } from "@/app/utils/alert";
 import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProgramEligibilityPanel } from "./components/programEligibilityPanel";
+import { SnapshotCharts, ChartTooltip } from "./components/decisionSupportCharts";
+import {
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+} from "recharts";
 import {
   Dialog,
   DialogContent,
@@ -229,6 +238,18 @@ const OUTCOME_STYLES: Record<MetricOutcome, { label: string; className: string; 
   unknown: { label: "No data", className: "bg-slate-50 text-slate-500 border-slate-200", icon: Info },
 };
 
+const OUTCOME_COLORS: Record<MetricOutcome, string> = {
+  resolved: "#10b981",
+  improved: "#0ea5e9",
+  unchanged: "#94a3b8",
+  worsened: "#f43f5e",
+  unknown: "#cbd5e1",
+};
+
+function isNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
 function formatMetricValue(value: number | null): string {
   if (value === null) return "—";
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
@@ -243,6 +264,13 @@ function OutcomeCalibrationPanel({
   isLoading: boolean;
   isError: boolean;
 }) {
+  const outcomeOrder: MetricOutcome[] = ["resolved", "improved", "unchanged", "worsened", "unknown"];
+  const outcomeData = data
+    ? outcomeOrder
+        .map((key) => ({ key, name: OUTCOME_STYLES[key].label, value: data.summary[key] ?? 0, color: OUTCOME_COLORS[key] }))
+        .filter((row) => row.value > 0)
+    : [];
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
       <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
@@ -274,19 +302,33 @@ function OutcomeCalibrationPanel({
             No trackable indicators were captured in this analysis.
           </div>
         ) : (
-          <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {(["resolved", "improved", "unchanged", "worsened"] as MetricOutcome[]).map((key) => {
-                const s = OUTCOME_STYLES[key];
-                return (
-                  <span key={key} className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${s.className}`}>
-                    <s.icon className="size-3.5" />
-                    {s.label}: {data.summary[key] ?? 0}
-                  </span>
-                );
-              })}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              {outcomeData.length > 0 ? (
+                <div className="h-40" role="img" aria-label="Donut chart of indicator outcomes">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                    <PieChart>
+                      <Pie data={outcomeData} cx="50%" cy="50%" innerRadius={42} outerRadius={68} paddingAngle={3} dataKey="value" nameKey="name">
+                        {outcomeData.map((row) => (
+                          <Cell key={row.key} fill={row.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<ChartTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : null}
+              <ul className="mt-2 space-y-1">
+                {outcomeData.map((row) => (
+                  <li key={row.key} className="flex items-center gap-2 text-xs text-gray-600">
+                    <span className="size-2.5 shrink-0 rounded-full" style={{ background: row.color }} />
+                    <span className="flex-1">{row.name}</span>
+                    <span className="font-semibold tabular-nums text-gray-900">{row.value}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <div className="divide-y divide-slate-100 rounded-xl border border-slate-200/80 overflow-hidden">
+            <div className="md:col-span-2 divide-y divide-slate-100 rounded-xl border border-slate-200/80 overflow-hidden">
               {data.rows.map((row) => {
                 const s = OUTCOME_STYLES[row.outcome];
                 const deltaText =
@@ -364,18 +406,18 @@ function AnalysisBody({
 }) {
   const snapshot = record.dataSnapshot || ({} as DecisionSupportAnalysis["dataSnapshot"]);
   const overview = snapshot.overview;
-  const community = snapshot.community;
-  const rates = community?.sectorRates || {};
-  const rateChips: [string, number | undefined][] = [
-    ["Unemployment (heuristic)", rates.unemploymentRateHeuristic],
-    ["Out-of-school (heuristic)", rates.outOfSchoolRateHeuristic],
-    ["Senior citizens", rates.seniorCitizenRate],
-    ["PWD", rates.pwdRate],
-    ["Youth", rates.youthRate],
-    ["4Ps", rates.fourPsRate],
-    ["Solo parents", rates.soloParentRate],
-    ["HPN maintenance", rates.hpnMaintenanceRate],
-  ].filter(([, v]) => typeof v === "number") as [string, number][];
+
+  // Counts and rates are rendered as charts (SnapshotCharts). The values that
+  // do not chart well — percentages, elapsed days — stay as a KPI strip.
+  const kpis: { label: string; value: React.ReactNode }[] = [];
+  if (overview) {
+    if (isNumber(overview.totalRequests)) kpis.push({ label: "Document requests", value: overview.totalRequests });
+    if (isNumber(overview.completionRate)) kpis.push({ label: "Completion rate", value: `${overview.completionRate}%` });
+    if (isNumber(overview.weekOverWeekChange)) kpis.push({ label: "Requests vs last week", value: `${overview.weekOverWeekChange > 0 ? "+" : ""}${overview.weekOverWeekChange}%` });
+    if (isNumber(overview.oldestPendingAgeDays)) kpis.push({ label: "Oldest pending (days)", value: overview.oldestPendingAgeDays });
+    if (overview.processingTimeAvailable && isNumber(overview.averageProcessingTimeDays)) kpis.push({ label: "Avg processing (days)", value: overview.averageProcessingTimeDays });
+    if (isNumber(overview.totalUsers)) kpis.push({ label: "Registered accounts", value: overview.totalUsers });
+  }
 
   return (
     <>
@@ -395,49 +437,17 @@ function AnalysisBody({
         </div>
 
         <div>
-          <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Data analyzed</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-            <StatChip label="Total Residents" value={community?.totalResidents ?? "—"} />
-            <StatChip label="Households" value={community?.totalHouseholds ?? "—"} />
-            <StatChip label="Children (<15)" value={community?.children ?? "—"} />
-            <StatChip label="Youth (15-30)" value={community?.youth ?? "—"} />
-            <StatChip label="Document Requests" value={overview?.totalRequests ?? "—"} />
-            <StatChip label="Completion Rate" value={overview?.completionRate != null ? `${overview.completionRate}%` : "—"} />
-          </div>
-        </div>
-
-        {/* ── Operational metrics (only what the schema actually supports) ── */}
-        {overview && (typeof overview.backlogCount === "number" || typeof overview.counterPaymentCount === "number") && (
-          <div>
-            <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Operations</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-              <StatChip label="Backlog (>3 days)" value={overview.backlogCount ?? "—"} />
-              <StatChip label="Oldest pending (days)" value={overview.oldestPendingAgeDays != null ? overview.oldestPendingAgeDays : "—"} />
-              <StatChip label="Avg processing (days)" value={overview.processingTimeAvailable && overview.averageProcessingTimeDays != null ? overview.averageProcessingTimeDays : "n/a"} />
-              <StatChip label="Unpaid fees" value={overview.unpaidCount ?? "—"} />
-              <StatChip label="Counter-payments" value={overview.counterPaymentCount ?? "—"} />
-              <StatChip label="Payment verify queue" value={overview.pendingVerificationCount ?? "—"} />
-              <StatChip label="Blocked from release" value={overview.blockedFromRelease ?? "—"} />
-              <StatChip label="ID verification queue" value={overview.pendingUsers ?? "—"} />
-              {overview.weekOverWeekChange != null && (
-                <StatChip label="Requests vs last week" value={overview.weekOverWeekChange > 0 ? `+${overview.weekOverWeekChange}%` : `${overview.weekOverWeekChange}%`} />
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ── Sector rates ── */}
-        {rateChips.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-3">
-              {rateChips.map(([label, value]) => (
-                <span key={label} className="inline-flex items-center gap-1 rounded-full bg-white border border-slate-200 px-3 py-1 text-sm text-gray-600">
-                  <span className="text-gray-400">{label}:</span>
-                  <span className="font-semibold text-gray-800">{value}%</span>
-                </span>
+          <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Data analyzed</p>
+          <SnapshotCharts snapshot={snapshot} />
+          {kpis.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mt-4">
+              {kpis.map((k) => (
+                <StatChip key={k.label} label={k.label} value={k.value} />
               ))}
             </div>
           )}
         </div>
+      </div>
 
       {/* ── Recommendations ── */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
@@ -905,6 +915,9 @@ export default function DecisionSupportPage() {
           />
         </>
       ) : null}
+
+      {/* ── Benefit eligibility (4Ps / TUPAD) ── */}
+      <ProgramEligibilityPanel />
 
       {/* ── History dialog ── */}
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>

@@ -120,6 +120,7 @@ import {
   canonicalServiceType,
   isKnownServiceType,
 } from "../utils/serviceTypes";
+import { normalizeSalary, normalizeHouseholdNumber } from "../utils/residentDataStandardization";
 
 dotenv.config();
 
@@ -1736,7 +1737,11 @@ export class AccountController {
         purok,
         voterStatus,
         houseHoldNumber,
+        monthlySalary,
+        monthlyIncome,
       } = request.body;
+
+      const salaryInput = monthlySalary !== undefined ? monthlySalary : monthlyIncome;
 
       if (!isObjectId(id)) {
         response.status(400).send("Invalid account id");
@@ -1758,7 +1763,8 @@ export class AccountController {
         !civilStatus &&
         !purok &&
         !voterStatus &&
-        !houseHoldNumber
+        !houseHoldNumber &&
+        salaryInput === undefined
       ) {
         response.status(400).send("No fields to update");
         return;
@@ -1824,8 +1830,8 @@ export class AccountController {
       }
       if (houseHoldNumber) {
         const householdError = householdNumberError(
-          houseHoldNumber,
-          existingAccount.houseHoldNumber,
+          normalizeHouseholdNumber(houseHoldNumber),
+          normalizeHouseholdNumber(existingAccount.houseHoldNumber),
         );
         if (householdError) {
           response.status(400).send(householdError);
@@ -1856,7 +1862,7 @@ export class AccountController {
         }
       }
 
-      const updateData: Record<string, string> = {};
+      const updateData: Record<string, any> = {};
       if (structuredName?.ok) {
         updateData.name = structuredName.name;
         Object.assign(updateData, structuredName.parts);
@@ -1877,7 +1883,8 @@ export class AccountController {
         updateData.address = resolvedPurok;
       }
       if (voterStatus) updateData.voterStatus = voterStatus;
-      if (houseHoldNumber) updateData.houseHoldNumber = houseHoldNumber;
+      if (houseHoldNumber) updateData.houseHoldNumber = normalizeHouseholdNumber(houseHoldNumber);
+      if (salaryInput !== undefined) updateData.monthlySalary = normalizeSalary(salaryInput);
 
       const account = await AccountService.update(id, updateData);
       if (!account) {
@@ -1892,9 +1899,27 @@ export class AccountController {
       });
 
       // Keep the linked census record in step with the updated profile.
-      await ResidentCensusService.syncLinkedCensus(id).catch((err) =>
-        console.error("[CENSUS-SYNC ERROR]", err),
+      const linkedCensusId = await ResidentCensusService.syncLinkedCensus(id).catch(
+        (err) => {
+          console.error("[CENSUS-SYNC ERROR]", err);
+          return null;
+        },
       );
+
+      // A resident who is not linked to any census record would otherwise have
+      // their profile edits (household number / salary) silently dropped from
+      // the census — and therefore from benefit eligibility. Link or create the
+      // census record once, then push the profile values onto it.
+      if (!linkedCensusId && account.role === "resident") {
+        try {
+          const result = await ResidentCensusService.upsertFromAccount(account);
+          if (result?.census) {
+            await ResidentCensusService.syncLinkedCensus(id);
+          }
+        } catch (err) {
+          console.error("[CENSUS-UPSERT ERROR]", err);
+        }
+      }
 
       const changedKeys = Object.keys(updateData).filter(
         (key) => String((existingAccount as any)[key] ?? "") !== updateData[key],

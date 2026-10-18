@@ -140,6 +140,7 @@ export const authenticateJWT = async (request: AuthRequest, response: Response, 
       purok: accountDoc.purok ?? "",
       voterStatus: accountDoc.voterStatus ?? "",
       houseHoldNumber: accountDoc.houseHoldNumber ?? "",
+      monthlySalary: accountDoc.monthlySalary ?? 0,
     };
     request.account = account;
     next();

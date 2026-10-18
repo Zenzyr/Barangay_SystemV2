@@ -109,6 +109,16 @@ export function normalizeYesNoFlag(value: unknown): string {
   return raw; // preserve anything else
 }
 
+// ── Household number ────────────────────────────────────────────────
+// Household numbers are barangay-wide identifiers ("HH-001"). They are stored
+// whitespace-collapsed and upper-cased so members of the same household always
+// group together, no matter which screen (census, profile, import) wrote them.
+// Unknown / blank values collapse to "N/A" (i.e. unassigned / cannot be summed).
+export function normalizeHouseholdNumber(value: unknown): string {
+  if (isUnknown(value)) return "N/A";
+  return collapse(value).toUpperCase();
+}
+
 // ── Cellphone ───────────────────────────────────────────────────────
 // Reuses the app's existing Philippine-mobile normalizer. Invalid/ambiguous
 // values are preserved (never fabricated).
@@ -147,6 +157,23 @@ export function normalizeAge(age: unknown, birthday: unknown): unknown {
   }
 
   return age;
+}
+
+// ── Monthly salary ──────────────────────────────────────────────────
+// Free numeric field (PHP per month) used by the low-income eligibility rules.
+// Unknown / blank / non-numeric values become 0; negative or absurd values are
+// clamped rather than rejected so imported data is never silently dropped.
+export const MAX_MONTHLY_SALARY = 10_000_000;
+
+export function normalizeSalary(value: unknown): number {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value < 0) return 0;
+    return Math.min(Math.round(value * 100) / 100, MAX_MONTHLY_SALARY);
+  }
+  if (isUnknown(value)) return 0;
+  const num = Number(String(value).replace(/[^0-9.]/g, ""));
+  if (!Number.isFinite(num) || num < 0) return 0;
+  return Math.min(Math.round(num * 100) / 100, MAX_MONTHLY_SALARY);
 }
 
 /** True when the record has no usable identity name at all. */
