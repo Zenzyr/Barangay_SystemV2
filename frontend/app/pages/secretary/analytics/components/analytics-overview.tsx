@@ -6,7 +6,6 @@ import axiosInstance from "@/app/utils/axios";
 import { documentRequestInterface } from "@/app/types/documentRequest";
 import { accountInterface } from "@/app/types/account.type";
 import { getDocumentPrice } from "@/app/utils/documents";
-import { AnalyticsInsightsResponse, InsightItem, RecommendationItem } from "@/app/types/ai.type";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   BarChart,
@@ -27,8 +26,6 @@ import {
   BarChart3,
   TrendingUp,
   TrendingDown,
-  Lightbulb,
-  AlertTriangle,
   Wallet,
   CheckCircle2,
   UserPlus2,
@@ -123,12 +120,8 @@ function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
 
 export function AnalyticsOverview({
   from = null,
-  fromStr = null,
-  rangeLabel = "All time",
 }: {
   from?: Date | null;
-  fromStr?: string | null;
-  rangeLabel?: string;
 }) {
   // ── Fetch all document requests & accounts ─────────────────────
   const { data: allDocs, isLoading: docsLoading } = useQuery<documentRequestInterface[]>({
@@ -143,22 +136,6 @@ export function AnalyticsOverview({
     queryKey: ["accounts", "analytics", "all"],
     queryFn: async () => {
       const res = await axiosInstance.get("/account");
-      return res.data;
-    },
-  });
-
-  // Insights & recommendations come from the SAME backend pipeline the
-  // Decision Support page uses, so both interfaces apply identical rules.
-  const {
-    data: insightsData,
-    isLoading: insightsLoading,
-    isError: insightsError,
-  } = useQuery<AnalyticsInsightsResponse>({
-    queryKey: ["analytics", "insights", fromStr],
-    queryFn: async () => {
-      const res = await axiosInstance.get("/analytics/insights", {
-        params: fromStr ? { from: fromStr } : undefined,
-      });
       return res.data;
     },
   });
@@ -300,35 +277,6 @@ export function AnalyticsOverview({
     }));
   }, [accounts]);
 
-  // ── Decision-support insights & recommendations (backend-generated) ──
-  // Rendered exactly as produced by the backend rule/AI pipeline so the
-  // Analytics page and the Decision Support page can never disagree.
-  const insights = useMemo(() => {
-    const items: (InsightItem | RecommendationItem)[] = [
-      ...(insightsData?.recommendations ?? []),
-      ...(insightsData?.insights ?? []),
-    ];
-    return items.map((item) => ({
-      id: item.id,
-      tone: item.severity,
-      icon:
-        item.severity === "warning"
-          ? AlertTriangle
-          : item.severity === "positive"
-            ? CheckCircle2
-            : Lightbulb,
-      title: item.title,
-      why: item.why,
-      action: item.action,
-    }));
-  }, [insightsData]);
-
-  const TONE_STYLES = {
-    warning: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-800", iconBg: "bg-amber-100", iconColor: "text-amber-600" },
-    info: { bg: "bg-sky-50", border: "border-sky-200", text: "text-sky-800", iconBg: "bg-sky-100", iconColor: "text-sky-600" },
-    positive: { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-800", iconBg: "bg-emerald-100", iconColor: "text-emerald-600" },
-  };
-
   return (
     <div className="w-full space-y-6">
       {/* ── KPI Cards ── */}
@@ -366,66 +314,6 @@ export function AnalyticsOverview({
               {weekTrend.change > 0 ? "+" : ""}
               {weekTrend.change}%
             </p>
-          )}
-        </div>
-      </div>
-
-      {/* ── Insights ── */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="size-9 rounded-xl bg-gradient-to-br from-sky-100 to-emerald-100 text-sky-600 flex items-center justify-center">
-              <Lightbulb className="size-4" />
-            </div>
-            <h2 className="text-base font-semibold text-gray-900">Insights &amp; Recommendations</h2>
-          </div>
-          {rangeLabel !== "All time" && (
-            <span className="text-xs font-medium text-gray-400">Showing: {rangeLabel}</span>
-          )}
-        </div>
-        <div className="p-4 space-y-2.5">
-          {insightsLoading ? (
-            Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
-          ) : insightsError ? (
-            <div className="flex flex-col items-center gap-2 text-center text-gray-400 py-8">
-              <div className="size-12 rounded-full bg-slate-100 text-slate-300 flex items-center justify-center">
-                <AlertTriangle className="size-6" />
-              </div>
-              <p className="text-sm font-medium">Could not load insights</p>
-              <p className="text-xs">Check that the backend analytics service is running.</p>
-            </div>
-          ) : insights.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 text-center text-gray-400 py-8">
-              <div className="size-12 rounded-full bg-slate-100 text-slate-300 flex items-center justify-center">
-                <CheckCircle2 className="size-6" />
-              </div>
-              <p className="text-sm font-medium">No urgent action needed right now</p>
-              <p className="text-xs">Insights will appear here as request activity builds up</p>
-            </div>
-          ) : (
-            insights.map((item, i) => {
-              const style = TONE_STYLES[item.tone];
-              return (
-                <div
-                  key={item.id || i}
-                  className={`flex items-start gap-3 rounded-xl border p-3.5 ${style.bg} ${style.border}`}
-                >
-                  <div className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${style.iconBg}`}>
-                    <item.icon className={`size-4 ${style.iconColor}`} />
-                  </div>
-                  <div className="min-w-0 space-y-1">
-                    <p className={`text-sm font-semibold ${style.text}`}>{item.title}</p>
-                    <p className="text-sm leading-snug text-gray-600">{item.why}</p>
-                    {item.action && (
-                      <p className="text-sm leading-snug text-gray-600">
-                        <span className="font-semibold text-gray-700">Action: </span>
-                        {item.action}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })
           )}
         </div>
       </div>

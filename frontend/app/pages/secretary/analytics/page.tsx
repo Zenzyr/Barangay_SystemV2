@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { BarChart3, Sparkles, CalendarRange } from "lucide-react";
+import { Suspense, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { BarChart3, Sparkles, Brain, CalendarRange } from "lucide-react";
 import { BackButton } from "@/components/ui/BackButton";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   ANALYTICS_RANGE_OPTIONS,
   AnalyticsRangeKey,
@@ -13,16 +15,28 @@ import {
 
 import { AnalyticsOverview } from "./components/analytics-overview";
 import { AnalyticsCommunity } from "./components/analytics-community";
+import { AnalyticsDecisionSupport } from "./components/analytics-decision-support";
 
-type TabKey = "overview" | "community";
+type TabKey = "overview" | "community" | "decision-support";
+
+const TAB_KEYS: TabKey[] = ["overview", "community", "decision-support"];
 
 const TABS: { key: TabKey; label: string; icon: React.ElementType }[] = [
   { key: "overview", label: "Overview", icon: BarChart3 },
   { key: "community", label: "Community", icon: Sparkles },
+  { key: "decision-support", label: "Decision Support", icon: Brain },
 ];
 
-export default function SecretaryAnalyticsPage() {
-  const [activeTab, setActiveTab] = useState<TabKey>("overview");
+function isTabKey(value: string | null): value is TabKey {
+  return value != null && (TAB_KEYS as string[]).includes(value);
+}
+
+function AnalyticsContent() {
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState<TabKey>(
+    isTabKey(requestedTab) ? requestedTab : "overview"
+  );
   const [range, setRange] = useState<AnalyticsRangeKey>("all");
 
   const from = useMemo<Date | null>(() => rangeStartDate(range), [range]);
@@ -52,7 +66,7 @@ export default function SecretaryAnalyticsPage() {
           </div>
         </div>
 
-        {/* ── Shared date-range filter (respected by both tabs) ── */}
+        {/* ── Shared date-range filter (respected by all tabs) ── */}
         <div className="flex items-center gap-2 self-start lg:self-auto max-w-full bg-white rounded-xl border border-slate-200/80 shadow-sm px-3 py-2">
           <CalendarRange className="size-4 text-slate-400 shrink-0" />
           <span className="text-xs font-medium text-slate-500 hidden sm:inline">Date range</span>
@@ -98,10 +112,28 @@ export default function SecretaryAnalyticsPage() {
       </div>
 
       {activeTab === "overview" ? (
-        <AnalyticsOverview from={from} fromStr={fromStr} rangeLabel={rangeLabel} />
-      ) : (
+        <AnalyticsOverview from={from} />
+      ) : activeTab === "community" ? (
         <AnalyticsCommunity rangeLabel={rangeLabel} />
+      ) : (
+        <AnalyticsDecisionSupport fromStr={fromStr} rangeLabel={rangeLabel} />
       )}
     </div>
+  );
+}
+
+export default function SecretaryAnalyticsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="w-full min-h-dvh p-4 sm:p-6 space-y-6">
+          <Skeleton className="h-10 w-32 rounded-lg" />
+          <Skeleton className="h-16 w-full rounded-2xl" />
+          <Skeleton className="h-[60vh] w-full rounded-2xl" />
+        </div>
+      }
+    >
+      <AnalyticsContent />
+    </Suspense>
   );
 }
