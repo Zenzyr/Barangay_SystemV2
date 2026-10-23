@@ -52,6 +52,9 @@ export interface ProgramEligibilityResult {
     program: "TUPAD";
     eligibleIndividuals: number;
     eligibleHouseholds: number;
+    batchSize: number;
+    batchCount: number;
+    batches: FourPsBatch[];
     individuals: HouseholdMember[];
   };
 }
@@ -71,4 +74,37 @@ export interface ProgramEnrollment {
   enrolledBy: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Sanitized beneficiary row exposed to residents for transparency. */
+export interface PublicBeneficiary {
+  censusId: string;
+  name: string;
+  purok: string;
+  householdNumber: string;
+  householdTotalIncome: number;
+}
+
+export interface PublicFourPsBatch {
+  batchNumber: number;
+  count: number;
+  individuals: PublicBeneficiary[];
+}
+
+export interface ProgramBeneficiariesResult {
+  generatedAt: string;
+  threshold: number;
+  batchSize: number;
+  fourPs: {
+    eligibleIndividuals: number;
+    batchCount: number;
+    batches: PublicFourPsBatch[];
+  };
+  tupad: {
+    eligibleIndividuals: number;
+    batchSize: number;
+    batchCount: number;
+    batches: PublicFourPsBatch[];
+    individuals: PublicBeneficiary[];
+  };
 }

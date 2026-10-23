@@ -19,11 +19,9 @@ import {
 } from "lucide-react";
 import HeroCarousel from "@/components/HeroCarousel";
 import { useState, useEffect } from "react";
-import { useBarangayLogo } from "@/app/hooks/useBarangayLogo";
 
 export default function Home() {
   const [scrolled, setScrolled] = useState(false);
-  const logoUrl = useBarangayLogo();
   const [stats, setStats] = useState({
     activeResidents: null,
     processedDocuments: null,
@@ -57,22 +55,19 @@ export default function Home() {
             : "bg-white/20 backdrop-blur-md border-b border-white/10 shadow-sm"
         }`}
       >
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 px-4 sm:px-6 py-3">
+        <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-3">
           {/* Logo + Brand */}
-          <Link
-            href="/"
-            className="flex min-w-0 items-center gap-2 sm:gap-3 group"
-          >
-            <div className="relative w-10 h-10 shrink-0 rounded-xl overflow-hidden ring-2 ring-sky-200/50 group-hover:ring-sky-400/60 transition-all duration-300">
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="relative w-10 h-10 rounded-xl overflow-hidden ring-2 ring-sky-200/50 group-hover:ring-sky-400/60 transition-all duration-300">
               <Image
-                src={logoUrl}
+                src="/assets/logo.jpg"
                 alt="Barangay Logo"
                 fill
                 sizes="(max-width: 768px) 40px, 40px"
                 className="object-cover"
               />
             </div>
-            <span className="truncate text-base sm:text-lg font-bold bg-gradient-to-r from-sky-700 to-emerald-600 bg-clip-text text-transparent">
+            <span className="text-lg font-bold bg-gradient-to-r from-sky-700 to-emerald-600 bg-clip-text text-transparent">
               Barangay Rabon
             </span>
           </Link>
@@ -100,7 +95,7 @@ export default function Home() {
           </nav>
 
           {/* Auth Buttons */}
-          <div className="flex shrink-0 items-center gap-1 sm:gap-3">
+          <div className="flex items-center gap-3">
             <Link href="/guest/signIn">
               <Button
                 variant="ghost"
@@ -110,7 +105,7 @@ export default function Home() {
               </Button>
             </Link>
             <Link href="/guest/signUp">
-              <Button className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white shadow-md shadow-sky-200/50 hover:shadow-lg hover:shadow-sky-300/50 transition-all duration-300 font-semibold px-3 sm:px-5">
+              <Button className="bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-600 hover:to-emerald-600 text-white shadow-md shadow-sky-200/50 hover:shadow-lg hover:shadow-sky-300/50 transition-all duration-300 font-semibold px-5">
                 Sign Up
               </Button>
             </Link>
@@ -189,7 +184,7 @@ export default function Home() {
                 <div className="absolute inset-0 bg-gradient-to-br from-sky-300/30 to-emerald-300/30 rounded-full blur-3xl" />
                 <div className="relative w-full h-full rounded-3xl overflow-hidden ring-4 ring-white/60 shadow-2xl shadow-sky-200/30">
                   <Image
-                    src={logoUrl}
+                    src="/assets/logo.jpg"
                     alt="Barangay Rabon"
                     fill
                     sizes="(max-width: 768px) 320px, 384px"
@@ -447,7 +442,7 @@ export default function Home() {
               <div className="flex items-center gap-3">
                 <div className="relative w-9 h-9 rounded-lg overflow-hidden ring-2 ring-sky-500/30">
                   <Image
-                    src={logoUrl}
+                    src="/assets/logo.jpg"
                     alt="Barangay Logo"
                     fill
                     sizes="36px"
@@ -494,6 +489,16 @@ export default function Home() {
                 <li>
                   <button className="hover:text-sky-300 transition-colors">
                     Skills Directory
+                  </button>
+                </li>
+                <li>
+                  <button className="hover:text-sky-300 transition-colors">
+                    Business Listings
+                  </button>
+                </li>
+                <li>
+                  <button className="hover:text-sky-300 transition-colors">
+                    Help Center
                   </button>
                 </li>
               </ul>
@@ -556,12 +561,12 @@ export default function Home() {
               </a>
 
               <a
-                href="mailto:developer@example.com"
+                href="jasongallano13@gmail.com"
                 className="hover:text-sky-300 transition-colors"
               >
                 Contact Developer
               </a>
-              {/* 
+
               <Link
                 href="/guest/signIn?mode=admin"
                 className="flex items-center gap-1.5 text-slate-500 hover:text-slate-300 transition-colors"
@@ -569,7 +574,7 @@ export default function Home() {
               >
                 <Shield className="size-3.5" />
                 Admin Access
-              </Link> */}
+              </Link>
             </div>
           </div>
         </div>

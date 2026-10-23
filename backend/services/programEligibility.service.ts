@@ -2,6 +2,7 @@ import ResidentCensusModel from "../model/residentCensus.model";
 import {
   FOURPS_BATCH_SIZE,
   LOW_INCOME_HOUSEHOLD_THRESHOLD,
+  TUPAD_BATCH_SIZE,
   chunk,
   isLowIncomeHousehold,
 } from "../utils/eligibility";
@@ -15,10 +16,34 @@ import {
   isUnknown,
   normalizeHouseholdNumber,
 } from "../utils/residentDataStandardization";
+import { ProgramEnrollmentService } from "./programEnrollment.service";
 
 function salaryOf(record: any): number {
   const value = Number(record?.monthlySalary);
   return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+/**
+ * Splits an already-ordered, de-duplicated list of individuals into numbered
+ * batches. Each individual appears in exactly one batch.
+ */
+function buildBatches(
+  individuals: HouseholdMember[],
+  size: number,
+): FourPsBatch[] {
+  return chunk(individuals, size).map((members, index) => ({
+    batchNumber: index + 1,
+    count: members.length,
+    minHouseholdIncome: members.reduce(
+      (min, i) => Math.min(min, i.householdTotalIncome),
+      Number.POSITIVE_INFINITY,
+    ),
+    maxHouseholdIncome: members.reduce(
+      (max, i) => Math.max(max, i.householdTotalIncome),
+      Number.NEGATIVE_INFINITY,
+    ),
+    individuals: members,
+  }));
 }
 
 /**
@@ -28,9 +53,11 @@ function salaryOf(record: any): number {
  *  - A household's income is the sum of every active member's monthlySalary,
  *    grouped by householdNumber.
  *  - A household is low-income when its total is BELOW ₱30,000/month.
- *  - 4Ps recommends every individual in a low-income household, ordered by
- *    lowest household income first, packaged into batches of 50.
- *  - TUPAD recommends the same individuals with no batching.
+ *  - 4Ps selects ONE representative per low-income household (the member with
+ *    the lowest monthly salary, ties broken by name), ordered by lowest
+ *    household income first and packaged into batches of 50.
+ *  - TUPAD selects the remaining members of those households, in batches of 30.
+ *  - A resident is therefore never listed in both programs.
  */
 export class ProgramEligibilityService {
   static async compute(): Promise<ProgramEligibilityResult> {
@@ -98,28 +125,39 @@ export class ProgramEligibilityService {
 
     const lowIncomeHouseholds = households.filter((h) => h.lowIncome);
 
-    // Flatten eligible individuals while keeping households intact and ordered
-    // by household income (the low-income households are already sorted).
-    const eligibleIndividuals: HouseholdMember[] = lowIncomeHouseholds.flatMap(
-      (h) => h.members,
-    );
+    // 4Ps takes exactly one representative per low-income household. TUPAD
+    // gets the remaining members, so nobody appears in both programs.
+    const fourPsIndividuals: HouseholdMember[] = [];
+    const tupadIndividuals: HouseholdMember[] = [];
+    const tupadHouseholds = new Set<string>();
 
-    const batches: FourPsBatch[] = chunk(
-      eligibleIndividuals,
+    for (const household of lowIncomeHouseholds) {
+      // Lowest earner represents the household; ties are broken by name so the
+      // selection is deterministic.
+      const ordered = [...household.members].sort(
+        (a, b) =>
+          a.monthlySalary - b.monthlySalary ||
+          a.name.localeCompare(b.name) ||
+          a.censusId.localeCompare(b.censusId),
+      );
+      const [representative, ...remaining] = ordered;
+      if (!representative) continue;
+
+      fourPsIndividuals.push(representative);
+      if (remaining.length > 0) {
+        tupadIndividuals.push(...remaining);
+        tupadHouseholds.add(household.householdNumber);
+      }
+    }
+
+    const batches: FourPsBatch[] = buildBatches(
+      fourPsIndividuals,
       FOURPS_BATCH_SIZE,
-    ).map((individuals, index) => ({
-      batchNumber: index + 1,
-      count: individuals.length,
-      minHouseholdIncome: individuals.reduce(
-        (min, i) => Math.min(min, i.householdTotalIncome),
-        Number.POSITIVE_INFINITY,
-      ),
-      maxHouseholdIncome: individuals.reduce(
-        (max, i) => Math.max(max, i.householdTotalIncome),
-        Number.NEGATIVE_INFINITY,
-      ),
-      individuals,
-    }));
+    );
+    const tupadBatches: FourPsBatch[] = buildBatches(
+      tupadIndividuals,
+      TUPAD_BATCH_SIZE,
+    );
 
     return {
       threshold: LOW_INCOME_HOUSEHOLD_THRESHOLD,
@@ -129,23 +167,37 @@ export class ProgramEligibilityService {
         totalHouseholds: households.length,
         lowIncomeHouseholds: lowIncomeHouseholds.length,
         totalResidents: residents.length,
-        lowIncomeIndividuals: eligibleIndividuals.length,
+        lowIncomeIndividuals: fourPsIndividuals.length + tupadIndividuals.length,
         unassignedResidents,
       },
       households,
       fourPs: {
         program: "4Ps",
-        eligibleIndividuals: eligibleIndividuals.length,
+        eligibleIndividuals: fourPsIndividuals.length,
         eligibleHouseholds: lowIncomeHouseholds.length,
         batchCount: batches.length,
         batches,
       },
       tupad: {
         program: "TUPAD",
-        eligibleIndividuals: eligibleIndividuals.length,
-        eligibleHouseholds: lowIncomeHouseholds.length,
-        individuals: eligibleIndividuals,
+        eligibleIndividuals: tupadIndividuals.length,
+        eligibleHouseholds: tupadHouseholds.size,
+        batchSize: TUPAD_BATCH_SIZE,
+        batchCount: tupadBatches.length,
+        batches: tupadBatches,
+        individuals: tupadIndividuals,
       },
     };
+  }
+
+  /**
+   * Compute eligibility and let the system persist the selection. This is the
+   * entry point used by both the staff panel and the resident transparency
+   * view, so the roster always reflects the same automatic decision.
+   */
+  static async computeAndSync(): Promise<ProgramEligibilityResult> {
+    const result = await this.compute();
+    await ProgramEnrollmentService.syncFromEligibility(result);
+    return result;
   }
 }

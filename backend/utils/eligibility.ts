@@ -11,6 +11,9 @@ export const LOW_INCOME_HOUSEHOLD_THRESHOLD = 30_000;
 // lowest-household-income first.
 export const FOURPS_BATCH_SIZE = 50;
 
+// The TUPAD program enrolls eligible individuals in batches of this size.
+export const TUPAD_BATCH_SIZE = 30;
+
 // Programs that draw on the low-income eligibility pool.
 export type ProgramKey = "4Ps" | "TUPAD";
 

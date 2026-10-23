@@ -1,15 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import axiosInstance from "@/app/utils/axios";
-import { successAlert, errorAlert } from "@/app/utils/alert";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ProgramEligibilityResult,
-  ProgramEnrollment,
   HouseholdMember,
+  FourPsBatch,
 } from "@/app/types/programEligibility.type";
 import { ChartCard, ChartTooltip } from "./decisionSupportCharts";
 import {
@@ -35,6 +33,7 @@ import {
   Layers,
   BarChart3,
   PieChart as PieChartIcon,
+  Lock,
 } from "lucide-react";
 
 function peso(value: number): string {
@@ -49,20 +48,7 @@ const INCOME_BUCKETS = [
   { label: "₱50k+", min: 50000, max: Infinity },
 ];
 
-function MemberRow({
-  member,
-  enrolled,
-  onEnroll,
-  onRemove,
-  busy,
-}: {
-  member: HouseholdMember;
-  enrolled?: ProgramEnrollment;
-  onEnroll: (member: HouseholdMember) => void;
-  onRemove: (enrollment: ProgramEnrollment) => void;
-  busy: boolean;
-}) {
-  const active = enrolled && enrolled.status === "enrolled";
+function MemberRow({ member }: { member: HouseholdMember }) {
   return (
     <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
       <div className="min-w-0">
@@ -71,34 +57,38 @@ function MemberRow({
           {member.householdNumber} · {member.purok} · Household {peso(member.householdTotalIncome)}/mo
         </p>
       </div>
-      {active ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => onRemove(enrolled!)}
-          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-60 shrink-0"
-          title="Remove beneficiary"
-        >
-          <BadgeCheck className="size-3.5" />
-          Beneficiary
-        </button>
-      ) : (
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={busy}
-          onClick={() => onEnroll(member)}
-          className="h-8 shrink-0 text-xs gap-1"
-        >
-          Mark beneficiary
-        </Button>
-      )}
+      <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 shrink-0">
+        <BadgeCheck className="size-3.5" />
+        Auto-selected
+      </span>
+    </div>
+  );
+}
+
+function BatchGroup({ batch }: { batch: FourPsBatch }) {
+  return (
+    <div className="rounded-xl border border-slate-200/80 overflow-hidden">
+      <div className="flex items-center justify-between gap-3 bg-slate-50/70 px-3.5 py-2.5">
+        <p className="text-sm font-semibold text-gray-800">
+          Batch {batch.batchNumber}
+          <span className="ml-2 text-xs font-normal text-gray-500">
+            {batch.count} {batch.count === 1 ? "individual" : "individuals"}
+          </span>
+        </p>
+        <span className="text-xs text-gray-400">
+          {peso(batch.minHouseholdIncome)}–{peso(batch.maxHouseholdIncome)}/mo
+        </span>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {batch.individuals.map((m) => (
+          <MemberRow key={m.censusId} member={m} />
+        ))}
+      </div>
     </div>
   );
 }
 
 export function ProgramEligibilityPanel() {
-  const queryClient = useQueryClient();
   const [tab, setTab] = useState<"4Ps" | "TUPAD">("4Ps");
 
   const eligibilityQuery = useQuery<ProgramEligibilityResult>({
@@ -106,66 +96,27 @@ export function ProgramEligibilityPanel() {
     queryFn: async () => (await axiosInstance.get("/program-eligibility")).data,
   });
 
-  const enrollmentsQuery = useQuery<ProgramEnrollment[]>({
-    queryKey: ["program-eligibility", "enrollments"],
-    queryFn: async () => (await axiosInstance.get("/program-eligibility/enrollments")).data,
-  });
-
-  const enrolledByKey = useMemo(() => {
-    const map: Record<string, ProgramEnrollment> = {};
-    for (const row of enrollmentsQuery.data ?? []) {
-      if (row.status === "enrolled") map[`${row.program}:${row.censusId}`] = row;
-    }
-    return map;
-  }, [enrollmentsQuery.data]);
-
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["program-eligibility", "enrollments"] });
-    queryClient.invalidateQueries({ queryKey: ["resident-census"] });
-  };
-
-  const enrollMutation = useMutation({
-    mutationFn: async ({ program, censusId }: { program: "4Ps" | "TUPAD"; censusId: string }) =>
-      (await axiosInstance.post("/program-eligibility/enrollments", { program, censusId })).data,
-    onSuccess: (_data, vars) => {
-      successAlert(`Marked as ${vars.program} beneficiary.`);
-      invalidate();
-    },
-    onError: () => errorAlert("Failed to mark beneficiary."),
-  });
-
-  const removeMutation = useMutation({
-    mutationFn: async ({ id }: { id: string }) =>
-      (await axiosInstance.delete(`/program-eligibility/enrollments/${id}`)).data,
-    onSuccess: () => {
-      successAlert("Beneficiary removed.");
-      invalidate();
-    },
-    onError: () => errorAlert("Failed to remove beneficiary."),
-  });
-
-  const busy = enrollMutation.isPending || removeMutation.isPending;
   const data = eligibilityQuery.data;
 
   const threshold = data?.threshold ?? 30000;
-  const incomeDistribution = INCOME_BUCKETS.map((bucket) => ({
-    label: bucket.label,
-    count: (data?.households ?? []).filter(
-      (h) => h.totalMonthlySalary >= bucket.min && h.totalMonthlySalary <= bucket.max,
-    ).length,
-    lowIncome: bucket.min < threshold,
-  }));
+  const incomeDistribution = useMemo(
+    () =>
+      INCOME_BUCKETS.map((bucket) => ({
+        label: bucket.label,
+        count: (data?.households ?? []).filter(
+          (h) => h.totalMonthlySalary >= bucket.min && h.totalMonthlySalary <= bucket.max,
+        ).length,
+        lowIncome: bucket.min < threshold,
+      })),
+    [data, threshold],
+  );
+
   const householdSplit = data
     ? [
         { name: "Low-income", value: data.totals.lowIncomeHouseholds, color: "#f59e0b" },
         { name: "Other households", value: Math.max(data.totals.totalHouseholds - data.totals.lowIncomeHouseholds, 0), color: "#0ea5e9" },
       ].filter((row) => row.value > 0)
     : [];
-
-  const handleEnroll = (program: "4Ps" | "TUPAD") => (member: HouseholdMember) =>
-    enrollMutation.mutate({ program, censusId: member.censusId });
-  const handleRemove = (enrollment: ProgramEnrollment) =>
-    removeMutation.mutate({ id: enrollment._id });
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
@@ -195,6 +146,16 @@ export function ProgramEligibilityPanel() {
           </div>
         ) : (
           <>
+            <div className="flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800">
+              <Lock className="size-4 shrink-0 mt-0.5" />
+              <p>
+                Beneficiaries are selected <strong>automatically by the system</strong> from each
+                household&apos;s total monthly income. 4Ps lists one representative (lowest earner)
+                per low-income household; the other members are eligible for TUPAD. A resident is
+                never listed in both programs, and staff cannot add or remove beneficiaries manually.
+              </p>
+            </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[
                 { label: "Households", value: data.totals.totalHouseholds, icon: Home },
@@ -272,7 +233,7 @@ export function ProgramEligibilityPanel() {
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${tab === "TUPAD" ? "bg-sky-600 text-white" : "text-gray-500 hover:text-gray-800"}`}
               >
                 <HardHat className="size-3.5" />
-                TUPAD ({data.tupad.eligibleIndividuals})
+                TUPAD Batches ({data.tupad.batchCount})
               </button>
             </div>
 
@@ -285,44 +246,13 @@ export function ProgramEligibilityPanel() {
             ) : tab === "4Ps" ? (
               <div className="space-y-3">
                 {data.fourPs.batches.map((batch) => (
-                  <div key={batch.batchNumber} className="rounded-xl border border-slate-200/80 overflow-hidden">
-                    <div className="flex items-center justify-between gap-3 bg-slate-50/70 px-3.5 py-2.5">
-                      <p className="text-sm font-semibold text-gray-800">
-                        Batch {batch.batchNumber}
-                        <span className="ml-2 text-xs font-normal text-gray-500">
-                          {batch.count} {batch.count === 1 ? "individual" : "individuals"}
-                        </span>
-                      </p>
-                      <span className="text-xs text-gray-400">
-                        {peso(batch.minHouseholdIncome)}–{peso(batch.maxHouseholdIncome)}/mo
-                      </span>
-                    </div>
-                    <div className="divide-y divide-slate-100">
-                      {batch.individuals.map((m) => (
-                        <MemberRow
-                          key={m.censusId}
-                          member={m}
-                          enrolled={enrolledByKey[`4Ps:${m.censusId}`]}
-                          onEnroll={handleEnroll("4Ps")}
-                          onRemove={handleRemove}
-                          busy={busy}
-                        />
-                      ))}
-                    </div>
-                  </div>
+                  <BatchGroup key={batch.batchNumber} batch={batch} />
                 ))}
               </div>
             ) : (
-              <div className="rounded-xl border border-slate-200/80 overflow-hidden divide-y divide-slate-100 max-h-[28rem] overflow-y-auto">
-                {data.tupad.individuals.map((m) => (
-                  <MemberRow
-                    key={m.censusId}
-                    member={m}
-                    enrolled={enrolledByKey[`TUPAD:${m.censusId}`]}
-                    onEnroll={handleEnroll("TUPAD")}
-                    onRemove={handleRemove}
-                    busy={busy}
-                  />
+              <div className="space-y-3">
+                {data.tupad.batches.map((batch) => (
+                  <BatchGroup key={batch.batchNumber} batch={batch} />
                 ))}
               </div>
             )}

@@ -58,7 +58,10 @@ import {
   Minus,
   MessageSquareText,
   TrendingUp,
+  Wallet,
 } from "lucide-react";
+
+type DSSection = "data" | "recommendations" | "insights" | "outcomes" | "benefits";
 
 const SEVERITY_STYLES: Record<string, { bg: string; border: string; text: string; iconBg: string; iconColor: string; label: string }> = {
   warning: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-900", iconBg: "bg-amber-100", iconColor: "text-amber-600", label: "Needs attention" },
@@ -391,11 +394,13 @@ function AnalysisBody({
   feedbackByRec,
   onFeedback,
   savingFeedback,
+  section,
 }: {
   record: DecisionSupportAnalysis;
   feedbackByRec?: Record<string, RecommendationFeedback>;
   onFeedback?: (item: InsightItem, status: RecommendationFeedbackStatus, note: string) => void;
   savingFeedback?: boolean;
+  section?: "data" | "recommendations" | "insights";
 }) {
   const snapshot = record.dataSnapshot || ({} as DecisionSupportAnalysis["dataSnapshot"]);
   const overview = snapshot.overview;
@@ -415,6 +420,7 @@ function AnalysisBody({
   return (
     <>
       {/* ── Meta: when / who / what data ── */}
+      {(!section || section === "data") && (
       <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-5 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 text-sm text-gray-600">
           <span className="inline-flex items-center gap-1.5">
@@ -441,8 +447,10 @@ function AnalysisBody({
           )}
         </div>
       </div>
+      )}
 
       {/* ── Recommendations ── */}
+      {(!section || section === "recommendations") && (
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
         <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <div className="size-9 rounded-xl bg-gradient-to-br from-sky-100 to-emerald-100 text-sky-600 flex items-center justify-center">
@@ -483,8 +491,10 @@ function AnalysisBody({
           )}
         </div>
       </div>
+      )}
 
       {/* ── Insights ── */}
+      {(!section || section === "insights") && (
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
         <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <div className="size-9 rounded-xl bg-gradient-to-br from-sky-100 to-emerald-100 text-sky-600 flex items-center justify-center">
@@ -510,6 +520,7 @@ function AnalysisBody({
           )}
         </div>
       </div>
+      )}
     </>
   );
 }
@@ -620,6 +631,7 @@ export function AnalyticsDecisionSupport({
   const queryClient = useQueryClient();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [viewingId, setViewingId] = useState<string | null>(null);
+  const [section, setSection] = useState<DSSection>("recommendations");
 
   // The date range applied to the next generation, shared with the Analytics
   // page's date-range filter. Sent as `{ from }` (YYYY-MM-DD); empty = all time.
@@ -867,33 +879,96 @@ export function AnalyticsDecisionSupport({
         </div>
       ) : record ? (
         <>
-          <ResidentCountNotice
-            snapshotTotal={snapshotResidentTotal}
-            liveTotal={liveResidentTotal}
-            isLoading={residentsQuery.isLoading}
-            isError={residentsQuery.isError}
-            generatedAt={record.generatedAt}
-            onRegenerate={() => generateMutation.mutate(currentRange)}
-            isRegenerating={generateMutation.isPending}
-          />
+          {/* ── Section switcher: one panel at a time, no long scrolling ── */}
+          <div className="flex items-center gap-1 overflow-x-auto rounded-xl border border-slate-200/80 bg-white p-1 shadow-sm">
+            {(
+              [
+                { key: "data", label: "Data", icon: BarChart3 },
+                { key: "recommendations", label: "Recommendations", icon: Target, count: record.recommendations.length },
+                { key: "insights", label: "Insights", icon: Lightbulb, count: record.insights.length },
+                { key: "outcomes", label: "Outcomes", icon: Gauge, count: calibrationQuery.data?.rows.length },
+                { key: "benefits", label: "Benefits", icon: Wallet },
+              ] as { key: DSSection; label: string; icon: React.ElementType; count?: number }[]
+            ).map((s) => {
+              const active = section === s.key;
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => setSection(s.key)}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                    active
+                      ? "bg-gradient-to-r from-sky-50 to-emerald-50 text-sky-700 shadow-sm ring-1 ring-sky-100"
+                      : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                  }`}
+                >
+                  <s.icon className="size-4" />
+                  {s.label}
+                  {typeof s.count === "number" && s.count > 0 && (
+                    <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${active ? "bg-white text-sky-700" : "bg-slate-100 text-slate-500"}`}>
+                      {s.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-          <AnalysisBody
-            record={record}
-            feedbackByRec={feedbackByRec}
-            onFeedback={handleFeedback}
-            savingFeedback={feedbackMutation.isPending}
-          />
+          {section === "data" && (
+            <>
+              <ResidentCountNotice
+                snapshotTotal={snapshotResidentTotal}
+                liveTotal={liveResidentTotal}
+                isLoading={residentsQuery.isLoading}
+                isError={residentsQuery.isError}
+                generatedAt={record.generatedAt}
+                onRegenerate={() => generateMutation.mutate(currentRange)}
+                isRegenerating={generateMutation.isPending}
+              />
+              <AnalysisBody
+                record={record}
+                section="data"
+                feedbackByRec={feedbackByRec}
+                onFeedback={handleFeedback}
+                savingFeedback={feedbackMutation.isPending}
+              />
+            </>
+          )}
 
-          <OutcomeCalibrationPanel
-            data={calibrationQuery.data}
-            isLoading={calibrationQuery.isLoading}
-            isError={calibrationQuery.isError}
-          />
+          {section === "recommendations" && (
+            <AnalysisBody
+              record={record}
+              section="recommendations"
+              feedbackByRec={feedbackByRec}
+              onFeedback={handleFeedback}
+              savingFeedback={feedbackMutation.isPending}
+            />
+          )}
+
+          {section === "insights" && (
+            <AnalysisBody
+              record={record}
+              section="insights"
+              feedbackByRec={feedbackByRec}
+              onFeedback={handleFeedback}
+              savingFeedback={feedbackMutation.isPending}
+            />
+          )}
+
+          {section === "outcomes" && (
+            <OutcomeCalibrationPanel
+              data={calibrationQuery.data}
+              isLoading={calibrationQuery.isLoading}
+              isError={calibrationQuery.isError}
+            />
+          )}
+
+          {section === "benefits" && <ProgramEligibilityPanel />}
         </>
       ) : null}
 
-      {/* ── Benefit eligibility (4Ps / TUPAD) ── */}
-      <ProgramEligibilityPanel />
+      {/* Benefits remain available even before an analysis exists. */}
+      {!record && !latestQuery.isLoading && <ProgramEligibilityPanel />}
 
       {/* ── History dialog ── */}
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>

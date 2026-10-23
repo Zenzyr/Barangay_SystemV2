@@ -6,7 +6,7 @@ import { handler } from "../utils/handler";
 
 const route = Router();
 
-// Program eligibility + beneficiary management is staff-only, same guard as
+// The eligibility picture and enrollment roster are staff-only, same guard as
 // Decision Support.
 const staffOnly = [authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_ADMIN)];
 
@@ -14,7 +14,9 @@ const staffOnly = [authenticateJWT, requireRoles(ROLES.SECRETARY, ROLES.SUPER_AD
 route.get("/", ...staffOnly, handler(ProgramEligibilityController.eligibility));
 route.get("/enrollments", ...staffOnly, handler(ProgramEligibilityController.listEnrollments));
 route.get("/enrollments/summary", ...staffOnly, handler(ProgramEligibilityController.enrollmentSummary));
-route.post("/enrollments", ...staffOnly, handler(ProgramEligibilityController.enroll));
-route.delete("/enrollments/:id", ...staffOnly, handler(ProgramEligibilityController.removeEnrollment));
+
+// Residents (and staff) can view the automatically selected beneficiaries for
+// transparency. There is no manual enrollment endpoint: the system picks.
+route.get("/beneficiaries", authenticateJWT, handler(ProgramEligibilityController.beneficiaries));
 
 export default route;
