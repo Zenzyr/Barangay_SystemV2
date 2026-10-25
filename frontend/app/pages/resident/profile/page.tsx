@@ -59,6 +59,7 @@ interface Account {
   purok: string;
   voterStatus: string;
   houseHoldNumber: string;
+  monthlySalary?: number;
   availability?: "AVAILABLE" | "BUSY" | "NOT_AVAILABLE";
   completedServices?: number;
   twoFactorEnabled?: boolean;
@@ -137,6 +138,7 @@ export default function ProfilePage() {
       purok: string;
       voterStatus: string;
       houseHoldNumber: string;
+      monthlySalary: number;
     }) => {
       const res = await axiosInstance.patch(`/account/${user?._id}/info`, data);
       return res.data;
@@ -568,6 +570,7 @@ export default function ProfilePage() {
         currentPurok={profile?.purok || ""}
         currentVoterStatus={profile?.voterStatus || ""}
         currentHouseHoldNumber={profile?.houseHoldNumber || ""}
+        currentMonthlySalary={profile?.monthlySalary ?? 0}
         onSave={async (data) => {
           await updateInfoMutation.mutateAsync(data);
         }}

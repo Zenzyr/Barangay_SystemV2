@@ -13,6 +13,8 @@ import {
   normalizeYesNoFlag,
   normalizeCellphone,
   normalizeAge,
+  normalizeSalary,
+  normalizeHouseholdNumber,
 } from "../utils/residentDataStandardization";
 
 // Values used to signal "not applicable / unknown" on legacy census records.
@@ -113,7 +115,8 @@ export class ResidentCensusService {
         occupation: "N/A",
         education: "N/A",
         purok: purok || "N/A",
-        householdNumber: houseHoldNumber || "N/A",
+        householdNumber: normalizeHouseholdNumber(houseHoldNumber),
+        monthlySalary: normalizeSalary(account?.monthlySalary),
         is4Ps: "N/A",
         soloParent: "N/A",
         familyPlanning: "N/A",
@@ -184,7 +187,8 @@ export class ResidentCensusService {
     if (census.birthday && census.birthday !== "N/A") updates.dateOfBirth = census.birthday;
     if (census.age && census.age !== "N/A") updates.age = census.age;
     if (census.purok && census.purok !== "N/A") updates.purok = census.purok;
-    if (census.householdNumber && census.householdNumber !== "N/A") updates.houseHoldNumber = census.householdNumber;
+    if (census.householdNumber && census.householdNumber !== "N/A") updates.houseHoldNumber = normalizeHouseholdNumber(census.householdNumber);
+    if (typeof census.monthlySalary === "number") updates.monthlySalary = census.monthlySalary;
     if (census.cellphone && census.cellphone !== "N/A") updates.contact = census.cellphone;
     if (census.address && census.address !== "N/A") updates.address = census.address;
     if (census.civilStatus && census.civilStatus !== "N/A") updates.civilStatus = census.civilStatus;
@@ -213,7 +217,8 @@ export class ResidentCensusService {
       updates.age = calculateAge(account.dateOfBirth);
     }
     if (account.purok) updates.purok = account.purok;
-    if (account.houseHoldNumber) updates.houseHoldNumber = account.houseHoldNumber;
+    if (account.houseHoldNumber) updates.houseHoldNumber = normalizeHouseholdNumber(account.houseHoldNumber);
+    if (typeof account.monthlySalary === "number") updates.monthlySalary = account.monthlySalary;
     if (account.contact) updates.cellphone = account.contact;
     if (account.address) updates.address = account.address;
     if (account.civilStatus) updates.civilStatus = account.civilStatus;
@@ -275,7 +280,8 @@ export class ResidentCensusService {
           occupation: normalizeOccupation(raw.occupation),
           education: normalizeEducation(raw.education),
           purok: clean(raw.purok ?? raw.purock ?? "N/A") || "N/A",
-          householdNumber: clean(raw.householdNumber ?? raw.household ?? raw.householdNo),
+          householdNumber: normalizeHouseholdNumber(raw.householdNumber ?? raw.household ?? raw.householdNo),
+          monthlySalary: normalizeSalary(raw.monthlySalary ?? raw.salary ?? raw.monthlyIncome ?? raw.income),
           is4Ps: normalizeYesNoFlag(raw.is4Ps ?? raw.isP4ps ?? raw.fourPs),
           soloParent: normalizeYesNoFlag(raw.soloParent ?? raw.soloParentStatus),
           familyPlanning: clean(raw.familyPlanning ?? raw.familyPlanningMethod),

@@ -9,6 +9,10 @@ const ResidentCensusSchema = new Schema({
   education: { type: String, required: true, default: "N/A" },
   purok: { type: String, required: true, default: "N/A" },
   householdNumber: { type: String, required: true, default: "N/A" },
+  // Self-reported monthly salary in PHP used by the Decision Support low-income
+  // eligibility rules. 0 means "not earning / unknown"; household income is the
+  // sum of this field across everyone sharing a householdNumber.
+  monthlySalary: { type: Number, required: false, default: 0, min: 0 },
   is4Ps: { type: String, required: true, default: "N/A" },
   soloParent: { type: String, required: true, default: "N/A" },
   familyPlanning: { type: String, required: true, default: "N/A" },

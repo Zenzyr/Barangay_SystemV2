@@ -2,7 +2,6 @@
 import {
   Home,
   BarChart3,
-  Sparkles,
   UserPlus2,
   FileText,
   FileStack,
@@ -23,7 +22,6 @@ import { NavItem, StaffSidebar } from "@/components/ui/sidebar_shared";
 const navigationItems: NavItem[] = [
   { title: "Dashboard", url: "/pages/secretary/home", icon: Home },
   { title: "Analytics", url: "/pages/secretary/analytics", icon: BarChart3 },
-  { title: "Decision Support", url: "/pages/secretary/decisionSupport", icon: Sparkles },
   {
     title: "Verify Resident",
     icon: UserPlus2,

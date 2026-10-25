@@ -21,7 +21,6 @@ import {
   MapPin,
   Settings2,
   BarChart3,
-  Sparkles,
   ScrollText,
   ChevronRight,
   TriangleAlert,
@@ -51,7 +50,6 @@ const MANAGEMENT_ITEMS: ManageItem[] = [
 
 const MONITORING_ITEMS: ManageItem[] = [
   { title: "Analytics", desc: "Community trends and insights", href: "/pages/secretary/analytics", icon: BarChart3 },
-  { title: "Decision Support", desc: "Insights and recommendations", href: "/pages/secretary/decisionSupport", icon: Sparkles },
   { title: "Audit Trail", desc: "System activity log", href: "/pages/secretary/barangaySettings/audit", icon: ScrollText },
 ];
 

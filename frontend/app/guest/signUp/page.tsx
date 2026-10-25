@@ -9,8 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import axiosInstance from "@/app/utils/axios";
 import { successAlert, errorAlert } from "@/app/utils/alert";
-import { namePartError, fullNameLengthError, normalizeNamePart, MAX_NAME_PART_LENGTH } from "@/app/utils/personName";
-import { useBarangayLogo } from "@/app/hooks/useBarangayLogo";
 import {
   Upload,
   Camera,
@@ -35,11 +33,10 @@ import {
 
 // ─── Validation rules ────────────────────────────────────────────
 type FormValues = {
-  firstName: string;
-  middleName: string;
-  lastName: string;
+  name: string;
   email: string;
   contact: string;
+  address: string;
   password: string;
   confirmPassword: string;
   gender: string;
@@ -90,9 +87,12 @@ function calculateAge(dob: string): number | null {
 const validators: {
   [K in keyof FormValues]: (value: string, values: FormValues) => string;
 } = {
-  firstName: (v) => namePartError("First name", v, true),
-  middleName: (v) => namePartError("Middle name", v, false),
-  lastName: (v, values) => namePartError("Last name", v, true) || fullNameLengthError(values),
+  name: (v) => {
+    if (!v.trim()) return "Full name is required";
+    if (v.trim().length < 2) return "Name looks too short";
+    if (!/^[a-zA-ZñÑ.'\-\s]+$/.test(v)) return "Name can only contain letters and spaces";
+    return "";
+  },
   email: (v) => {
     const email = v.trim();
     if (!email) return "Email is required";
@@ -113,6 +113,11 @@ const validators: {
   contact: (v) => {
     if (!v.trim()) return "Contact number is required";
     if (!/^09\d{9}$/.test(v)) return "Enter a valid 11-digit mobile number (e.g. 09171234567)";
+    return "";
+  },
+  address: (v) => {
+    if (!v.trim()) return "Address is required";
+    if (v.trim().length < 5) return "Please enter a complete address";
     return "";
   },
   password: (v) => {
@@ -146,12 +151,10 @@ const validators: {
   purok: (v) => (!v ? "Please select a purok" : ""),
   voterStatus: (v) => (!v ? "Please select a voter status" : ""),
   houseHoldNumber: (v) => {
-    const value = v.trim();
-    if (!value) return "Household number is required";
-    if (!/^HH-(?!0+$)\d{3,4}$/.test(value))
-      return "Format must be HH-001 to HH-999 or HH-0001 to HH-9999 (e.g. HH-020 or HH-0011)";
-    const num = parseInt(value.slice(3), 10);
-    if (num < 1 || num > 9999) return "Household number must be between HH-001 and HH-9999";
+    if (!v.trim()) return "Household ID is required";
+    if (!/^HH-(000[1-9]|00[1-9]\d|0[1-9]\d{2}|[1-9]\d{3})$/i.test(v.trim())) {
+      return "Format must be HH-0000 to HH-9999 (e.g. HH-0001)";
+    }
     return "";
   },
   idType: (v) => (!v ? "Please select the type of ID you are uploading" : ""),
@@ -419,7 +422,6 @@ function UploadBox({
 
 export default function SignUpPage() {
   const router = useRouter();
-  const logoUrl = useBarangayLogo();
   const [loading, setLoading] = useState(false);
   const [activePuroks, setActivePuroks] = useState<{name: string}[]>([]);
   const [loadingPuroks, setLoadingPuroks] = useState(true);
@@ -440,18 +442,11 @@ export default function SignUpPage() {
     fetchPuroks();
   }, []);
 
-  // Hide the browser's vertical scrollbar strip on this page (scrolling still works).
-  useEffect(() => {
-    document.documentElement.classList.add("no-scrollbar");
-    return () => document.documentElement.classList.remove("no-scrollbar");
-  }, []);
-
   const [showPassword, setShowPassword] = useState(false);
 
   // Form fields
-  const [firstName, setFirstName] = useState("");
-  const [middleName, setMiddleName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState("");
   const [contact, setContact] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -597,11 +592,10 @@ export default function SignUpPage() {
   const [touched, setTouched] = useState<Partial<Record<keyof FormValues, boolean>>>({});
 
   const formValues: FormValues = {
-    firstName,
-    middleName,
-    lastName,
+    name,
     email,
     contact,
+    address,
     password,
     confirmPassword,
     gender,
@@ -832,9 +826,7 @@ export default function SignUpPage() {
       let censusAutoFill: Record<string, string> | null = null;
       try {
         const precheck = await axiosInstance.post("/account/check-duplicate", {
-          firstName: normalizeNamePart(firstName),
-          middleName: normalizeNamePart(middleName),
-          lastName: normalizeNamePart(lastName),
+          name: name.trim(),
           dateOfBirth,
           gender,
           contact,
@@ -873,9 +865,8 @@ export default function SignUpPage() {
       }
 
       const formData = new FormData();
-      formData.append("firstName", normalizeNamePart(firstName));
-      formData.append("middleName", normalizeNamePart(middleName));
-      formData.append("lastName", normalizeNamePart(lastName));
+      formData.append("name", name.trim());
+      formData.append("address", address.trim());
       formData.append("email", email.trim());
       formData.append("password", password);
       formData.append("confirmPassword", confirmPassword);
@@ -933,7 +924,7 @@ export default function SignUpPage() {
             </Link>
             <Link href="/" className="flex items-center gap-2">
               <Image
-                src={logoUrl}
+                src="/assets/logo.jpg"
                 alt="Barangay Logo"
                 width={32}
                 height={32}
@@ -956,7 +947,7 @@ export default function SignUpPage() {
         <div className="relative mb-8 flex flex-col items-center text-center">
           <div className="relative mb-3 size-16 overflow-hidden rounded-2xl shadow-lg shadow-sky-200/40 ring-2 ring-sky-200/60">
             <Image
-              src={logoUrl}
+              src="/assets/logo.jpg"
               alt="Barangay Logo"
               fill
               sizes="64px"
@@ -980,73 +971,25 @@ export default function SignUpPage() {
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 w-full">
                 <div className="space-y-1.5 min-w-0">
-                  <Label htmlFor="firstName" className="text-sm font-medium text-gray-700">
-                    First Name
+                  <Label htmlFor="name" className="text-sm font-medium text-gray-700">
+                    Full Name
                   </Label>
                   <div className="relative">
                     <UserRound className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
                     <Input
-                      id="firstName"
-                      placeholder="Juan"
-                      value={firstName}
-                      maxLength={MAX_NAME_PART_LENGTH}
-                      autoComplete="given-name"
-                      onChange={(e) => setFirstName(e.target.value)}
-                      onBlur={handleBlur("firstName")}
+                      id="name"
+                      placeholder="Juan Dela Cruz"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      onBlur={handleBlur("name")}
                       className={`pl-10 h-10 transition-all ${
-                        touched.firstName && errors.firstName
+                        touched.name && errors.name
                           ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
                           : "border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
                       }`}
                     />
                   </div>
-                  <FieldError message={touched.firstName ? errors.firstName : undefined} />
-                </div>
-                <div className="space-y-1.5 min-w-0">
-                  <Label htmlFor="middleName" className="text-sm font-medium text-gray-700">
-                    Middle Name <span className="text-xs font-normal text-gray-400">(optional)</span>
-                  </Label>
-                  <div className="relative">
-                    <UserRound className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-                    <Input
-                      id="middleName"
-                      placeholder="Santos"
-                      value={middleName}
-                      maxLength={MAX_NAME_PART_LENGTH}
-                      autoComplete="additional-name"
-                      onChange={(e) => setMiddleName(e.target.value)}
-                      onBlur={handleBlur("middleName")}
-                      className={`pl-10 h-10 transition-all ${
-                        touched.middleName && errors.middleName
-                          ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
-                          : "border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
-                      }`}
-                    />
-                  </div>
-                  <FieldError message={touched.middleName ? errors.middleName : undefined} />
-                </div>
-                <div className="space-y-1.5 min-w-0">
-                  <Label htmlFor="lastName" className="text-sm font-medium text-gray-700">
-                    Last Name
-                  </Label>
-                  <div className="relative">
-                    <UserRound className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-                    <Input
-                      id="lastName"
-                      placeholder="Dela Cruz"
-                      value={lastName}
-                      maxLength={MAX_NAME_PART_LENGTH}
-                      autoComplete="family-name"
-                      onChange={(e) => setLastName(e.target.value)}
-                      onBlur={handleBlur("lastName")}
-                      className={`pl-10 h-10 transition-all ${
-                        touched.lastName && errors.lastName
-                          ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
-                          : "border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
-                      }`}
-                    />
-                  </div>
-                  <FieldError message={touched.lastName ? errors.lastName : undefined} />
+                  <FieldError message={touched.name ? errors.name : undefined} />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="email" className="text-sm font-medium text-gray-700">
@@ -1189,6 +1132,29 @@ export default function SignUpPage() {
                 </div>
 
 
+                <div className="space-y-1.5 ">
+                  <Label htmlFor="address" className="text-sm font-medium text-gray-700">
+                    Address
+                  </Label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+                    <Input
+                      id="address"
+                      placeholder="Barangay Rabon, Purok 1"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      onBlur={handleBlur("address")}
+                      className={`pl-10 h-10 transition-all ${
+                        touched.address && errors.address
+                          ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
+                          : "border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"
+                      }`}
+                    />
+                  </div>
+                  <FieldError message={touched.address ? errors.address : undefined} />
+                </div>
+
+              
                 <div className="space-y-1.5">
                   <Label htmlFor="password" className="text-sm font-medium text-gray-700">
                     Password
@@ -1412,28 +1378,21 @@ export default function SignUpPage() {
                   <FieldError message={touched.voterStatus ? errors.voterStatus : undefined} />
                 </div>
 
-                {/* Household Number */}
+                {/* Household ID */}
                 <div className="space-y-1.5">
                   <Label htmlFor="houseHoldNumber" className="text-sm font-medium text-gray-700">
-                    Household Number
+                    Household ID
                   </Label>
                   <div className="relative">
                     <Hash className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-                    <span className="absolute left-9 top-1/2 -translate-y-1/2 text-sm text-gray-500 select-none pointer-events-none">
-                      HH-
-                    </span>
                     <input
                       id="houseHoldNumber"
                       type="text"
-                      inputMode="numeric"
-                      placeholder="020 or 0011"
-                      value={houseHoldNumber.replace(/^HH-/i, "")}
-                      onChange={(e) => {
-                        const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
-                        setHouseHoldNumber(digits ? `HH-${digits}` : "");
-                      }}
+                      placeholder="Enter four digit (e.g. HH-0000 (max HH-9999)"
+                      value={houseHoldNumber}
+                      onChange={(e) => setHouseHoldNumber(e.target.value)}
                       onBlur={handleBlur("houseHoldNumber")}
-                      className={`w-full h-10 pl-16 pr-3 rounded-lg border bg-white text-sm text-gray-700 focus:ring-2 transition-all ${
+                      className={`w-full h-10 pl-10 pr-3 rounded-lg border bg-white text-sm text-gray-700 focus:ring-2 transition-all ${
                         touched.houseHoldNumber && errors.houseHoldNumber
                           ? "border-red-400 focus:border-red-400 focus:ring-red-400/20"
                           : "border-gray-200 focus:border-sky-400 focus:ring-sky-400/20"

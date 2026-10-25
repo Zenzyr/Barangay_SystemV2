@@ -13,6 +13,8 @@ import {
   normalizeYesNoFlag,
   normalizeCellphone,
   normalizeAge,
+  normalizeSalary,
+  normalizeHouseholdNumber,
 } from "../utils/residentDataStandardization";
 
 /** Applies the same canonicalization used by import & sync to secretary-added
@@ -24,6 +26,8 @@ function normalizeCensusInput(input: Record<string, any>) {
   if (input.occupation !== undefined) input.occupation = normalizeOccupation(input.occupation);
   if (input.pensioner !== undefined) input.pensioner = normalizePensioner(input.pensioner);
   if (input.cellphone !== undefined) input.cellphone = normalizeCellphone(input.cellphone);
+  if (input.householdNumber !== undefined) input.householdNumber = normalizeHouseholdNumber(input.householdNumber);
+  if (input.monthlySalary !== undefined) input.monthlySalary = normalizeSalary(input.monthlySalary);
   for (const flag of ["is4Ps", "soloParent", "isSenior", "hpnMaintenance", "isPWD"]) {
     if (input[flag] !== undefined) input[flag] = normalizeYesNoFlag(input[flag]);
   }

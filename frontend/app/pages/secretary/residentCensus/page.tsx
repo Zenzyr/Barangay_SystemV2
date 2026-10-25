@@ -76,6 +76,7 @@ interface ResidentCensusRecord {
   education: string;
   purok: string;
   householdNumber: string;
+  monthlySalary?: number | string;
   is4Ps: string;
   soloParent: string;
   familyPlanning: string;
@@ -199,6 +200,7 @@ const EMPTY_FORM: Omit<ResidentCensusRecord, "_id"> = {
   education: "",
   purok: "Purok 1",
   householdNumber: "",
+  monthlySalary: "",
   is4Ps: "",
   soloParent: "",
   familyPlanning: "",
@@ -251,6 +253,9 @@ function buildCensusPayload(values: Omit<ResidentCensusRecord, "_id">) {
   }
   const ageNum = Number(payload.age);
   if (payload.age !== "N/A" && !isNaN(ageNum)) payload.age = ageNum;
+  // Monthly salary is a numeric PHP amount; blank/unknown becomes 0.
+  const salaryNum = Number(payload.monthlySalary);
+  payload.monthlySalary = Number.isFinite(salaryNum) && salaryNum >= 0 ? salaryNum : 0;
   return payload;
 }
 
@@ -433,6 +438,7 @@ function ViewProfileModal({
         ["Civil Status", record.civilStatus],
         ["Voter Status", record.voterStatus],
         ["Household Number", record.householdNumber],
+        ["Monthly Salary", `₱${Number(record.monthlySalary || 0).toLocaleString("en-PH")}`],
         ["Cellphone", record.cellphone],
         ["Family Planning", record.familyPlanning],
         ["Pensioner", record.pensioner],
@@ -979,6 +985,7 @@ export default function ResidentCensusPage() {
                 <TableHead className="px-4 py-3">Occupation</TableHead>
                 <TableHead className="px-4 py-3">Purok</TableHead>
                 <TableHead className="px-4 py-3">Household</TableHead>
+                <TableHead className="px-4 py-3">Monthly Salary</TableHead>
                 <TableHead className="px-4 py-3">Tags</TableHead>
                 <TableHead className="px-4 py-3">Cellphone</TableHead>
                 <TableHead className="px-4 py-3 text-right">Actions</TableHead>
@@ -988,14 +995,14 @@ export default function ResidentCensusPage() {
               {isLoading ? (
                 Array.from({ length: 6 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell colSpan={9} className="px-4 py-3">
+                    <TableCell colSpan={10} className="px-4 py-3">
                       <Skeleton className="h-5 w-full" />
                     </TableCell>
                   </TableRow>
                 ))
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="px-4 py-12 text-center text-gray-400">
+                  <TableCell colSpan={10} className="px-4 py-12 text-center text-gray-400">
                     <div className="flex flex-col items-center gap-2">
                       <div className="size-12 rounded-full bg-slate-100 text-slate-300 flex items-center justify-center">
                         <Users className="size-6" />
@@ -1018,6 +1025,9 @@ export default function ResidentCensusPage() {
                       </span>
                     </TableCell>
                     <TableCell className="px-4 py-3 text-gray-600 whitespace-nowrap">{r.householdNumber}</TableCell>
+                    <TableCell className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                      ₱{Number(r.monthlySalary || 0).toLocaleString("en-PH")}
+                    </TableCell>
                     <TableCell className="px-4 py-3">
                       <div className="flex flex-wrap gap-1 max-w-[220px]">
                         {r.isSenior === "YES" && <Badge tone="amber">Senior</Badge>}
@@ -1290,6 +1300,20 @@ export default function ResidentCensusPage() {
                 inputMode="numeric"
                 placeholder="09XXXXXXXXX (11 digits)"
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Monthly Salary (₱)</Label>
+              <Input
+                value={String(form.monthlySalary ?? "")}
+                onChange={(e) =>
+                  setForm({ ...form, monthlySalary: e.target.value.replace(/[^0-9.]/g, "") })
+                }
+                inputMode="decimal"
+                placeholder="e.g. 12000 (0 if none)"
+              />
+              <p className="text-[11px] text-gray-400">
+                Used with the household total for 4Ps / TUPAD eligibility.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label>Family Planning</Label>

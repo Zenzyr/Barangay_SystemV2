@@ -1,8 +1,9 @@
 import nodemailer from "nodemailer";
+import type { Transporter } from "nodemailer";
 
-let transporter: nodemailer.Transporter | null = null;
+let transporter: Transporter | null = null;
 
-function getTransporter(): nodemailer.Transporter | null {
+function getTransporter(): Transporter | null {
   if (transporter) return transporter;
 
   const host = process.env.SMTP_HOST;
@@ -51,10 +52,12 @@ export const sendEmail = async (
 
     const from = process.env.SMTP_FROM || process.env.SMTP_USER;
 
-    console.log("[EMAIL] Sending email...");
-    console.log("[EMAIL] From:", from);
-    console.log("[EMAIL] To:", to);
-    console.log("[EMAIL] Subject:", subject);
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[EMAIL] Sending email...");
+      console.log("[EMAIL] From:", from);
+      console.log("[EMAIL] To:", to);
+      console.log("[EMAIL] Subject:", subject);
+    }
 
     const info = await t.sendMail({
       from,
@@ -63,11 +66,13 @@ export const sendEmail = async (
       html,
     });
 
-    console.log("[EMAIL] Email sent successfully");
-    console.log("[EMAIL] Message ID:", info.messageId);
-    console.log("[EMAIL] Accepted:", info.accepted);
-    console.log("[EMAIL] Rejected:", info.rejected);
-    console.log("[EMAIL] Response:", info.response);
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[EMAIL] Email sent successfully");
+      console.log("[EMAIL] Message ID:", info.messageId);
+      console.log("[EMAIL] Accepted:", info.accepted);
+      console.log("[EMAIL] Rejected:", info.rejected);
+      console.log("[EMAIL] Response:", info.response);
+    }
 
     return true;
   } catch (error) {

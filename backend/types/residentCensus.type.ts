@@ -7,6 +7,7 @@ export interface residentCensusInterfaceInput {
   education: string;
   purok: string;
   householdNumber: string;
+  monthlySalary?: number;
   is4Ps: string;
   soloParent: string;
   familyPlanning: string;

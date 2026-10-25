@@ -86,5 +86,16 @@
     "priorityLevel": "LOW",
     "description": "Triggered when youth (ages 15-30) make up a large share of the resident population, indicating demand for youth-focused programming.",
     "status": "active"
+  },
+  {
+    "category": "Social and Household Welfare",
+    "problemName": "Widespread Low-Income Households",
+    "indicator": "lowIncomeHouseholdRate",
+    "operator": ">",
+    "threshold": 50,
+    "programName": "4Ps and TUPAD Enrollment Drive",
+    "priorityLevel": "HIGH",
+    "description": "Triggered when more than half of households have a combined monthly income below the ₱30,000 low-income ceiling, indicating demand for 4Ps and TUPAD coverage.",
+    "status": "active"
   }
 ]

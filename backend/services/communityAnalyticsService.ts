@@ -2,6 +2,7 @@ import ResidentCensusModel from "../model/residentCensus.model";
 import AccountModel from "../model/account.model";
 import DocumentModel from "../model/documentRequest.model";
 import { safeRate } from "../utils/analyticsRules";
+import { isLowIncomeHousehold, LOW_INCOME_HOUSEHOLD_THRESHOLD } from "../utils/eligibility";
 
 // ─── Age helpers ────────────────────────────────────────────────
 function getAge(record: { age: any; birthday: string }): number | null {
@@ -245,6 +246,32 @@ export class CommunityAnalyticsService {
     };
   }
 
+  // ── Low-income households (benefit eligibility proxy) ─────────
+  static async getLowIncomeSector() {
+    const residents = await ResidentCensusModel.find({ isArchived: { $ne: true } });
+    const groups = new Map<string, number>();
+    for (const r of residents) {
+      const key = String(r.householdNumber ?? "").trim().toUpperCase();
+      if (!key || key === "N/A" || key === "NONE") continue;
+      const salary = Number((r as any).monthlySalary);
+      const value = Number.isFinite(salary) && salary > 0 ? salary : 0;
+      groups.set(key, (groups.get(key) || 0) + value);
+    }
+
+    const totals = Array.from(groups.values());
+    const lowIncomeHouseholds = totals.filter((t) => isLowIncomeHousehold(t)).length;
+
+    return {
+      available: true,
+      threshold: LOW_INCOME_HOUSEHOLD_THRESHOLD,
+      totalHouseholds: totals.length,
+      lowIncomeHouseholds,
+      lowIncomeHouseholdRate: safeRate(lowIncomeHouseholds, totals.length),
+      dataSource: "ResidentCensus.monthlySalary (summed per householdNumber)",
+      note: `A household is low-income when the combined monthly salary of its members is below ₱${LOW_INCOME_HOUSEHOLD_THRESHOLD.toLocaleString("en-PH")}. Households with no household number are excluded.`,
+    };
+  }
+
   // ── Purok Analysis ──────────────────────────────────────────────
   static async getPurokAnalysis() {
     const residents = await ResidentCensusModel.find({ isArchived: { $ne: true } });
@@ -317,6 +344,7 @@ export class CommunityAnalyticsService {
       this.getSocialWelfareSector(),
       this.getHealthSector(),
     ]);
+    const lowIncome = await this.getLowIncomeSector();
 
     return {
       values: {
@@ -329,6 +357,7 @@ export class CommunityAnalyticsService {
         soloParentRate: social.soloParentRate,
         hpnMaintenanceRate: health.hpnMaintenanceRate,
         familyPlanningRate: social.familyPlanningRate,
+        lowIncomeHouseholdRate: lowIncome.lowIncomeHouseholdRate,
       },
       affected: {
         unemploymentRateHeuristic: employment.unemployedHeuristic,
@@ -340,6 +369,7 @@ export class CommunityAnalyticsService {
         soloParentRate: social.soloParents,
         hpnMaintenanceRate: health.hpnMaintenance,
         familyPlanningRate: social.familyPlanningUsers,
+        lowIncomeHouseholdRate: lowIncome.lowIncomeHouseholds,
       },
     };
   }

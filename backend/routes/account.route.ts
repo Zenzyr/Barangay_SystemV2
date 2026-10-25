@@ -4,6 +4,7 @@ import {
   uploadIdImages,
   uploadProfilePicMiddleware,
   uploadIdFrontBack,
+  validateUploadedFileContents,
 } from "../utils/upload";
 import { authenticateJWT, requireRoles } from "../middleware/auth";
 import {
@@ -182,6 +183,7 @@ route.put(
   "/:id/profile-pic",
   authenticateJWT,
   uploadProfilePicMiddleware,
+  validateUploadedFileContents,
   handler(AccountController.uploadProfilePic),
 );
 route.patch(

@@ -16,6 +16,7 @@ import {
   X,
   ChevronRight,
   Briefcase,
+  BadgeCheck,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -43,6 +44,11 @@ const navigationItems = [
     title: "Profile",
     url: "/pages/resident/profile",
     icon: User,
+  },
+  {
+    title: "Program Beneficiaries",
+    url: "/pages/resident/beneficiaries",
+    icon: BadgeCheck,
   },
   {
     title: "My Documents",

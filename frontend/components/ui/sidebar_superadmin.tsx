@@ -8,7 +8,6 @@ import {
   Landmark,
   MapPin,
   BarChart3,
-  Sparkles,
   ScrollText,
   Settings2,
   LogOut,
@@ -62,7 +61,6 @@ const navigationGroups: NavGroup[] = [
     label: "Monitoring",
     items: [
       { title: "Analytics", url: "/pages/secretary/analytics", icon: BarChart3 },
-      { title: "Decision Support", url: "/pages/secretary/decisionSupport", icon: Sparkles },
       { title: "Audit Trail", url: "/pages/secretary/barangaySettings/audit", icon: ScrollText },
     ],
   },

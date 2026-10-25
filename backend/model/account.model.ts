@@ -38,6 +38,8 @@ const AccountSchema = new Schema(
     purok: { type: String, required: false, default: "" },
     voterStatus: { type: String, required: false, default: "" },
     houseHoldNumber: { type: String, required: false, default: "" },
+    // Self-reported monthly salary in PHP (mirrors ResidentCensus.monthlySalary).
+    monthlySalary: { type: Number, required: false, default: 0, min: 0 },
     idType: {
       type: String,
       enum: ["national_id", "voters_id"],

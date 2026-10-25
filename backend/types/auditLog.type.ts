@@ -5,6 +5,7 @@ export type AuditEntity =
   | "decisionSupport"
   | "recommendationFeedback"
   | "residentCensus"
+  | "programEnrollment"
   | "analyticsSnapshot"
   | "documentTemplate"
   | "workRequest"
